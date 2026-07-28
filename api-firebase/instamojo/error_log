@@ -1,0 +1,6 @@
+[09-Aug-2021 11:08:22 UTC] PHP Warning:  Use of undefined constant turl - assumed 'turl' (this will throw an Error in a future version of PHP) in /home1/spidecw8/public_html/thinai_organics/api-firebase/instamojo/access_token.php on line 55
+[09-Aug-2021 11:08:22 UTC] PHP Warning:  A non-numeric value encountered in /home1/spidecw8/public_html/thinai_organics/api-firebase/instamojo/access_token.php on line 55
+[09-Aug-2021 11:09:30 UTC] PHP Warning:  Use of undefined constant turl - assumed 'turl' (this will throw an Error in a future version of PHP) in /home1/spidecw8/public_html/thinai_organics/api-firebase/instamojo/access_token.php on line 56
+[09-Aug-2021 11:09:30 UTC] PHP Warning:  A non-numeric value encountered in /home1/spidecw8/public_html/thinai_organics/api-firebase/instamojo/access_token.php on line 56
+[09-Aug-2021 11:09:33 UTC] PHP Warning:  Use of undefined constant turl - assumed 'turl' (this will throw an Error in a future version of PHP) in /home1/spidecw8/public_html/thinai_organics/api-firebase/instamojo/access_token.php on line 56
+[09-Aug-2021 11:09:33 UTC] PHP Warning:  A non-numeric value encountered in /home1/spidecw8/public_html/thinai_organics/api-firebase/instamojo/access_token.php on line 56
