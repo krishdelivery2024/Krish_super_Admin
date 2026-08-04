@@ -44,7 +44,7 @@
 			
 			<div class="frm-input"><input type="text"  name="email" id="email" placeholder="Email / Mobile" class="frm-inp"></div>
 			
-			<!--<div class="frm-input"><div class="g-recaptcha" data-sitekey="6Lf6wnQtAAAAAKZNYgA1OmE5h4bynravDsmxNzMm"></div></div>-->
+			<!--<div class="frm-input"><div class="g-recaptcha" data-sitekey="6Lf62XQtAAAAAIV0ZAxRP1cdh5BbsSe9-VyQCec-"></div></div>-->
 			
 			<!-- /.frm-input -->
 			<button id="sign-in-button" class="frm-submit">Forgot Password</button>

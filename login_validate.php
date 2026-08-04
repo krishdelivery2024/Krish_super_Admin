@@ -67,7 +67,7 @@ session_start();
 								$error['message'] = "<span class='label label-danger'>Please Verify Captcha</span>";
 								echo json_encode($error);die;
 							}
-							$secret_key = "6Lf6wnQtAAAAANBPPdSyo9dnZZaGTgX9a2cpksqk";
+							$secret_key = "6Lf62XQtAAAAAN5SDv0otSwhkvOiN9_FkDB19wk0";
 							$url = "https://www.google.com/recaptcha/api/siteverify?secret=".$secret_key."&response=".$_POST['captcha'];
 							if(function_exists('curl_init')){
 								$ch = curl_init();
