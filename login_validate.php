@@ -61,10 +61,30 @@ session_start();
     				$error['mobile'] = $res[0]['mobile'];
     				$error['user'] = $username;
     				if(isset($_POST['is_login']) || !isset($settings['two_auth'])){
-						if(!isset($settings['two_+auth']) && ($_POST['captcha']=='')){
-							$error['logged_in']=0;
-							$error['message'] = "<span class='label label-danger'>Please Verify Captcha</span>";
-							echo json_encode($error);die;
+						if(!isset($settings['two_auth'])){
+							if(empty($_POST['captcha'])){
+								$error['logged_in']=0;
+								$error['message'] = "<span class='label label-danger'>Please Verify Captcha</span>";
+								echo json_encode($error);die;
+							}
+							$secret_key = "6Lf6wnQtAAAAANBPPdSyo9dnZZaGTgX9a2cpksqk";
+							$url = "https://www.google.com/recaptcha/api/siteverify?secret=".$secret_key."&response=".$_POST['captcha'];
+							if(function_exists('curl_init')){
+								$ch = curl_init();
+								curl_setopt($ch, CURLOPT_URL, $url);
+								curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+								curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+								$verify_response = curl_exec($ch);
+								curl_close($ch);
+							} else {
+								$verify_response = file_get_contents($url);
+							}
+							$response_data = json_decode($verify_response);
+							if(!$response_data || !$response_data->success){
+								$error['logged_in']=0;
+								$error['message'] = "<span class='label label-danger'>Captcha Verification Failed</span>";
+								echo json_encode($error);die;
+							}
 						}
     				    $secretkey=rand();
     					$_SESSION['id'] = $res[0]['id'];
