@@ -107,7 +107,7 @@
 			</div>
 			</div>
 			<p id="message"></p>
-			<div class="frm-footer text-center">SpiderIndia © <?=date('Y')?>.</div>
+			<div class="frm-footer text-center"><?=$settings['app_name']?> © <?=date('Y')?>.</div>
 			<!-- /.footer -->
 		</div>
 		<!-- .inside -->

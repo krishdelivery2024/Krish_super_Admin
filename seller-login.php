@@ -81,7 +81,7 @@
 			<div class="text-center">
                 <p>Don't have an account? <a href="seller-register.php">Register here</a></p>
             </div>
-			<div class="frm-footer text-center">SpiderIndia © <?=date('Y')?>.</div>
+			<div class="frm-footer text-center"><?=$settings['app_name']?> © <?=date('Y')?>.</div>
 		<!-- .inside -->
 	<!--</form>-->
 	</div>
