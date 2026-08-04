@@ -76,7 +76,7 @@
 			<!-- /.frm-input -->
 			<div class="frm-input"><input type="password" name="password" id="password" placeholder="Password" class="frm-inp"><i class="fa fa-lock frm-ico" required></i></div>
 			<?php if (!isset($settings['two_auth'])) {
-				echo '<div class="frm-input"><div class="g-recaptcha" data-sitekey="6Lf6wnQtAAAAAKZNYgA1OmE5h4bynravDsmxNzMm"></div></div>';
+				echo '<div class="frm-input"><div class="g-recaptcha" data-sitekey="6Lf62XQtAAAAAIV0ZAxRP1cdh5BbsSe9-VyQCec-"></div></div>';
 			}?>
 			
 			<div class="clearfix margin-bottom-20">
