@@ -88,12 +88,24 @@ fclose($myfile);
 //     $function->send_order_confirmation(1);
 // }
 
+if (!function_exists('log_order_debug')) {
+    function log_order_debug($message) {
+        $myfile = fopen("order_debug.log", "a");
+        if ($myfile) {
+            fwrite($myfile, date('Y-m-d H:i:s') . " - " . $message . "\n");
+            fclose($myfile);
+        }
+    }
+}
+
 
 if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['product_variant_id'])){
     if(!verify_token()){
         return false;
     }
 	// echo "test";
+    
+    log_order_debug("Start processing place_order request for user: " . $_POST['user_id']);
 
     // $user_name = $db->escapeString($_POST['user_name']);
 	$user_id = $db->escapeString($function->xss_clean($_POST['user_id']));
@@ -194,6 +206,7 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 	);
 	$db->insert('orders',$data);
 	$order_id = $db->getResult()[0];
+    log_order_debug("Order inserted successfully. Order ID: " . $order_id);
 	//print_r($order_id);die;
 	
 	$sub_total = 0;
@@ -330,9 +343,18 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 			$message = "New order ID : #".$response['order_id']." received please take note of it and proceed further";
 			//send_email($support_email,$subject,$message);
 			//$function->send_new_order_notification("New Order Received",$message,'order',$store_id);
-			$function->send_new_order_notification("New Order Received",$message,'order');
+            log_order_debug("Attempting to send new order notification...");
+            try {
+			    $function->send_new_order_notification("New Order Received",$message,'order');
+                log_order_debug("Successfully sent new order notification.");
+            } catch (Exception $e) {
+                log_order_debug("Exception in send_new_order_notification: " . $e->getMessage());
+            } catch (Error $e) {
+                log_order_debug("Error in send_new_order_notification: " . $e->getMessage());
+            }
 			// sendSms($mobile,$message,$country_code);
 			}
+            log_order_debug("Order placement finished. Sending response.");
 			print_r(json_encode($response));
 		}else{
 			$response['error'] = "true";
