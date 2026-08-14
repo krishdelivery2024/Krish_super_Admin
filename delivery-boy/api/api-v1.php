@@ -6,8 +6,8 @@ header("Cache-Control: no-store, no-cache, must-revalidate");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
 header('Access-Control-Allow-Origin: *');
-
-
+ 
+ 
 // include_once('../../api-firebase/send-email.php');
 include_once('../../includes/crud.php');
 include_once('../../includes/custom-functions.php');
@@ -20,7 +20,7 @@ include_once('../../api-firebase/send-sms.php');
 $config = $fn->get_configurations();
 $settings = $fn->get_settings('system_timezone',true);
 $app_name = $settings['app_name'];
-
+ 
 /* 
 -------------------------------------------
 APIs for Delivery Boys
@@ -36,32 +36,11 @@ APIs for Delivery Boys
 9. update_delivery_boy_fcm_id
 10. check_delivery_boy_by_mobile
 -------------------------------------------
-
+ 
 -------------------------------------------
-
+ 
 */
-
-function calculateDistance($lat1, $lon1, $lat2, $lon2) {
-    if(empty($lat1) || empty($lon1) || empty($lat2) || empty($lon2)){
-        return 0;
-    }
-
-    $earth_radius = 6371; // KM
-
-    $dLat = deg2rad($lat2 - $lat1);
-    $dLon = deg2rad($lon2 - $lon1);
-
-    $a = sin($dLat/2) * sin($dLat/2) +
-         cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
-         sin($dLon/2) * sin($dLon/2);
-
-    $c = 2 * atan2(sqrt($a), sqrt(1-$a));
-    $distance = $earth_radius * $c;
-
-    return round($distance,2); // KM
-}
-
-
+ 
 //print_r($_POST);die;
 $accesskey = $db->escapeString($fn->xss_clean($_POST['accesskey']));
 if($access_key != $accesskey){
@@ -71,7 +50,7 @@ if($access_key != $accesskey){
 	return false;
 	exit();
 }
-
+ 
 if(isset($_POST['login'])){
      /* 
     1.Login
@@ -95,7 +74,7 @@ if(isset($_POST['login'])){
     	return false;
     	exit();
     }
-
+ 
     
     $mobile = $db->escapeString(trim($fn->xss_clean($_POST['mobile'])));
     $password = md5($_POST['password']);
@@ -111,10 +90,9 @@ if(isset($_POST['login'])){
 	        $response['message'] = "It seems your acount is not active please contact admin for more info!"; 
 	        $response['data'] = array();
 		}else{
-		    /* update fcm_id in delivery boy table */
 		    $delivery_boy_id = $res[0]['id'];
-		    //$fcm_id = (isset($_POST['fcm_id']) && !empty($_POST['fcm_id'])) ? $db->escapeString($fn->xss_clean($_POST['fcm_id'])):"";
-		    $fcm_id = $fn->generateBeamsToken('DB'.$res[0]['id']);
+		    $fcm_id = (isset($_POST['fcm_id']) && !empty($_POST['fcm_id'])) ? $db->escapeString($fn->xss_clean($_POST['fcm_id'])):"";
+		  //  $fcm_id = $fn->generateBeamsToken('DB'.$res[0]['id']);
 			if(!empty($fcm_id)){
 			    $sql1 = "update delivery_boys set `fcm_id` ='$fcm_id' where id = '".$delivery_boy_id."'";
 			    $db->sql($sql1);
@@ -143,20 +121,20 @@ if(isset($_POST['login'])){
 			}
 		}
 	}
-
+ 
 	print_r(json_encode($response));die;
 }else {
 	$response['error'] = true;
 	$response['message'] = "Invalid Call of API!";
 }
-
-
+ 
+ 
 /* 
 ---------------------------------------------------------------------------------------------------------
 */
-
+ 
 if(isset($_POST['login_with_mobile'])){
-
+ 
     if(empty(trim($_POST['mobile']))){
         $response['error'] = true;
     	$response['message'] = "Mobile should be filled!";
@@ -164,7 +142,7 @@ if(isset($_POST['login_with_mobile'])){
     	return false;
     	exit();
     }
-
+ 
     
     $mobile = $db->escapeString(trim($fn->xss_clean($_POST['mobile'])));
     $sql = "SELECT * FROM delivery_boys	WHERE mobile = '".$mobile."'";
@@ -180,30 +158,36 @@ if(isset($_POST['login_with_mobile'])){
 	        $response['data'] = array();
 		}else{
 			
-			// $otpno = generateOTP(6);
-			$otpno = 555555;
+			$otpno = rand(111111,999999);
 			$recipients="91".trim($mobile);
-			$messagetext="Your OTP for $app_name is ".$otpno.". Please do not share this OTP.";
-			$template_id="1407168862906996721";
-
+ 
+			$messagetext = "Hello Partner, your OTP for Krish Delivery login is " . $otpno . ". Ride safe!";
+			$template_id = "1207178368065673587";
+ 
 			$sms_limit_query = "SELECT value FROM settings WHERE variable = 'sms_count'";
 			$db->sql($sms_limit_query);
 			$sms_result = $db->getResult();
 			$sms_count = !empty($sms_result) ? intval($sms_result[0]['value']) : 0;
-			$sms_max_limit_count = sms_max_limit_count; // Change this to your actual SMS limit
-
-			// Check SMS limit before sending
+			$sms_max_limit_count = sms_max_limit_count;
+ 
 			if ($sms_count >= $sms_max_limit_count) {
 				echo json_encode(["error" => true, "message" => "SMS limit reached. Please try again later."]);           
 				exit;
 			}
-
+ 
 		    $delivery_boy_id = $res[0]['id'];
-
+ 
 			    $sql1 = "update delivery_boys set `otp`='$otpno' where id = '".$delivery_boy_id."'";
 			    $db->sql($sql1);
+ 
+				sendSmsCommon($recipients, $messagetext, $template_id);
+ 
+				$sms_count++;
+				$update_sms_count_sql = "UPDATE settings SET value = '" . intval($sms_count) . "' WHERE variable = 'sms_count'";
+				$db->sql($update_sms_count_sql);
+				$db->getResult();
+ 
 			    $db->disconnect(); 
-				// sendSmsCommon($recipients, $messagetext, $template_id);
 			
 			$response['error'] = false;
             $response['message'] = "Login Susseccfully";
@@ -212,7 +196,7 @@ if(isset($_POST['login_with_mobile'])){
 			$response['error'] = true;
 			$response['message'] = "Invalid Mobile, Try again.";		
 	}
-
+ 
 	print_r(json_encode($response));die;
 }else {
 	$response['error'] = true;
@@ -223,7 +207,7 @@ if(isset($_POST['login_with_mobile'])){
 ---------------------------------------------------------------------------------------------------------
 */
 if(isset($_POST['otp_verify'])){
-
+ 
     if(empty(trim($_POST['mobile']))){
         $response['error'] = true;
     	$response['message'] = "Mobile should be filled!";
@@ -231,7 +215,7 @@ if(isset($_POST['otp_verify'])){
     	return false;
     	exit();
     }
-
+ 
 	if(empty(trim($_POST['otp']))){
         $response['error'] = true;
     	$response['message'] = "OTP should be filled!";
@@ -239,10 +223,11 @@ if(isset($_POST['otp_verify'])){
     	return false;
     	exit();
     }
-
+ 
     
     $mobile = $db->escapeString(trim($fn->xss_clean($_POST['mobile'])));
 	$otp = $db->escapeString(trim($fn->xss_clean($_POST['otp'])));
+	
     $sql = "SELECT * FROM delivery_boys	WHERE mobile = '".$mobile."' AND otp = '".$otp."'";
 	$db->sql($sql);
 	$res=$db->getResult();
@@ -255,10 +240,11 @@ if(isset($_POST['otp_verify'])){
 	        $response['message'] = "It seems your acount is not active please contact admin for more info!"; 
 	        $response['data'] = array();
 		}else{		
-
-
+ 
+ 
 		    $delivery_boy_id = $res[0]['id'];
-		    $fcm_id = $fn->generateBeamsToken('DB'.$res[0]['id']);
+		  //  $fcm_id = $fn->generateBeamsToken('DB'.$res[0]['id']);
+		    $fcm_id = (isset($_POST['fcm_id']) && !empty($_POST['fcm_id'])) ? $db->escapeString($fn->xss_clean($_POST['fcm_id'])):"";
 			if(!empty($fcm_id)){
 			    $sql1 = "update delivery_boys set `fcm_id` ='$fcm_id',`otp`='' where id = '".$delivery_boy_id."'";
 			    $db->sql($sql1);
@@ -274,7 +260,7 @@ if(isset($_POST['otp_verify'])){
 			$response['error'] = true;
 			$response['message'] = "Invalid Mobile Or OTP, Try again.";		
 	}
-
+ 
 	print_r(json_encode($response));die;
 }else {
 	$response['error'] = true;
@@ -398,8 +384,16 @@ if(isset($_POST['get_orders_by_delivery_boy_id'])){
     
     $id = ( isset($_POST['id']) && !empty(trim($_POST['id'])) && is_numeric($_POST['id']) ) ? $db->escapeString(trim($fn->xss_clean($_POST['id']))) : '';
     
+    // Accept both 'latitude' and correctly-spelled/misspelled longitude keys
     $deliveryboylatitude = ( isset($_POST['latitude']) && !empty(trim($_POST['latitude'])) && is_numeric($_POST['latitude']) ) ? $db->escapeString(trim($fn->xss_clean($_POST['latitude']))) : '';
-    $deliveryboylongtitude = ( isset($_POST['longtitude']) && !empty(trim($_POST['longtitude'])) && is_numeric($_POST['longtitude']) ) ? $db->escapeString(trim($fn->xss_clean($_POST['longtitude']))) : '';
+
+    if (isset($_POST['longitude']) && !empty(trim($_POST['longitude'])) && is_numeric($_POST['longitude'])) {
+        $deliveryboylongtitude = $db->escapeString(trim($fn->xss_clean($_POST['longitude'])));
+    } elseif (isset($_POST['longtitude']) && !empty(trim($_POST['longtitude'])) && is_numeric($_POST['longtitude'])) {
+        $deliveryboylongtitude = $db->escapeString(trim($fn->xss_clean($_POST['longtitude'])));
+    } else {
+        $deliveryboylongtitude = '';
+    }
     
     $order_id = ( isset($_POST['order_id']) && !empty(trim($_POST['order_id'])) && is_numeric($_POST['order_id']) ) ? $db->escapeString(trim($fn->xss_clean($_POST['order_id']))) : '';
     $where = '';
@@ -614,12 +608,9 @@ if(isset($_POST['get_orders_by_delivery_boy_id'])){
         $seller_latitude = $row['seller_latitude'];
         $seller_longitude = $row['seller_longitude'];
 		
-// 		$seller_latitude = 13.022845632877669;
-// 		$seller_longitude = 80.22472045171806;
-        
         if(isset($_POST['status'])){
     
-            // STATUS = NEW
+            // STATUS = NEW -> distance between delivery boy (live) and seller (pickup point)
             if($_POST['status'] == 'new'){
         
                 $distance = calculateDistance(
@@ -630,16 +621,27 @@ if(isset($_POST['get_orders_by_delivery_boy_id'])){
                 );
             }
         
-            // STATUS = ACTIVE
+            // STATUS = ACTIVE -> distance between delivery boy (live) and customer (drop point)
+            // NOTE: previously this used seller_lat/lng -> user_lat/lng, which meant
+            // every delivery boy on the same order showed the same distance, regardless
+            // of where they actually were. Changed to use the delivery boy's live location.
             if($_POST['status'] == 'active'){
     
                 $distance = calculateDistance(
-                    $seller_latitude, 
-                    $seller_longitude,
+                    $deliveryboylatitude,
+                    $deliveryboylongtitude,
                     $row['user_latitude'],
                     $row['user_longitude']
                 );
             }
+        } elseif (!empty($deliveryboylatitude) && !empty($deliveryboylongtitude)) {
+            // Fallback for any other/unspecified status: still compute delivery boy -> customer distance
+            $distance = calculateDistance(
+                $deliveryboylatitude,
+                $deliveryboylongtitude,
+                $row['user_latitude'],
+                $row['user_longitude']
+            );
         }
         
 
@@ -689,6 +691,27 @@ if(isset($_POST['get_orders_by_delivery_boy_id'])){
     $response_data['data'] = $rows1;
 
     print_r(json_encode($response_data));die;
+}
+
+function calculateDistance($lat1, $lon1, $lat2, $lon2) {
+    // Use strict emptiness checks instead of empty(), since empty(0) is true in PHP
+    // and would wrongly reject valid 0-degree coordinates (equator / prime meridian).
+    if ($lat1 === '' || $lat1 === null || !is_numeric($lat1) ||
+        $lon1 === '' || $lon1 === null || !is_numeric($lon1) ||
+        $lat2 === '' || $lat2 === null || !is_numeric($lat2) ||
+        $lon2 === '' || $lon2 === null || !is_numeric($lon2)) {
+        return 0;
+    }
+
+    $earth_radius = 6371; // KM
+    $dLat = deg2rad($lat2 - $lat1);
+    $dLon = deg2rad($lon2 - $lon1);
+    $a = sin($dLat/2) * sin($dLat/2) +
+         cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
+         sin($dLon/2) * sin($dLon/2);
+    $c = 2 * atan2(sqrt($a), sqrt(1-$a));
+    $distance = $earth_radius * $c;
+    return round($distance, 2); // KM
 }
 
 /*

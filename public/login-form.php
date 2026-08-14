@@ -107,7 +107,7 @@
 			<button type="submit" name="btnLogin" onclick="otp_sent()" class="frm-submit">Submit OTP<i class="fa fa-arrow-circle-right"></i></button>
 			</div>
 			
-			<div class="frm-footer text-center"><?=$settings['app_name']?> © <?=date('Y')?>.</div>
+			<div class="frm-footer text-center">SpiderIndia © <?=date('Y')?>.</div>
 			<!-- /.footer -->
 		</div>
 		<!-- .inside -->

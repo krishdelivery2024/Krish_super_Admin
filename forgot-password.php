@@ -44,7 +44,7 @@
 			
 			<div class="frm-input"><input type="text"  name="email" id="email" placeholder="Email / Mobile" class="frm-inp"></div>
 			
-			<!--<div class="frm-input"><div class="g-recaptcha" data-sitekey="6LfQ3XQtAAAAAA9fiaaaVfJ37PDtUhp-rY_a_nOG"></div></div>-->
+			<!--<div class="frm-input"><div class="g-recaptcha" data-sitekey="6Lcs3cQZAAAAAH9nBGhc2lEb3GmYOaqnQYn5YcFA"></div></div>-->
 			
 			<!-- /.frm-input -->
 			<button id="sign-in-button" class="frm-submit">Forgot Password</button>
@@ -61,7 +61,7 @@
 			</div>
 			
 			<p id="message"></p>
-			<div class="frm-footer text-center"><?=$settings['app_name']?> © <?=date('Y')?>.</div>
+			<div class="frm-footer text-center">SpiderIndia © <?=date('Y')?>.</div>
 			<!-- /.footer -->
 		</div>
 		<!-- .inside -->
