@@ -88,14 +88,26 @@ fclose($myfile);
 // if(isset($_POST['testing'])){
 //     $function->send_order_confirmation(1);
 // }
- 
- 
+
+if (!function_exists('log_order_debug')) {
+    function log_order_debug($message) {
+        $myfile = fopen("order_debug.log", "a");
+        if ($myfile) {
+            fwrite($myfile, date('Y-m-d H:i:s') . " - " . $message . "\n");
+            fclose($myfile);
+        }
+    }
+}
+
+
 if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['product_variant_id'])){
     if(!verify_token()){
         return false;
     }
 	// echo "test";
- 
+    
+    log_order_debug("Start processing place_order request for user: " . $_POST['user_id']);
+
     // $user_name = $db->escapeString($_POST['user_name']);
 	$user_id = $db->escapeString($function->xss_clean($_POST['user_id']));
 	$seller_id = $db->escapeString($function->xss_clean($_POST['seller_id']));
@@ -191,6 +203,8 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 	);
 	$db->insert('orders',$data);
 	$order_id = $db->getResult()[0];
+    log_order_debug("Order inserted successfully. Order ID: " . $order_id);
+	//print_r($order_id);die;
 	
 	$sub_total = 0;
 	
@@ -323,44 +337,23 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 			error_log('Order #' . $order_id . ' saved successfully. Raw payment_method received=' . var_export($payment_method, true));
  
 			
- 
-			error_log('FCM push block reached for order #' . $order_id
-				. ' | payment_method=' . var_export($payment_method, true)
-				. ' | user_id=' . var_export($user_id, true)
-				. ' | seller_id=' . var_export($seller_id, true));
- 
-			$fcm_service_account = get_firebase_service_account();
-			$fcm_access_token = get_fcm_access_token($fcm_service_account);
- 
-			if ($fcm_access_token !== null) {
-				list($cust_ok, $cust_detail) = fcm_push_to_table(
-					$db,
-					'users',
-					$user_id,
-					'Order Placed',
-					'Your order #' . $order_id . ' has been placed successfully.',
-					$fcm_service_account,
-					$fcm_access_token
-				);
-				if (!$cust_ok) {
-					error_log('Customer order-placed push not delivered (user_id=' . $user_id . '): ' . $cust_detail);
-				}
- 
-				list($seller_ok, $seller_detail) = fcm_push_to_table(
-					$db,
-					'seller',
-					$seller_id,
-					'New Order Received',
-					'You have received a new order #' . $order_id . '.',
-					$fcm_service_account,
-					$fcm_access_token
-				);
-				if (!$seller_ok) {
-					error_log('Seller new-order push not delivered (seller_id=' . $seller_id . '): ' . $seller_detail);
-				}
-			} else {
-				error_log('FCM push skipped for order #' . $order_id . ': could not obtain access token (check firebase-service-account.json).');
+            // $message = "Hello, Dear ".ucwords($res[0]['name']).", We have received your order successfully. Your order is being processed. ";
+            $subject = "New order placed for $app_name";
+			$message = "New order ID : #".$response['order_id']." received please take note of it and proceed further";
+			//send_email($support_email,$subject,$message);
+			//$function->send_new_order_notification("New Order Received",$message,'order',$store_id);
+            log_order_debug("Attempting to send new order notification...");
+            try {
+			    $function->send_new_order_notification("New Order Received",$message,'order');
+                log_order_debug("Successfully sent new order notification.");
+            } catch (Exception $e) {
+                log_order_debug("Exception in send_new_order_notification: " . $e->getMessage());
+            } catch (Error $e) {
+                log_order_debug("Error in send_new_order_notification: " . $e->getMessage());
+            }
+			// sendSms($mobile,$message,$country_code);
 			}
+            log_order_debug("Order placement finished. Sending response.");
 			print_r(json_encode($response));
 		}else{
 			$response['error'] = "true";
