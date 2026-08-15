@@ -16,6 +16,7 @@ include_once('../api-firebase/verify-token.php');
     $db->connect();
     include_once('../includes/custom-functions.php');
     $fn = new custom_functions;
+    include_once('send-sms.php');
     date_default_timezone_set('Asia/Kolkata');
    /* accesskey:90336
     mobile:9974692496
@@ -41,15 +42,21 @@ if(isset($_POST['mobile']) && isset($_POST['seller_login'])){
 			$res=$db->getResult();
 			$num = $db->numRows($res);
 				if($num == 1){
-                    $otpno = rand(987654,123456);
-                    $otpno ="555555";
+                    
+                    $otpno = rand(111111,999999);
 
                     $recipients="91".trim($mobile);
-                    $messagetext="Your OTP for Krish Delivery is ".$otpno.". Please do not share this OTP.";
-                    $template_id="1407168862906996721";
+
+                   
+                    $messagetext = "Your OTP for Krish Delivery Seller app login is " . $otpno . " . For security, do not share this code with anyone.";
+                    $template_id = "1207178368708352085";
+
                     $sql = 'UPDATE `seller` SET `otp`="'.$otpno.'" WHERE `mobile`="'.$mobile.'"';
 		            $db->sql($sql);
-    		        // sendSmsCommon($recipients, $messagetext, $template_id);
+
+		           
+    		        sendSmsCommon($recipients, $messagetext, $template_id);
+
     				$response['error']=false;
     				$response['message'] = "OTP Sent Successful!";
     				
@@ -64,6 +71,7 @@ if(isset($_POST['mobile']) && isset($_POST['seller_login'])){
 elseif(isset($_POST['mobile']) &&  isset($_POST['otp']) && isset($_POST['seller_otp_verify'])){
 		$mobile = $fn->xss_clean($_POST['mobile']);		
         $otp = $fn->xss_clean($_POST['otp']);	
+        $fcm_id = isset($_POST['fcm_id']) ? $fn->xss_clean($_POST['fcm_id']) : '';
 		$response = array();
 		if(!empty($mobile)){
 			$sql_query = "SELECT * FROM seller WHERE mobile = '".$mobile."' AND  otp = '".$otp."' AND status = '1'";
@@ -72,7 +80,7 @@ elseif(isset($_POST['mobile']) &&  isset($_POST['otp']) && isset($_POST['seller_
 			$num = $db->numRows($res);
 				if($num == 1){
 
-                    $sql = 'UPDATE `seller` SET `otp`="" WHERE `mobile`="'.$mobile.'"';
+                    $sql = "UPDATE seller SET otp='', fcm_id='$fcm_id' WHERE mobile='$mobile'";
 		            $db->sql($sql);
 
     				$response['error']=false;
@@ -92,7 +100,6 @@ elseif(isset($_POST['mobile']) &&  isset($_POST['otp']) && isset($_POST['seller_
 elseif (isset($_POST['seller_register'])) {
     $response = array();
 
-    // Sanitize inputs (XSS clean + escape)
     $name = $db->escapeString($fn->xss_clean($_POST['name'] ?? ''));
     $mobile = $db->escapeString($fn->xss_clean($_POST['mobile'] ?? ''));
     $email = $db->escapeString($fn->xss_clean($_POST['email'] ?? ''));
@@ -112,7 +119,6 @@ elseif (isset($_POST['seller_register'])) {
     $status = 0;
     $date_created = date('Y-m-d H:i:s');
 
-    // Validate required fields
     if (
         empty($name) || empty($mobile) || empty($email) || empty($main_cat_id) ||
         empty($company_name) || empty($company_legal_name) ||
@@ -122,21 +128,18 @@ elseif (isset($_POST['seller_register'])) {
         exit;
     }
 
-    // Check duplicate mobile
     $db->sql("SELECT id FROM seller WHERE mobile = '$mobile'");
     if ($db->numRows($db->getResult()) > 0) {
         echo json_encode(["error" => true, "message" => "Mobile number already registered. Please login."]);
         exit;
     }
 
-    // Check duplicate email
     $db->sql("SELECT id FROM seller WHERE email = '$email'");
     if ($db->numRows($db->getResult()) > 0) {
         echo json_encode(["error" => true, "message" => "Email address already registered. Please login."]);
         exit;
     }
 
-    // Handle file upload (image + banner)
     $target_dir = "upload/sellers/";
     if (!is_dir($target_dir)) mkdir($target_dir, 0777, true);
 
@@ -160,7 +163,6 @@ elseif (isset($_POST['seller_register'])) {
         }
     }
 
-    // Insert into DB
     $seller_data = [
         'name' => $name,
         'mobile' => $mobile,
@@ -195,7 +197,6 @@ elseif (isset($_POST['seller_register'])) {
 
 elseif(isset($_POST['username']) && $_POST['username'] != '' && isset($_POST['password']) && $_POST['password'] != '') {
 
-    // get username and password
     $username    = $db->escapeString($fn->xss_clean($_POST['username']));
     $password    = $db->escapeString($fn->xss_clean($_POST['password']));
     $secretkey    = !empty($_POST['secretkey'])?$db->escapeString($fn->xss_clean($_POST['secretkey'])):'';
@@ -203,13 +204,9 @@ elseif(isset($_POST['username']) && $_POST['username'] != '' && isset($_POST['pa
     // $currentTime = time() + 25200;
     // $expired     = 3600;
 	$response = array();
-    // if username and password is not empty, check in database
     if (!empty($username) && !empty($password)) {
-        // change username to lowercase
         // $mobile  = strtolower($mobile);
-        // encript password to sha256
         $password  = md5($password);
-        // get data from user table
         $sql_query = "SELECT * FROM `admin` WHERE `username` = '".$username."' AND `password` ='".($password)."' AND role='super admin' AND applicable_for='app'";
         $db->sql($sql_query);
         $result=$db->getResult();
