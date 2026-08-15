@@ -91,10 +91,13 @@ fclose($myfile);
 
 if (!function_exists('log_order_debug')) {
     function log_order_debug($message) {
-        $myfile = fopen("order_debug.log", "a");
+        $logPath = __DIR__ . "/order_debug.log";
+        $myfile = fopen($logPath, "a");
         if ($myfile) {
             fwrite($myfile, date('Y-m-d H:i:s') . " - " . $message . "\n");
             fclose($myfile);
+        } else {
+            error_log("Could not open order_debug.log at " . $logPath);
         }
     }
 }
