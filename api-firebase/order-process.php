@@ -91,7 +91,7 @@ fclose($myfile);
 
 if (!function_exists('log_order_debug')) {
     function log_order_debug($message) {
-        $logPath = __DIR__ . "/order_debug.log";
+        $logPath = "order_debug.log";
         $myfile = fopen($logPath, "a");
         if ($myfile) {
             fwrite($myfile, date('Y-m-d H:i:s') . " - " . $message . "\n");
@@ -101,10 +101,14 @@ if (!function_exists('log_order_debug')) {
         }
     }
 }
+log_order_debug("Test log: log_order_debug function is accessible and writable");
+
 
 
 if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['product_variant_id'])){
+    log_order_debug("Incoming place_order condition met for user: " . $_POST['user_id']);
     if(!verify_token()){
+        log_order_debug("verify_token failed!");
         return false;
     }
 	// echo "test";
@@ -367,6 +371,7 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 		}
  
 }elseif(isset($_POST['place_order']) && isset($_POST['user_id']) && empty(json_decode($function->xss_clean($_POST['product_variant_id'])))){
+    log_order_debug("Incoming place_order condition met but product_variant_id is empty/invalid for user: " . $_POST['user_id']);
 	$response['error'] = "true";
 	$response['message'] = "Order without items in cart can not be placed!";
 	$response['order_id'] = 0;
