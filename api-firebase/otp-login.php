@@ -31,7 +31,7 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'verify-user')) {
     }
 	$mobile = $db->escapeString($_POST['mobile']);
     $country_code  	= (isset($_POST['country_code']))?$db->escapeString($_POST['country_code']):"";
-	//$fcm_id  	= (isset($_POST['fcm_id']))?$db->escapeString($_POST['fcm_id']):"";
+// 	$fcm_id  	= (isset($_POST['fcm_id']))?$db->escapeString($_POST['fcm_id']):"";
 	$fcm_id = '';
 	$api_key 	= (isset($_POST['api_key']))?$db->escapeString($_POST['api_key']):"";
 	$latitude 	= (isset($_POST['latitude']))?$db->escapeString($_POST['latitude']):"0";
@@ -43,24 +43,24 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'verify-user')) {
 		$res = $db->getResult();
 		$num_rows = $db->numRows($res);
 		
-        //$otpno = generateOTP(6);
-		if ($mobile == '7708922414' || $mobile == '7397088810') {
+		if ($mobile == '7708922414') {
             $otpno = 111222;
         } else {
             $otpno = rand(111111,999999);
         }
 		$recipients="91".trim($mobile);
-		$messagetext="Your OTP for $app_name is ".$otpno.". Please do not share this OTP.";
-		$template_id="1407168862906996721";
 
-		// Fetch SMS limit from settings
+		
+		$messagetext = "Thank You for signing up with Krish Delivery . Your OTP for login to Krish Delivery is " . $otpno . ".";
+
+		$template_id = "1207178351325943342";
+
         $sms_limit_query = "SELECT value FROM settings WHERE variable = 'sms_count'";
         $db->sql($sms_limit_query);
         $sms_result = $db->getResult();
         $sms_count = !empty($sms_result) ? intval($sms_result[0]['value']) : 0;
-        $sms_max_limit_count = sms_max_limit_count; // Change this to your actual SMS limit
+        $sms_max_limit_count = sms_max_limit_count;
 
-        // Check SMS limit before sending
         if ($sms_count >= $sms_max_limit_count) {
             echo json_encode(["error" => true, "message" => "SMS limit reached. Please try again later."]);           
             exit;
@@ -71,6 +71,13 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'verify-user')) {
 		        $sql = 'UPDATE `users` SET `otp`="'.$otpno.'" WHERE `mobile`="'.$mobile.'"';
 		        $db->sql($sql);
     		    sendSmsCommon($recipients, $messagetext, $template_id);
+
+    		    
+    		    $sms_count++;
+    		    $update_sms_count_sql = "UPDATE settings SET value = '" . intval($sms_count) . "' WHERE variable = 'sms_count'";
+    		    $db->sql($update_sms_count_sql);
+    		    $db->getResult();
+
     	        $response["error"]   = false;
     			$response["message"] = "success";
     			echo json_encode($response);
@@ -105,6 +112,13 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'verify-user')) {
     		$num_rows = $db->numRows($res);
     		if($num_rows > 0){
     		    sendSmsCommon($recipients, $messagetext, $template_id);
+
+    		    // FIXED: increment the counter here too (new-user signup path).
+    		    $sms_count++;
+    		    $update_sms_count_sql = "UPDATE settings SET value = '" . intval($sms_count) . "' WHERE variable = 'sms_count'";
+    		    $db->sql($update_sms_count_sql);
+    		    $db->getResult();
+
     		    $response["error"]   = false;
     			$response["message"] = "success";
     			echo json_encode($response);die();
@@ -152,8 +166,8 @@ if((isset($_POST['type'])) && ($_POST['type'] == 'login-user')) {
     			print_r(json_encode($response));exit;
     		}
 			 
-			//$fcm_id = (isset($_POST['fcm_id']) && !empty($_POST['fcm_id']))?$db->escapeString($fn->xss_clean($_POST['fcm_id'])):"";
-			$fcm_id = $fn->generateBeamsToken($result[0]['id']);
+			$fcm_id = (isset($_POST['fcm_id']) && !empty($_POST['fcm_id']))?$db->escapeString($fn->xss_clean($_POST['fcm_id'])):"";
+// 			$fcm_id = $fn->generateBeamsToken($result[0]['id']);
 			$last_logged=date('Y-m-d H:i:s');
 		    $sql = "UPDATE users SET `is_logged_in` = 1, `fcm_id` = '$fcm_id', `last_logged` = '$last_logged' WHERE id = ".$result[0]['id'];
             $db->sql($sql);

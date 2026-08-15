@@ -7,10 +7,11 @@ include_once('../includes/custom-functions.php');
 include_once('../includes/functions.php');
 include_once('../includes/variables.php');
 include_once('verify-token.php');
-
+include_once('../includes/fcm-helper.php');
+ 
 include_once('../api-dunzo/dunzo-api.php');
 $dunzo= new dunzo();
-
+ 
 $db = new Database();
 $db->connect();
 $db->sql("SET NAMES utf8");
@@ -50,8 +51,8 @@ $support_email = $settings['support_email'];
  */
  
 $response = array();
-
-
+ 
+ 
 if(isset($_POST['ajaxCall']) && !empty($_POST['ajaxCall'])){
     $request_type = 'webrequest';
 	$accesskey="90336";	
@@ -67,7 +68,7 @@ if(isset($_POST['ajaxCall']) && !empty($_POST['ajaxCall'])){
 	}
 	
 }
-
+ 
 if($access_key != $accesskey){
 	$response['error']= true;
 	$response['message']="invalid accesskey";
@@ -83,7 +84,7 @@ $myfile = fopen("logs.txt", "a") or die("Unable to open file!");
 $txt = json_encode($_POST);
 fwrite($myfile, "\n". $txt);
 fclose($myfile);
-
+ 
 // if(isset($_POST['testing'])){
 //     $function->send_order_confirmation(1);
 // }
@@ -146,7 +147,6 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 	}
 	$total_amount=$total+$delivery_charge-$discount;
 	
-	/* validate promo code if applied */
 	if (isset($_POST['promo_code']) && $_POST['promo_code'] != '') {
 	    $promo_code = $db->escapeString($function->xss_clean($_POST['promo_code']));
 	    $response=$function->validate_promo_code($user_id,$promo_code,$total,$seller_id);
@@ -157,16 +157,13 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 	    
 	}
 	
-	/* process wallet balance */
 	$user_wallet_balance = $function->get_wallet_balance($user_id);
 	
 	if($user_wallet_balance >= $wallet_balance && $user_wallet_balance != 0 && $wallet_used=='true'){
 	    
-	    /* deduct the balance & set the wallet transaction */
 	   // $new_balance = ($user_wallet_balance - $final_total);
 	    $new_balance = $total_amount>$user_wallet_balance?0:$user_wallet_balance - $total_amount;
 	    $function->update_wallet_balance($new_balance,$user_id);
-		/* add wallet transaction */
 		$wallet_txn_id = $function->add_wallet_transaction($user_id,'debit',$wallet_balance,'Used against Order Placement');
 	}else{
 	    $wallet_used = false;
@@ -213,7 +210,7 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 	
 	for($i=0;$i<count($item_details);$i++){
 		$product_id = $item_details[$i]['product_id'];
-
+ 
 		$measurement = $item_details[$i]['measurement'];
 		$product_variant_id = $item_details[$i]['id'];
 	
@@ -232,7 +229,7 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 		$quantity = $quantity_arr[$i];
 		
 		$sub_total=$discounted_price != 0?$discounted_price * $quantity:$price * $quantity;
-
+ 
 		$data = array(
 		    'user_id'=>$user_id,
 		    'order_id'=>$db->escapeString($order_id),
@@ -248,7 +245,7 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 		    'sub_total'=>$db->escapeString($sub_total),
 		    'status'=>$db->escapeString(json_encode($status)),
 		    'active_status' => 'received'
-
+ 
 		);
 		$db->insert('order_items',$data);
 		$res = $db->getResult();
@@ -291,7 +288,7 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 					
 							$stock=$function->convert_to_parent(($measurement*$quantity),$unit[0]['id']);
 					}
-
+ 
 					$sql = "update product_variant set stock = stock - $stock where product_id = $product_id AND type='loose'";
 				
 					$db->sql($sql);
@@ -315,7 +312,7 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 					    $sql = "update product_variant set serve_for='Sold Out' where product_id=".$product_id;
 					    $db->sql($sql);
 					}
-
+ 
 			 }
 		}
 		
@@ -323,20 +320,22 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 		$data = array(
 	        'final_total'=>$final_total
 		);
-
-		if($db->update('orders',$data,'id='.$order_id)){// Table name, column names and respective values
+ 
+		if($db->update('orders',$data,'id='.$order_id)){
 			$res = $db->getResult();
+			
+			
 			$sql = "delete from carts where user_id=".$user_id;
 			$db->sql($sql);
 			$response['error'] = "false";
 			$response['message'] = "Order placed successfully.";
 			$response['order_id'] = $order_id;
-
+ 
 			$_SESSION['checkout']=$function->xss_clean_array($_POST);
 			$_SESSION['checkout']['order_id'] = $order_id;
-			if($payment_method=='cod' || $payment_method=='wallet'|| $payment_method=='LoyaltyPoints'){
-		        $function->send_order_confirmation($order_id);
-		        //$function->whatsapp_confirmation();
+ 
+			error_log('Order #' . $order_id . ' saved successfully. Raw payment_method received=' . var_export($payment_method, true));
+ 
 			
             // $message = "Hello, Dear ".ucwords($res[0]['name']).", We have received your order successfully. Your order is being processed. ";
             $subject = "New order placed for $app_name";
@@ -363,7 +362,7 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 			$_SESSION['checkout']['order_id'] = 0;
 			print_r(json_encode($response));
 		}
-
+ 
 }elseif(isset($_POST['place_order']) && isset($_POST['user_id']) && empty(json_decode($function->xss_clean($_POST['product_variant_id'])))){
 	$response['error'] = "true";
 	$response['message'] = "Order without items in cart can not be placed!";
