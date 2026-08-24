@@ -80,10 +80,12 @@ if($access_key != $accesskey){
 //         return false;
 //     }
 // }
-$myfile = fopen("logs.txt", "a") or die("Unable to open file!");
-$txt = json_encode($_POST);
-fwrite($myfile, "\n". $txt);
-fclose($myfile);
+$myfile = @fopen("logs.txt", "a");
+if ($myfile) {
+    $txt = json_encode($_POST);
+    fwrite($myfile, "\n". $txt);
+    fclose($myfile);
+}
  
 // if(isset($_POST['testing'])){
 //     $function->send_order_confirmation(1);
