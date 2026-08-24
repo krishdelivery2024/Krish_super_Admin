@@ -123,7 +123,7 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 	$mobile = $db->escapeString($function->xss_clean($_POST['mobile']));
 	$name = $db->escapeString($function->xss_clean($_POST['name']));
 	$email = $db->escapeString($function->xss_clean($_POST['email']));
-    //	$store_id = $db->escapeString($function->xss_clean($_POST['store_id']));
+    $store_id = (isset($_POST['store_id']) && is_numeric($_POST['store_id'])) ? $db->escapeString($function->xss_clean($_POST['store_id'])) : 0;
 	$wallet_balance = (isset($_POST['wallet_balance']) && is_numeric($_POST['wallet_balance']))?$db->escapeString($function->xss_clean($_POST['wallet_balance'])):0;
 	$wallet_used = (isset($_POST['wallet_used']) && $function->xss_clean($_POST['wallet_used']) == 'true')?'true':'false';
 	$items = $db->escapeString(stripslashes($function->xss_clean($_POST['product_variant_id'])));
@@ -182,6 +182,7 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 	$data = array(
 		'user_id'=>$user_id,
 		'seller_id'=>$seller_id,
+		'store_id'=>$store_id,
 		'mobile'=>$mobile,
 		'name'=>$name,
 		'email'=>$email,
