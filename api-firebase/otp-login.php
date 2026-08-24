@@ -112,6 +112,7 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'verify-user')) {
 			    'otp' => $otpno,
 			    'latitude' => $latitude,
 			    'longitude' => $longitude,
+			    'is_logged_in' => 1,
 			    'status' => 1
 			);
 			$db->insert('users',$data);
