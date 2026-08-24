@@ -95,6 +95,16 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'verify-user')) {
         	
 		    $data = array(
 			    'name' => '',
+			    'username' => '',
+			    'email' => '',
+			    'password' => '',
+			    'dob' => '',
+			    'city' => 0,
+			    'area' => 0,
+			    'street' => '',
+			    'address' => '',
+			    'pincode' => '',
+			    'friends_code' => '',
 			    'mobile' => $mobile,
 			    'country_code' => $country_code,
 			    'fcm_id' => $fcm_id,
