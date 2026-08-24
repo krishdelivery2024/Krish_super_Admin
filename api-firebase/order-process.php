@@ -94,7 +94,7 @@ if ($myfile) {
 if (!function_exists('log_order_debug')) {
     function log_order_debug($message) {
         $logPath = "order_debug.log";
-        $myfile = fopen($logPath, "a");
+        $myfile = @fopen($logPath, "a");
         if ($myfile) {
             fwrite($myfile, date('Y-m-d H:i:s') . " - " . $message . "\n");
             fclose($myfile);
@@ -139,7 +139,7 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 	$address = $db->escapeString($function->xss_clean($_POST['address']));
 	$delivery_city = (isset($_POST['delivery_city']) && is_numeric($_POST['delivery_city']))?$db->escapeString($function->xss_clean($_POST['delivery_city'])):'';
     $delivery_state = $db->escapeString($function->xss_clean($_POST['delivery_state']));
-    $delivery_zone = (isset($_POST['delivery_zone']) && is_numeric($_POST['delivery_zone']))?$db->escapeString($function->xss_clean($_POST['delivery_zone'])):'';
+    $delivery_zone = (isset($_POST['delivery_zone']) && is_numeric($_POST['delivery_zone']))?$db->escapeString($function->xss_clean($_POST['delivery_zone'])):0;
 	$gst_no = (isset($_POST['gst_no']))?$db->escapeString($function->xss_clean($_POST['gst_no'])):"";
 	$delivery_time = (isset($_POST['delivery_time']))?$db->escapeString($function->xss_clean($_POST['delivery_time'])):"";
 	$latitude = $db->escapeString($function->xss_clean($_POST['latitude']));
