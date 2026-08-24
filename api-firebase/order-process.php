@@ -359,7 +359,6 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
                 log_order_debug("Error in send_new_order_notification: " . $e->getMessage());
             }
 			// sendSms($mobile,$message,$country_code);
-			}
             log_order_debug("Order placement finished. Sending response.");
 			print_r(json_encode($response));
 		}else{
