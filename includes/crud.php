@@ -283,6 +283,6 @@ class Database{
 
     // Escape your string
     public function escapeString($data){
-        return $this->myconn->real_escape_string((string)$data);
+        return $this->myconn->real_escape_string($data);
     }
 } 
