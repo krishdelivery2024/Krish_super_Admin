@@ -7,6 +7,8 @@ class dunzo{
 	protected $client_secret;
 	protected $d_url;
 	protected $token;
+	public $dunzo_data;
+	public $dunz;
 	
     function __construct(){
         $this->db = new Database();
