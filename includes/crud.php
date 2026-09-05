@@ -39,9 +39,9 @@ class Database{
     // private $db_name = "spiderekart_krish_delivery";  
 
     private $db_host = "localhost";
-    private $db_user = "spiderekart_krish_delivery";  
-    private $db_pass = "zeGz^BlEs~ui";  
-    private $db_name = "spiderekart_krish_delivery";    
+    private $db_user = "krishdelivery";  
+    private $db_pass = "KrishDelivery@123";  
+    private $db_name = "krishdelivery_staging";    
     
     /*
      * Extra variables that are required by other function such as boolean con variable
