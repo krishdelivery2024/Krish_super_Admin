@@ -115,6 +115,9 @@ elseif (isset($_POST['seller_register'])) {
     $account_details = $db->escapeString($fn->xss_clean($_POST['account_details'] ?? ''));
     $gst_no = $db->escapeString($fn->xss_clean($_POST['gst_no'] ?? ''));
     $pan_no = $db->escapeString($fn->xss_clean($_POST['pan_no'] ?? ''));
+     $opening_time = $db->escapeString($fn->xss_clean($_POST['opening_time'] ?? '09:00'));
+    $closing_time = $db->escapeString($fn->xss_clean($_POST['closing_time'] ?? '21:00'));
+
 
     $status = 0;
     $date_created = date('Y-m-d H:i:s');
@@ -179,6 +182,8 @@ elseif (isset($_POST['seller_register'])) {
         'account_details' => $account_details,
         'gst_no' => $gst_no,
         'pan_no' => $pan_no,
+              'opening_time' => $opening_time,
+        'closing_time' => $closing_time,
         'status' => $status,
         'image' => $image_name,
         'banner' => $banner_name,

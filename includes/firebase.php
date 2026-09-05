@@ -8,7 +8,7 @@ class Firebase {
     private $scope = 'https://www.googleapis.com/auth/firebase.messaging';
 
     public function __construct() {
-        $this->service_account_file = __DIR__ . '/firebase.json';
+               $this->service_account_file = __DIR__ . '/firebase-service-account.json';
         $this->token_cache_file     = __DIR__ . '/firebase-token-cache.json';
 
         if (!file_exists($this->service_account_file)) {
@@ -122,11 +122,17 @@ class Firebase {
             if (empty($token)) {
                 continue;
             }
-            $notif_title = $mPushNotification['title'] 
+             // Push class wraps data under 'data' key; also support flat structure
+            $push_data = !empty($mPushNotification['data']) ? $mPushNotification['data'] : $mPushNotification;
+            
+            $notif_title = $push_data['title']
+                ?? $mPushNotification['title']
                 ?? $mPushNotification['name'] 
                 ?? '';
             
-            $notif_body = $mPushNotification['body'] 
+              $notif_body = $push_data['message']
+                ?? $push_data['body']
+                ?? $mPushNotification['body']
                 ?? $mPushNotification['message'] 
                 ?? $mPushNotification['text'] 
                 ?? '';
@@ -138,7 +144,8 @@ class Firebase {
                         'title' => (string) $notif_title,
                         'body'  => (string) $notif_body
                     ],
-                    'data' => !empty($mPushNotification['data']) ? $mPushNotification['data'] : new stdClass()
+                                       'data' => !empty($mPushNotification['data']) ? array_map('strval', $mPushNotification['data']) : new stdClass()
+
                 ]
             ];
 

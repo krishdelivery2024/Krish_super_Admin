@@ -1,4 +1,6 @@
 <?php
+// Suppress PHP warnings/notices - they must not corrupt the JSON response
+error_reporting(E_ERROR | E_PARSE);
 header('Access-Control-Allow-Origin: *');
 include_once('send-email2.php');
 include_once('send-sms.php');

@@ -56,12 +56,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $account_details = $db->escapeString($_POST['account_details'] ?? '');
     $gst_no = $db->escapeString($_POST['gst_no'] ?? '');
     $pan_no = $db->escapeString($_POST['pan_no'] ?? '');
+    $opening_time = $db->escapeString($_POST['opening_time'] ?? '09:00');
+    $closing_time = $db->escapeString($_POST['closing_time'] ?? '21:00');
     $status = 0;
     $date_created = date('Y-m-d H:i:s');
 
     // Validate required fields
     if (empty($name) || empty($mobile) || empty($email) || empty($main_cat_id) || empty($company_name) || empty($company_legal_name) || empty($personal_address) || empty($city_id) || empty($area_id)) {
         $response['message'] = "Please fill in all required fields.";
+         ob_clean();
         echo json_encode($response);
         exit;
     }
@@ -69,6 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Check duplicate mobile
     $db->sql("SELECT id FROM seller WHERE mobile = '$mobile'");
     if ($db->numRows($db->getResult()) > 0) {
+           ob_clean();
         echo json_encode(["error" => true, "message" => "Mobile number already registered. Please login."]);
         exit;
     }
@@ -76,6 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Check duplicate email
     $db->sql("SELECT id FROM seller WHERE email = '$email'");
     if ($db->numRows($db->getResult()) > 0) {
+           ob_clean();
         echo json_encode(["error" => true, "message" => "Email address already registered. Please login."]);
         exit;
     }
@@ -108,13 +113,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'company_legal_name' => $company_legal_name,
         'personal_address' => $personal_address,
         'company_address' => $company_address,
-        'state_id' => $state_id,
+        'state_id' => $state_id ? $state_id : 0,
         'city_id' => $city_id,
         'area_id' => $area_id,
         'dob' => $dob,
         'account_details' => $account_details,
         'gst_no' => $gst_no,
         'pan_no' => $pan_no,
+           'opening_time' => $opening_time,
+        'closing_time' => $closing_time,
         'status' => $status,
         'image' => $image_name,
         'banner' => $banner_name,
@@ -124,6 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $db->insert('seller', $seller_data);
     $result = $db->getResult();
 
+      ob_clean();
     echo json_encode([
         "error" => false,
         "message" => "Registration successful! Please wait for admin approval."
@@ -258,7 +266,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="frm-input col-md-3">
                     <label>Company Banner <span class="required">*</span></label>
                     <input type="file" name="banner" class="frm-inp" required>
-                </div>                
+                </div>   
+                 <div class="frm-input col-md-3">
+                    <label>Opening Time <span class="required">*</span></label>
+                    <input type="time" name="opening_time" class="frm-inp" value="09:00" required>
+                </div>
+
+                <div class="frm-input col-md-3">
+                    <label>Closing Time <span class="required">*</span></label>
+                    <input type="time" name="closing_time" class="frm-inp" value="21:00" required>
+                </div>             
 
             </div>
 

@@ -64,6 +64,7 @@ if(isset($_POST['get_user_data']) && $db->escapeString($fn->xss_clean($_POST['ge
                 $response['friends_code']     = $row['friends_code'];
                 $response['apikey']     = $row['apikey'];
                 $response['status']     = $row['status'];
+                 $response['profile']     = !empty($row['profile']) ? DOMAIN_URL . $row['profile'] : '';
                 $response['created_at']     = $row['created_at'];
                 // $_SESSION['timeout'] = $currentTime + $expired;
             }

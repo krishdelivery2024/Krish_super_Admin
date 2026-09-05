@@ -209,6 +209,7 @@ if((isset($_POST['type'])) && ($_POST['type'] == 'login-user')) {
 				$response['longitude']     = (!empty($row['longitude']))?$row['longitude']:'0';
 				$response['apikey']     = $row['apikey'];
 				$response['status']     = $row['status'];
+				$response['profile']    = !empty($row['profile']) ? DOMAIN_URL . $row['profile'] : '';
 				$response['created_at']     = $row['created_at'];
 				// $_SESSION['timeout'] = $currentTime + $expired;
             }
