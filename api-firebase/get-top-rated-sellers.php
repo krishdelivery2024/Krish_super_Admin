@@ -27,7 +27,7 @@ if(isset($_POST['accesskey'])) {
 		$sql_query = "SELECT * 
 			FROM seller 
             WHERE main_cat_id ='$main_cat' AND status='1'
-			ORDER BY id ASC ";
+			ORDER BY sel_priority ASC ";
 		$db->sql($sql_query);
 		$res=$db->getResult();
 		if (!empty($res)) {

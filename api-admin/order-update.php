@@ -97,6 +97,7 @@ if(isset($_POST['id'])) {
     		    
     		    $message_delivery_boy = "Hello, Dear ".ucwords($delivery_boy_name[0]['name']).", You have new order to deliver. Here is your order ID : #".$id.". Please take a note of it.";
     		    $function->send_notification_to_delivery_boy($delivery_boy_id,"Your new order with ID : #$id has been ".ucwords($postStatus),$message_delivery_boy,'delivery_boys',$id); 
+    		    $function->store_delivery_boy_notification($delivery_boy_id,$id,"Your new order with ID : #$id has been ".ucwords($postStatus),$message_delivery_boy,'order_status');
             
     		}
     // 		$message_delivery_boy = "Hello, Dear ".ucwords($delivery_boy_name[0]['name']).", You have new order to deliver. Here is your order ID : #".$id.". Please take a note of it.";
@@ -161,9 +162,11 @@ if(isset($_POST['id'])) {
 		print_r(json_encode($response));
 		return false;
 	}
-	$sql = "SELECT sub_total FROM order_items WHERE order_id=".$id;
-	$db->sql($sql);
-	$res_query = $db->getResult();
+$sql = "SELECT SUM(sub_total) AS sub_total FROM order_items WHERE order_id=".$id;
+$db->sql($sql);
+$res_query = $db->getResult();
+
+$sub_total = (float)$res_query[0]['sub_total'];
 	$sql = "SELECT COUNT(id) as total FROM `orders` WHERE user_id=".$res[0]['user_id']." && status LIKE '%delivered%'";
 	$db->sql($sql);
 	$res_count = $db->getResult();
@@ -218,42 +221,65 @@ if(isset($_POST['id'])) {
                     }
         	    }
     	    }
-    	     if($res[0]['payment_method'] != 'cod' && $res[0]['payment_method'] !='COD'){
-    	         if($res[0]['wallet_balance']!=0 && $res[0]['payment_status'] =='0'){
-                    /* update user's wallet */
-                    $user_id = $res[0]['user_id'];
-                    // $total = $res[0]['total'];
-                    $user_wallet_balance = $function->get_wallet_balance($user_id);
-                    $new_balance = ($user_wallet_balance + $res[0]['wallet_balance']);
-                    $function->update_wallet_balance($new_balance,$user_id);
-        	        /* add wallet transaction */
-        		    $wallet_txn_id = $function->add_wallet_transaction($user_id,'credit',$sub_total,'Balance credited against item cancellation.');
-                }else{
-                	/* update user's wallet */
-                    $user_id = $res[0]['user_id'];
-                    $total = $res[0]['total']+$res[0]['delivery_charge']+$res[0]['tax_amount'];
-                    $user_wallet_balance = $function->get_wallet_balance($user_id);
-                    $new_balance = $user_wallet_balance + $total;
-                    // return false;
-                    if($res[0]['payment_method']=='wallet' OR $res[0]['payment_status']==1){
-                        $function->update_wallet_balance($new_balance,$user_id);
-                        /* add wallet transaction */
-                	    $wallet_txn_id = $function->add_wallet_transaction($user_id,'credit',$sub_total,'Balance credited against item cancellation.');
-                    }
-                }
-            }else{
-            if($res[0]['wallet_balance']!=0){
-                /* update user's wallet */
-                $user_id = $res[0]['user_id'];
-                // $total = $res[0]['total'];
-                $user_wallet_balance = $function->get_wallet_balance($user_id);
-                $new_balance = ($user_wallet_balance + $res[0]['wallet_balance']);
-                $function->update_wallet_balance($new_balance,$user_id);
-    	        /* add wallet transaction */
-    		    $wallet_txn_id = $function->add_wallet_transaction($user_id,'credit',$sub_total,'Balance credited against item cancellation.');
-            }
-                
-       }
+    	     if(
+    strtolower(trim($res[0]['payment_method'])) != 'cod' &&
+    strtolower(trim($res[0]['payment_method'])) != 'cash on delivery'
+){
+    if($res[0]['wallet_balance']!=0 && $res[0]['payment_status'] =='0'){
+        /* update user's wallet */
+        $user_id = $res[0]['user_id'];
+        $user_wallet_balance = $function->get_wallet_balance($user_id);
+        $new_balance = ($user_wallet_balance + $res[0]['wallet_balance']);
+        $function->update_wallet_balance($new_balance,$user_id);
+
+        /* add wallet transaction */
+        $wallet_txn_id = $function->add_wallet_transaction(
+            $user_id,
+            'credit',
+            $res[0]['wallet_balance'],
+            'Balance credited against item cancellation.'
+        );
+
+    }else{
+        /* update user's wallet */
+        $user_id = $res[0]['user_id'];
+
+        $total = $res[0]['total']
+               + $res[0]['delivery_charge']
+               + $res[0]['tax_amount'];
+
+        $user_wallet_balance = $function->get_wallet_balance($user_id);
+        $new_balance = $user_wallet_balance + $total;
+
+        if($res[0]['payment_method']=='wallet' OR $res[0]['payment_status']==1){
+            $function->update_wallet_balance($new_balance,$user_id);
+
+            /* add wallet transaction */
+            $wallet_txn_id = $function->add_wallet_transaction(
+                $user_id,
+                'credit',
+                $total,
+                'Balance credited against item cancellation.'
+            );
+        }
+    }
+}else{
+    if($res[0]['wallet_balance']!=0){
+        /* update user's wallet */
+        $user_id = $res[0]['user_id'];
+        $user_wallet_balance = $function->get_wallet_balance($user_id);
+        $new_balance = ($user_wallet_balance + $res[0]['wallet_balance']);
+        $function->update_wallet_balance($new_balance,$user_id);
+
+        /* add wallet transaction */
+        $wallet_txn_id = $function->add_wallet_transaction(
+            $user_id,
+            'credit',
+            $res[0]['wallet_balance'],
+            'Balance credited against item cancellation.'
+        );
+    }
+}
     	}
     	
     	if($postStatus=='delivered'){
@@ -594,7 +620,24 @@ if ($total == 0) {
     		send_email($to,$subject,$message);
     		$message = "Hello, Dear ".ucwords($res_user[0]['name']).", Here is the new update on your order for the order ID : #".$id.". Your order has been ".ucwords($postStatus).". Please take a note of it.";
     		$message .= "Thank you for using our services! Contact us for more information";
-    		// sendSms($mobile,$message,$country_code);
+    		// sendSm  // Notify delivery boy about status update if assigned
+			
+            if ($res[0]['delivery_boy_id'] != 0 && (!isset($_POST['delivery_boy_id']) || empty($_POST['delivery_boy_id']))) {
+                $sql_dboy = "select name from delivery_boys where id='".$res[0]['delivery_boy_id']."'";
+                $db->sql($sql_dboy);
+                $res_dboy = $db->getResult();
+                if (!empty($res_dboy)) {
+                    $message_delivery_boy = "Hello, Dear ".ucwords($res_dboy[0]['name']).", Here is the new update on your assigned order ID : #".$id.". The order status has been updated to ".ucwords($postStatus).".";
+                    $function->send_notification_to_delivery_boy($res[0]['delivery_boy_id'],"Order Status Updated to ".ucwords($postStatus),$message_delivery_boy,'delivery_boys',$id);
+                    $function->store_delivery_boy_notification($res[0]['delivery_boy_id'],$id,"Order Status Updated to ".ucwords($postStatus),$message_delivery_boy,'order_status');
+                }
+            } else if ($res[0]['delivery_boy_id'] == 0 && $postStatus == 'processed') {
+                $message_delivery_boy = "Hello, A new order (ID : #".$id.") is ready for delivery. Please check your app to accept it.";
+                $function->send_notification_to_delivery_boy(0,"New Order Ready for Delivery",$message_delivery_boy,'delivery_boys',$id);
+                $function->store_delivery_boy_notification(0,$id,"New Order Ready for Delivery",$message_delivery_boy,'order_status');
+            }
+s($mobile,$message,$country_code);
+
     	//	echo ucwords($subject);
      	//	exit;
     		print_r(json_encode($response));

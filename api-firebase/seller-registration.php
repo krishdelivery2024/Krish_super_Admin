@@ -45,6 +45,8 @@ if (isset($_POST['type']) && $_POST['type'] == 'register') {
     $account_details = isset($_POST['account_details']) ? $db->escapeString($_POST['account_details']) : "";
     $gst_no = isset($_POST['gst_no']) ? $db->escapeString($_POST['gst_no']) : "";
     $pan_no = isset($_POST['pan_no']) ? $db->escapeString($_POST['pan_no']) : "";
+     $opening_time = isset($_POST['opening_time']) ? $db->escapeString($_POST['opening_time']) : "09:00";
+    $closing_time = isset($_POST['closing_time']) ? $db->escapeString($_POST['closing_time']) : "21:00";
     $status = 0;
 
     if (empty($name) || empty($mobile) || empty($email)) {
@@ -93,6 +95,8 @@ if (isset($_POST['type']) && $_POST['type'] == 'register') {
         'gst_no' => $gst_no,
         'pan_no' => $pan_no,
         'status' => $status,
+                'opening_time' => $opening_time,
+        'closing_time' => $closing_time,
         'date_created' => date('Y-m-d H:i:s')
     ];
 

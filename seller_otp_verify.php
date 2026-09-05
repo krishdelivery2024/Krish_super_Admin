@@ -78,7 +78,7 @@
 			</div>
 			<!-- /.frm-input -->
 			<p id="message"></p>
-			<div class="frm-footer text-center">SpiderIndia © <?=date('Y')?>.</div>
+			<div class="frm-footer text-center">Krishdelivery © <?=date('Y')?>.</div>
 		<!-- .inside -->
 	<!--</form>-->
 	</div>

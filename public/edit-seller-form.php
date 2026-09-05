@@ -60,6 +60,8 @@ $res_main_category = $db->getResult();
         renderInput("Account Details", "account_details", $seller['account_details']);
         renderInput("GST No", "gst_no", $seller['gst_no']);
         renderInput("PAN No", "pan_no", $seller['pan_no']);
+         renderInput("Opening Time", "opening_time", $seller['opening_time'] ?? '09:00', "time");
+        renderInput("Closing Time", "closing_time", $seller['closing_time'] ?? '21:00', "time");
         renderInput("Date Created", "date_created", $seller['date_created'], "text", false, true);
         ?>
 
