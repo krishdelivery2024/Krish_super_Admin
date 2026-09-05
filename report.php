@@ -37,6 +37,7 @@ if(isset($_POST['type'])){
                         	sum(oi.quantity) AS qty,
                         	v.measurement,
                         	count(o.id) AS order_count,
+                        	SUM(oi.price * oi.quantity) AS amount,
                         	p.NAME AS pname,(
                         	SELECT
                         		short_code 
@@ -60,6 +61,7 @@ if(isset($_POST['type'])){
                         	sum(oi.quantity) AS qty,
                         	v.measurement,
                         	count(o.id) AS order_count,
+                        	SUM(oi.price * oi.quantity) AS amount,
                         	p.NAME AS pname,(
                         	SELECT
                         		short_code 
