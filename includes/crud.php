@@ -15,7 +15,7 @@ define('WP_DEBUG_DISPLAY', true); */
 ini_set('display_errors', 1);
 
 // define('DOMAIN_URL','http://localhost/krish_delivery/'); /* chnage to your domain here - Don't forget to add forward slash at the end like this "/" */
-define('DOMAIN_URL','https://spiderekart.in/krish_delivery/'); /* chnage to your domain here - Don't forget to add forward slash at the end like this "/" */
+define('DOMAIN_URL','https://www.krishdelivery.com/'); /* chnage to your domain here - Don't forget to add forward slash at the end like this "/" */
 define('JWT_SECRET_KEY','HS256'); /* chnage to your secret key here - you can set anything here - make sure same you set on android side as well */
 define('sms_max_limit_count','100');
 define('push_notificastion_max_limit_count', '1000');
@@ -39,9 +39,9 @@ class Database{
     // private $db_name = "spiderekart_krish_delivery";  
 
     private $db_host = "localhost";
-    private $db_user = "krishdelivery";  
-    private $db_pass = "KrishDelivery@123";  
-    private $db_name = "krishdelivery_staging";    
+    private $db_user = "krishdelivery";
+    private $db_pass = "KrishDelivery@123";
+    private $db_name = "krishdelivery_staging";
     
     /*
      * Extra variables that are required by other function such as boolean con variable
@@ -85,43 +85,95 @@ class Database{
         }
     }
     
-    public function sql($sql){
-        $this->myconn->query("SET NAMES utf8"); /* manually added for supporting utf 8 unicode characters */
-        $query = $this->myconn->query($sql);
-        // echo $sql;
+    // public function sql($sql){
+    //     $this->myconn->query("SET NAMES utf8"); /* manually added for supporting utf 8 unicode characters */
+    //     $query = $this->myconn->query($sql);
+    //     // echo $sql;
         
-        $this->myQuery = $sql; // Pass back the SQL
-        if($query){
-            // If the query returns >= 1 assign the number of rows to numResults
-            $this->numResults=0;
-            if (isset($query->num_rows) && ( $query->num_rows > 0)) {
-                $this->numResults = $query->num_rows;
-            }
-            // Loop through the query results by the number of rows returned
-            for($i = 0; $i < $this->numResults; $i++){
-                $r = $query->fetch_array();
-                $key = array_keys($r);
-                // $value = array_values($r);
-                // print_r($key);
-                // print_r($value);
-                for($x = 0; $x < count($key); $x++){
-                    // print_r($key);
-                    // Sanitizes keys so only alphavalues are allowed
-                    if(!is_int($key[$x])){
-                        if($query->num_rows >= 1){
-                            $this->result[$i][$key[$x]] = $r[$key[$x]];
-                        }else{
-                            $this->result = null;
-                        }
-                    }
+    //     $this->myQuery = $sql; // Pass back the SQL
+    //     if($query){
+    //         // If the query returns >= 1 assign the number of rows to numResults
+    //         $this->numResults=0;
+    //         if (isset($query->num_rows) && ( $query->num_rows > 0)) {
+    //             $this->numResults = $query->num_rows;
+    //         }
+    //         // Loop through the query results by the number of rows returned
+    //         for($i = 0; $i < $this->numResults; $i++){
+    //             $r = $query->fetch_array();
+    //             $key = array_keys($r);
+    //             // $value = array_values($r);
+    //             // print_r($key);
+    //             // print_r($value);
+    //             for($x = 0; $x < count($key); $x++){
+    //                 // print_r($key);
+    //                 // Sanitizes keys so only alphavalues are allowed
+    //                 if(!is_int($key[$x])){
+    //                     if($query->num_rows >= 1){
+    //                         $this->result[$i][$key[$x]] = $r[$key[$x]];
+    //                     }else{
+    //                         $this->result = null;
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //         return true; // Query was successful
+    //     }else{
+    //         array_push($this->result,$this->myconn->error);
+    //         return false; // No rows where returned
+    //     }
+    // }
+
+   public function sql($sql){
+    try {
+
+        $this->myconn->query("SET NAMES utf8");
+
+        $query = $this->myconn->query($sql);
+
+        $this->myQuery = $sql;
+
+        if(!$query){
+            echo json_encode([
+                "status" => false,
+                "sql" => $sql,
+                "error" => $this->myconn->error
+            ]);
+            exit;
+        }
+
+        $this->numResults = 0;
+
+        if (isset($query->num_rows) && $query->num_rows > 0) {
+            $this->numResults = $query->num_rows;
+        }
+
+        for($i = 0; $i < $this->numResults; $i++){
+            $r = $query->fetch_array();
+            $key = array_keys($r);
+
+            for($x = 0; $x < count($key); $x++){
+                if(!is_int($key[$x])){
+                    $this->result[$i][$key[$x]] = $r[$key[$x]];
                 }
             }
-            return true; // Query was successful
-        }else{
-            array_push($this->result,$this->myconn->error);
-            return false; // No rows where returned
         }
+
+        return true;
+
+    } catch (mysqli_sql_exception $e) {
+
+        header('Content-Type: application/json');
+
+        echo json_encode([
+            "status" => false,
+            "sql" => $sql,
+            "error" => $e->getMessage(),
+            "code" => $e->getCode()
+        ]);
+
+        exit;
     }
+}
     
     // Function to SELECT from the database
     public function select($table, $rows = '*', $join = null, $where = null, $order = null, $limit = null){
@@ -175,25 +227,47 @@ class Database{
     }
     
     // Function to insert into the database
-    public function insert($table,$params=array()){
-        // Check to see if the table exists
-         if($this->tableExists($table)){
-            $sql='INSERT INTO `'.$table.'` (`'.implode('`, `',array_keys($params)).'`) VALUES ("' . implode('", "', $params) . '")';
-            // echo $sql;
-            $this->myQuery = $sql; // Pass back the SQL
-            // Make the query to insert to the database
-            if($ins = $this->myconn->query($sql)){
-                array_push($this->result,$this->myconn->insert_id);
-                // print_r($this->result);
-                return true; // The data has been inserted
-            }else{
-                array_push($this->result,$this->myconn->error);
-                return false; // The data has not been inserted
+  public function insert($table, $params = array())
+{
+    if ($this->tableExists($table)) {
+
+        $sql = 'INSERT INTO `' . $table . '` (`' .
+               implode('`, `', array_keys($params)) .
+               '`) VALUES ("' .
+               implode('", "', $params) .
+               '")';
+
+        $this->myQuery = $sql;
+
+        try {
+
+            $ins = $this->myconn->query($sql);
+
+            if ($ins) {
+                array_push($this->result, $this->myconn->insert_id);
+                return true;
             }
-        }else{
-            return false; // Table does not exist
+
+            return false;
+
+        } catch (mysqli_sql_exception $e) {
+
+            header('Content-Type: application/json');
+
+            echo json_encode([
+                "status" => false,
+                "error" => $e->getMessage(),
+                "code" => $e->getCode(),
+                "sql" => $sql
+            ]);
+
+            exit;
         }
+
+    } else {
+        return false;
     }
+}
     
     //Function to delete table or row(s) from database
     public function delete($table,$where = null){
@@ -283,6 +357,7 @@ class Database{
 
     // Escape your string
     public function escapeString($data){
-        return $this->myconn->real_escape_string($data);
+               return $this->myconn->real_escape_string((string)($data ?? ''));
+
     }
 } 

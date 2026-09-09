@@ -653,7 +653,11 @@ class custom_functions{
             $m_push_notification = $push->getPush();
             
             //getting the token from database object
-            $sql="SELECT fcm_id FROM delivery_boys WHERE id = '".$delivery_boy_id."'";
+                if ($delivery_boy_id == 0) {
+                $sql="SELECT fcm_id FROM delivery_boys WHERE active_status = 'true'";
+            } else {
+                $sql="SELECT fcm_id FROM delivery_boys WHERE id = '".$delivery_boy_id."' AND active_status = 'true'";
+            }
             $this->db->sql($sql); 
             $res=$this->db->getResult();
             $token = array(); 
@@ -755,6 +759,22 @@ class custom_functions{
     }
     
     public function store_delivery_boy_notification($delivery_boy_id,$order_id,$title,$message,$type){
+              if ($delivery_boy_id == 0) {
+            $sql = "SELECT id FROM delivery_boys WHERE active_status = 'true'";
+            $this->db->sql($sql);
+            $res = $this->db->getResult();
+            foreach ($res as $row) {
+                $data = array(
+                    'delivery_boy_id'=> $row['id'],
+                    'order_id'=> $order_id,
+                    'title'=> $title,
+                    'message'=> $message,
+                    'type'=> $type
+                );
+                $this->db->insert('delivery_boy_notifications',$data);
+            }
+            return true;
+        } else {
 
         $data = array(
             'delivery_boy_id'=> $delivery_boy_id,
@@ -765,6 +785,7 @@ class custom_functions{
         );
         $this->db->insert('delivery_boy_notifications',$data);
         return $this->db->getResult()[0];
+        }
     }
     
     public function generateEAN()
