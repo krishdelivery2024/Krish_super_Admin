@@ -29,6 +29,9 @@ if(isset($_POST['accesskey'])) {
 		$db->sql($sql_query);
 		$res=$db->getResult();
 		if (!empty($res)) {
+						for ($i = 0; $i < count($res); $i++) {
+				$res[$i]['profile'] = !empty($res[$i]['profile']) ? DOMAIN_URL . $res[$i]['profile'] : '';
+			}
 			$response['error'] = "false";
 			$response['data'] = $res;
 		}else{

@@ -94,6 +94,16 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'verify-user')) {
         	}
         	
 		    $data = array(
+			    'name' => '',
+			    'email' => '',
+			    'password' => '',
+			    'dob' => '',
+			    'city' => 0,
+			    'area' => 0,
+			    'street' => '',
+			    'address' => '',
+			    'pincode' => '',
+			    'friends_code' => '',
 			    'mobile' => $mobile,
 			    'country_code' => $country_code,
 			    'fcm_id' => $fcm_id,
@@ -102,6 +112,7 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'verify-user')) {
 			    'otp' => $otpno,
 			    'latitude' => $latitude,
 			    'longitude' => $longitude,
+			    'is_logged_in' => 1,
 			    'status' => 1
 			);
 			$db->insert('users',$data);
@@ -198,6 +209,7 @@ if((isset($_POST['type'])) && ($_POST['type'] == 'login-user')) {
 				$response['longitude']     = (!empty($row['longitude']))?$row['longitude']:'0';
 				$response['apikey']     = $row['apikey'];
 				$response['status']     = $row['status'];
+				$response['profile']    = !empty($row['profile']) ? DOMAIN_URL . $row['profile'] : '';
 				$response['created_at']     = $row['created_at'];
 				// $_SESSION['timeout'] = $currentTime + $expired;
             }

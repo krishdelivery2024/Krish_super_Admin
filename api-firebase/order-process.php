@@ -1,4 +1,6 @@
 <?php
+// Suppress PHP warnings/notices - they must not corrupt the JSON response
+error_reporting(E_ERROR | E_PARSE);
 header('Access-Control-Allow-Origin: *');
 include_once('send-email2.php');
 include_once('send-sms.php');
@@ -80,10 +82,12 @@ if($access_key != $accesskey){
 //         return false;
 //     }
 // }
-$myfile = fopen("logs.txt", "a") or die("Unable to open file!");
-$txt = json_encode($_POST);
-fwrite($myfile, "\n". $txt);
-fclose($myfile);
+$myfile = @fopen("logs.txt", "a");
+if ($myfile) {
+    $txt = json_encode($_POST);
+    fwrite($myfile, "\n". $txt);
+    fclose($myfile);
+}
  
 // if(isset($_POST['testing'])){
 //     $function->send_order_confirmation(1);
@@ -91,17 +95,24 @@ fclose($myfile);
 
 if (!function_exists('log_order_debug')) {
     function log_order_debug($message) {
-        $myfile = fopen("order_debug.log", "a");
+        $logPath = "order_debug.log";
+        $myfile = @fopen($logPath, "a");
         if ($myfile) {
             fwrite($myfile, date('Y-m-d H:i:s') . " - " . $message . "\n");
             fclose($myfile);
+        } else {
+            error_log("Could not open order_debug.log at " . $logPath);
         }
     }
 }
+log_order_debug("Test log: log_order_debug function is accessible and writable");
+
 
 
 if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['product_variant_id'])){
+    log_order_debug("Incoming place_order condition met for user: " . $_POST['user_id']);
     if(!verify_token()){
+        log_order_debug("verify_token failed!");
         return false;
     }
 	// echo "test";
@@ -114,7 +125,7 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 	$mobile = $db->escapeString($function->xss_clean($_POST['mobile']));
 	$name = $db->escapeString($function->xss_clean($_POST['name']));
 	$email = $db->escapeString($function->xss_clean($_POST['email']));
-    //	$store_id = $db->escapeString($function->xss_clean($_POST['store_id']));
+    $store_id = (isset($_POST['store_id']) && is_numeric($_POST['store_id'])) ? $db->escapeString($function->xss_clean($_POST['store_id'])) : 0;
 	$wallet_balance = (isset($_POST['wallet_balance']) && is_numeric($_POST['wallet_balance']))?$db->escapeString($function->xss_clean($_POST['wallet_balance'])):0;
 	$wallet_used = (isset($_POST['wallet_used']) && $function->xss_clean($_POST['wallet_used']) == 'true')?'true':'false';
 	$items = $db->escapeString(stripslashes($function->xss_clean($_POST['product_variant_id'])));
@@ -130,7 +141,7 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 	$address = $db->escapeString($function->xss_clean($_POST['address']));
 	$delivery_city = (isset($_POST['delivery_city']) && is_numeric($_POST['delivery_city']))?$db->escapeString($function->xss_clean($_POST['delivery_city'])):'';
     $delivery_state = $db->escapeString($function->xss_clean($_POST['delivery_state']));
-    $delivery_zone = (isset($_POST['delivery_zone']) && is_numeric($_POST['delivery_zone']))?$db->escapeString($function->xss_clean($_POST['delivery_zone'])):'';
+    $delivery_zone = (isset($_POST['delivery_zone']) && is_numeric($_POST['delivery_zone']))?$db->escapeString($function->xss_clean($_POST['delivery_zone'])):0;
 	$gst_no = (isset($_POST['gst_no']))?$db->escapeString($function->xss_clean($_POST['gst_no'])):"";
 	$delivery_time = (isset($_POST['delivery_time']))?$db->escapeString($function->xss_clean($_POST['delivery_time'])):"";
 	$latitude = $db->escapeString($function->xss_clean($_POST['latitude']));
@@ -173,6 +184,7 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 	$data = array(
 		'user_id'=>$user_id,
 		'seller_id'=>$seller_id,
+		'store_id'=>$store_id,
 		'mobile'=>$mobile,
 		'name'=>$name,
 		'email'=>$email,
@@ -352,7 +364,6 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
                 log_order_debug("Error in send_new_order_notification: " . $e->getMessage());
             }
 			// sendSms($mobile,$message,$country_code);
-			}
             log_order_debug("Order placement finished. Sending response.");
 			print_r(json_encode($response));
 		}else{
@@ -364,6 +375,7 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 		}
  
 }elseif(isset($_POST['place_order']) && isset($_POST['user_id']) && empty(json_decode($function->xss_clean($_POST['product_variant_id'])))){
+    log_order_debug("Incoming place_order condition met but product_variant_id is empty/invalid for user: " . $_POST['user_id']);
 	$response['error'] = "true";
 	$response['message'] = "Order without items in cart can not be placed!";
 	$response['order_id'] = 0;

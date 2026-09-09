@@ -1,0 +1,15 @@
+# Firebase runtime token cache
+includes/firebase-token-cache.json
+includes/firebase-token-cache-old.json
+
+# Logs
+api-firebase/logs.txt
+
+# User uploaded files
+upload/delivery_boys/
+upload/profile/
+
+# Old/test/server files
+delivery-boy/api/api-v1_old.php
+index.nginx-debian.html
+index1.html

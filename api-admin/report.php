@@ -44,7 +44,9 @@ switch ($type) {
     // ==============================
     case 'high_selling_products':
         $filter = dateFilter($_POST['start_date'] ?? '', $_POST['end_date'] ?? '', 'oi.date_added');
-        $sql = "SELECT p.name, v.product_id, SUM(oi.quantity) AS qty, v.measurement,
+        $sql = "SELECT p.name, v.product_id, SUM(oi.quantity) AS qty, 
+                    CONCAT(v.measurement, ' ', (SELECT short_code FROM unit un WHERE un.id = v.measurement_unit_id)) AS measurement,
+                    ROUND(IFNULL(SUM(oi.sub_total), 0), 2) AS amount,
                     COUNT(o.id) AS order_count,
                     (SELECT short_code FROM unit un WHERE un.id = v.measurement_unit_id) AS mesurement_unit_name
                 FROM order_items oi
@@ -148,6 +150,23 @@ switch ($type) {
         echo json_encode($response);
         $db->disconnect();
         exit;
+
+           // ==============================
+    // 4️⃣ Total Order Details
+    // ==============================
+    case 'total_order_details':
+        $filter = dateFilter($_POST['start_date'] ?? '', $_POST['end_date'] ?? '', 'o.date_added');
+        $sql = "SELECT
+                    o.id AS order_id,
+                    DATE_FORMAT(o.date_added, '%d-%m-%Y %H:%i') AS order_date,
+                    o.active_status AS status,
+                    o.payment_method,
+                    IFNULL(o.final_total, 0) AS amount,
+                    (SELECT COUNT(id) FROM order_items WHERE order_id = o.id AND active_status != 'cancelled') AS items_count
+                FROM orders o
+                WHERE o.seller_id = $seller_id AND o.active_status != 'cancelled' $filter
+                ORDER BY o.id DESC";
+        break;
 
     default:
         echo json_encode(["error" => true, "message" => "Invalid request type"]);
