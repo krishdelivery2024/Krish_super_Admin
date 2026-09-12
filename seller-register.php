@@ -58,6 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pan_no = $db->escapeString($_POST['pan_no'] ?? '');
     $opening_time = $db->escapeString($_POST['opening_time'] ?? '09:00');
     $closing_time = $db->escapeString($_POST['closing_time'] ?? '21:00');
+    $preparation_time = $db->escapeString($_POST['preparation_time'] ?? '20');
     $status = 0;
     $date_created = date('Y-m-d H:i:s');
 
@@ -122,6 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'pan_no' => $pan_no,
            'opening_time' => $opening_time,
         'closing_time' => $closing_time,
+        'preparation_time' => $preparation_time,
         'status' => $status,
         'image' => $image_name,
         'banner' => $banner_name,
@@ -275,6 +277,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="frm-input col-md-3">
                     <label>Closing Time <span class="required">*</span></label>
                     <input type="time" name="closing_time" class="frm-inp" value="21:00" required>
+                </div>
+
+                <div class="frm-input col-md-3">
+                    <label>Preparation Time (mins) <span class="required">*</span></label>
+                    <input type="number" name="preparation_time" class="frm-inp" value="20" required>
                 </div>             
 
             </div>

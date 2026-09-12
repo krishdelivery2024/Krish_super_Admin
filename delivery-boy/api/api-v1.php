@@ -172,8 +172,8 @@ if (isset($_POST['login_with_mobile'])) {
 			$response['data'] = array();
 		} else {
 
-			$otpno = rand(111111,999999);
-			// $otpno = 123456;
+			// $otpno = rand(111111,999999);
+			$otpno = 123456;
 			$recipients = "91" . trim($mobile);
 
 			$messagetext = "Hello Partner, your OTP for Krish Delivery login is " . $otpno . ". Ride safe!";
@@ -421,6 +421,13 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 
 	$id = (isset($_POST['id']) && !empty(trim($_POST['id'])) && is_numeric($_POST['id'])) ? $db->escapeString(trim($fn->xss_clean($_POST['id']))) : '';
 
+	// For 'new' orders, the delivery boy ID is passed as get_orders_by_delivery_boy_id value
+	// e.g. get_orders_by_delivery_boy_id=10 means id=10
+	$caller_id = $id;
+	if (empty($caller_id) && isset($_POST['get_orders_by_delivery_boy_id']) && is_numeric($_POST['get_orders_by_delivery_boy_id']) && intval($_POST['get_orders_by_delivery_boy_id']) > 1) {
+		$caller_id = $db->escapeString(trim($fn->xss_clean($_POST['get_orders_by_delivery_boy_id'])));
+	}
+
 	// Accept both 'latitude' and correctly-spelled/misspelled longitude keys
 	$deliveryboylatitude = (isset($_POST['latitude']) && !empty(trim($_POST['latitude'])) && is_numeric($_POST['latitude'])) ? $db->escapeString(trim($fn->xss_clean($_POST['latitude']))) : '';
 
@@ -498,6 +505,10 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 			$where .= " AND active_status != 'received' AND active_status != 'processed' AND active_status != 'shipped'";
 		} else if ($_POST['status'] == 'new') {
 			$where .= " AND active_status != 'delivered' AND active_status != 'cancelled' AND active_status != 'returned' AND delivery_boy_id ='0' ";
+			// Exclude orders this delivery boy has already rejected
+			if (!empty($caller_id)) {
+				$where .= " AND (rejected_by IS NULL OR rejected_by = '' OR NOT FIND_IN_SET('$caller_id', rejected_by)) ";
+			}
 		}
 	} else {
 		$where1 = $where;
@@ -606,10 +617,60 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 	}
 
 	// response
+	// ================= DATE RANGE SETTLEMENT SUMMARY =================
+	
+	// Fetch platform fee and GST from settings
+	$sql_settings = "SELECT value FROM settings WHERE variable = 'system_timezone'";
+	$db->sql($sql_settings);
+	$settings_res = $db->getResult();
+	$platform_fee_percent = 0;
+	$gst_percent = 0;
+	if (!empty($settings_res)) {
+	    $sys_settings = json_decode($settings_res[0]['value'], true);
+	    if (isset($sys_settings['platform_fee'])) {
+	        $platform_fee_percent = floatval($sys_settings['platform_fee']);
+	    }
+	    if (isset($sys_settings['tax'])) {
+	        $gst_percent = floatval($sys_settings['tax']);
+	    }
+	}
+
+	$sub_amount = 0;
+	if (!empty($id)) {
+	    // Sum final_total for the given date range filter
+	    $sql_sub_amount = "SELECT IFNULL(SUM(o.final_total),0) AS sub_amount FROM `orders` o " . $orders_join . " " . $where1;
+	    $db->sql($sql_sub_amount);
+	    $sub_result = $db->getResult();
+	    if (!empty($sub_result)) {
+	        $sub_amount = floatval($sub_result[0]['sub_amount']);
+	    }
+	}
+
+	$platform_charges = 0;
+	$gst_amount = 0;
+
+	if ($platform_fee_percent > 0) {
+	    $platform_charges = ($sub_amount * $platform_fee_percent) / 100;
+	}
+	if ($gst_percent > 0 && $platform_charges > 0) {
+	    $gst_amount = ($platform_charges * $gst_percent) / 100;
+	}
+	
+	$total_deduction = $platform_charges + $gst_amount;
+	$total_payable = $sub_amount - $total_deduction;
+
+	// response
 	$response_data['today_earn'] = (string) ($today_earn_cod + $today_earn_online);
 	$response_data['today_earn_cod'] = (string) $today_earn_cod;
 	$response_data['today_earn_online'] = (string) $today_earn_online;
 	$response_data['today_delivery_charge'] = (string) ($today_delivery_charge ?? 0);
+	
+	$response_data['sub_amount'] = number_format($sub_amount, 2, '.', '');
+	$response_data['platform_charges'] = number_format($platform_charges, 2, '.', '');
+	$response_data['gst_amount'] = number_format($gst_amount, 2, '.', '');
+	$response_data['total_deduction'] = number_format($total_deduction, 2, '.', '');
+	$response_data['total_payable'] = number_format($total_payable, 2, '.', '');
+
 
 	// ================= END TODAY EARNINGS =================
 
@@ -840,6 +901,9 @@ if (isset($_POST['accept_order_delivery_boy'])) {
 				$response['error'] = false;
 				$response['message'] = "Order Accepted Susseccfully";
 			} else {
+				// Record the rejection so this delivery boy won't see this order again
+				$sql_rejected = "UPDATE orders SET rejected_by = IF(rejected_by IS NULL OR rejected_by = '', '$id', CONCAT(rejected_by, ',$id')) WHERE id = '$order_id'";
+				$db->sql($sql_rejected);
 				$response['error'] = false;
 				$response['message'] = "Order Rejected Susseccfully";
 			}

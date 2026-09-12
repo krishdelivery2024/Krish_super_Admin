@@ -184,6 +184,11 @@
                         </div>
                         
                         <div class="form-group">
+                            <label for="delivery_time_per_km">Delivery Time Per Km (Minutes)</label>
+                            <input type="number" class="form-control" name="delivery_time_per_km" value="<?=$data['delivery_time_per_km']?>" placeholder='5' min='1'/>
+                        </div>
+
+                        <div class="form-group">
                             <label class="system_timezone" for="system_timezone">System Timezone</label>
                             <select id="system_timezone" name="system_timezone" required class="form-control col-md-12">
                                 <?php $options = getTimezoneOptions();

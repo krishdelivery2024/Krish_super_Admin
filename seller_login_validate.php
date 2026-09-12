@@ -5,8 +5,18 @@ session_start();
     $db->connect();
 	include_once('includes/custom-functions.php');
 	$fn = new custom_functions;
-    $settings = $fn->get_settings('system_timezone',true);
-    $app_name = $settings['app_name'];
+    $settings = $fn->get_settings('system_timezone', true);
+    // Replicate exact same app_name resolution used in the mobile API (api-firebase/seller-login.php)
+    if (!empty($settings) && isset($settings['app_name'])) {
+        $app_name = $settings['app_name'];
+    } else {
+        // Fallback: try direct key lookup
+        $app_name = $fn->get_settings('app_name');
+    }
+    if (empty($app_name)) {
+        error_log('[SellerWebLogin] WARNING: app_name is empty! SMS template may be rejected by gateway.');
+        $app_name = 'App'; // safe fallback to avoid blank template
+    }
 	include('./includes/variables.php'); 
 	include 'api-firebase/send-sms.php';
 
@@ -21,14 +31,17 @@ session_start();
 			$num = $db->numRows($res);
 				if($num == 1){
                     $otpno = generateOTP(6);
-                    $otpno ="555555";
-
+                    
                     $recipients="91".trim($mobile);
-                    $messagetext="Your OTP for $app_name is ".$otpno.". Please do not share this OTP.";
-                    $template_id="1407168862906996721";
+                    // Use EXACT same message & template_id as mobile app (api-admin/login.php)
+                    // which is confirmed working for seller OTP
+                    $messagetext = "Your OTP for Krish Delivery Seller app login is " . $otpno . " . For security, do not share this code with anyone.";
+                    $template_id = "1207178368708352085";
+
                     $sql = 'UPDATE `seller` SET `otp`="'.$otpno.'" WHERE `mobile`="'.$mobile.'"';
 		            $db->sql($sql);
-    		        // sendSmsCommon($recipients, $messagetext, $template_id);
+    		        $sms_response = sendSmsCommon($recipients, $messagetext, $template_id);
+    				error_log("[SellerLogin] OTP SMS to {$recipients} | app_name={$app_name} | response={$sms_response}");
     				$error['success']=1;
     				$error['message'] = "<span class='label label-success'>Successfully</span>";
     				
