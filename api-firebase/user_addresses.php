@@ -121,7 +121,9 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'add_address')) {
 	    'latitude' => $latitude,
 	    'longitude' => $longitude,
 	    'is_default' => $is_default,
-	    'status' => 1
+	    'status' => 1,
+'created_at' => date('Y-m-d H:i:s')
+
 	);
 	$db->insert('user_address',$data);
 	$response["error"]   = false;
