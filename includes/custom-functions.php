@@ -188,6 +188,52 @@ class custom_functions{
             return false;
         }
     }
+    public function get_meal_availability_filter(){
+        $config = $this->get_configurations();
+        $timezone = (!empty($config) && isset($config['system_timezone']) && !empty($config['system_timezone'])) ? $config['system_timezone'] : 'Asia/Kolkata';
+        date_default_timezone_set($timezone);
+        $meal_slots = array(
+            'anytime'   => 0,
+            'breakfast' => array('from_time' => '06:00', 'to_time' => '11:00'),
+            'lunch'     => array('from_time' => '11:00', 'to_time' => '16:00'),
+            'dinner'    => array('from_time' => '16:00', 'to_time' => '23:00')
+        );
+        $sql = "SELECT value FROM settings WHERE variable='meal_time_slots'";
+        $this->db->sql($sql);
+        $res = $this->db->getResult();
+        if(!empty($res)){
+            $saved = json_decode($res[0]['value'], true);
+            if(is_array($saved)){
+                if(isset($saved['anytime'])){
+                    $meal_slots['anytime'] = (int)$saved['anytime'];
+                }
+                foreach(array('breakfast','lunch','dinner') as $meal){
+                    if(isset($saved[$meal])){
+                        foreach(array('from_time','to_time') as $field){
+                            if(isset($saved[$meal][$field]) && $saved[$meal][$field] !== ''){
+                                $meal_slots[$meal][$field] = $saved[$meal][$field];
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        $current = date('H:i');
+        $active_meals = array();
+        foreach(array('breakfast','lunch','dinner') as $meal){
+            $from = $meal_slots[$meal]['from_time'];
+            $to   = $meal_slots[$meal]['to_time'];
+            if(strcmp($from, $current) <= 0 && strcmp($current, $to) < 0){
+                $active_meals[] = ucfirst($meal);
+            }
+        }
+        $condition = "(available_time IS NULL OR available_time = '' OR FIND_IN_SET('Anytime', available_time)";
+        foreach($active_meals as $meal){
+            $condition .= " OR FIND_IN_SET('$meal', available_time)";
+        }
+        $condition .= ")";
+        return $condition;
+    }
     public function get_balance($id){
         $sql = "SELECT balance FROM delivery_boys WHERE id=".$id;
         // echo $sql;

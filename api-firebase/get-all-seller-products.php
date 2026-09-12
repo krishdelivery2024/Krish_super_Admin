@@ -9,6 +9,7 @@
     date_default_timezone_set('Asia/Kolkata');
     include_once('../includes/custom-functions.php');
     $fn = new custom_functions;
+    $meal_filter = $fn->get_meal_availability_filter();
 
 	/* accesskey:90336
   	 category_id:28 */
@@ -60,11 +61,11 @@
                 $price_sort = 'pv.price ASC';
             }
 
-		    $sql = "SELECT count(id) as total from products p where is_active='1' ".$where."";
+		    $sql = "SELECT count(id) as total from products p where is_active='1' ".$where.(!empty($meal_filter)?' AND '.$meal_filter:'');
 		    $db->sql($sql);
 		    $total = $db->getResult();
 		         
-		    $sql="SELECT *,(SELECT ".$price." FROM product_variant pv WHERE pv.product_id=p.id) as price,(SELECT count(id) FROM product_variant pv WHERE pv.product_id=p.id AND pv.stock!=0 AND pv.serve_for='Available') as stock_check,(SELECT b.name FROM brand b WHERE p.brand_id=b.id) as brand_name FROM products p WHERE  is_active='1' ".$where." ".$sort." LIMIT $offset, $limit";  
+		    $sql="SELECT *,(SELECT ".$price." FROM product_variant pv WHERE pv.product_id=p.id) as price,(SELECT count(id) FROM product_variant pv WHERE pv.product_id=p.id AND pv.stock!=0 AND pv.serve_for='Available') as stock_check,(SELECT b.name FROM brand b WHERE p.brand_id=b.id) as brand_name FROM products p WHERE  is_active='1' ".$where.(!empty($meal_filter)?' AND '.$meal_filter:'')." ".$sort." LIMIT $offset, $limit";  
             $db->sql($sql);
             $res = $db->getResult();
             // return $res;

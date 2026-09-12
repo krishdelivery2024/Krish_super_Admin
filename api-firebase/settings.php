@@ -160,20 +160,34 @@ if(isset($_POST['settings']) ) {
         }
     }
 }else if(isset($_POST['get_time_slots'])){
+    $meal_slots = array(
+        'anytime' => 0,
+        'breakfast' => array('from_time' => '06:00', 'to_time' => '11:00'),
+        'lunch' => array('from_time' => '11:00', 'to_time' => '16:00'),
+        'dinner' => array('from_time' => '16:00', 'to_time' => '23:00')
+    );
+    $sql = "select value from `settings` where `variable`='meal_time_slots'";
+    $db->sql($sql);
+    $res_meal = $db->getResult();
+    if(!empty($res_meal)){
+        $saved = json_decode($res_meal[0]['value'], true);
+        if(!empty($saved)){
+            $meal_slots['anytime'] = isset($saved['anytime']) ? $saved['anytime'] : 0;
+            foreach(array('breakfast','lunch','dinner') as $m){
+                if(isset($saved[$m])){
+                    $meal_slots[$m]['from_time'] = isset($saved[$m]['from_time']) ? $saved[$m]['from_time'] : $meal_slots[$m]['from_time'];
+                    $meal_slots[$m]['to_time'] = isset($saved[$m]['to_time']) ? $saved[$m]['to_time'] : $meal_slots[$m]['to_time'];
+                }
+            }
+        }
+    }
+    $settings['error'] = false;
+    $settings['meal_time_slots'] = $meal_slots;
     $sql = "select * from `time_slots` where status=1 ORDER BY id ASC";
     $db->sql($sql);
     $res = $db->getResult();
-    if(!empty($res)){
-        $settings['error'] = false;
-        $settings['time_slots'] = $res;
-        print_r(json_encode($settings));            
-    }else{
-        $settings['error'] = true;
-        $settings['time_slots'] = null;
-        $settings['message'] = "No active time slots found!";
-        print_r(json_encode($settings));
-        
-    }
+    $settings['time_slots'] = !empty($res) ? $res : null;
+    print_r(json_encode($settings));
 }else if(isset($_POST['get_stores'])){
     $sql = "select stores.id,stores.sname,stores.address,area.name AS area,stores.pincode from stores LEFT JOIN area ON area.id=stores.area ORDER BY stores.id ASC";
     $db->sql($sql);

@@ -61,6 +61,7 @@ if(isset($_POST['type'])){
     	$subcategory_id = $db->escapeString($fn->xss_clean($_POST['subcategory_id']));
     	$brand_id = $db->escapeString($fn->xss_clean($_POST['brand_id']));
     	$serve_for = $db->escapeString($fn->xss_clean($_POST['serve_for']));
+    	$available_time = !empty($_POST['available_time']) ? $db->escapeString($fn->xss_clean($_POST['available_time'])) : '';
     	$description = $db->escapeString($fn->xss_clean($_POST['description']));
     	$image = $db->escapeString($fn->xss_clean($_FILES['image']['name']));
     	$image_error = $db->escapeString($fn->xss_clean($_FILES['image']['error']));
@@ -76,7 +77,7 @@ if(isset($_POST['type'])){
     		// upload new image
     		$upload = move_uploaded_file($_FILES['image']['tmp_name'], '../upload/images/'.$image);
     		$upload_image='upload/images/'.$image;
-            $sql="INSERT INTO products (name,slug,category_id,subcategory_id,brand_id,image,other_images,description) VALUES('$name','$slug','$category_id','$subcategory_id','$brand_id','$upload_image','$other_images','$description')";
+            $sql="INSERT INTO products (name,slug,category_id,subcategory_id,brand_id,image,other_images,description,available_time) VALUES('$name','$slug','$category_id','$subcategory_id','$brand_id','$upload_image','$other_images','$description','$available_time')";
                // echo $sql;
                 $db->sql($sql);
                 $res = $db->getResult();
@@ -118,7 +119,7 @@ if(isset($_POST['type'])){
     }
     if($_POST['type']=="get_product"){
         $variant_id=$db->escapeString($fn->xss_clean($_POST['variant_id']));
-        $sql="SELECT p.id AS id, pv.id AS variant_id, p.name, p.image,p.category_id,p.subcategory_id, p.brand_id,p.description, pv.price, pv.discounted_price, pv.measurement,pv.measurement_unit_id, pv.serve_for, pv.stock,pv.barcode_data, u.short_code 
+        $sql="SELECT p.id AS id, pv.id AS variant_id, p.name, p.image,p.category_id,p.subcategory_id, p.brand_id,p.description,p.available_time, pv.price, pv.discounted_price, pv.measurement,pv.measurement_unit_id, pv.serve_for, pv.stock,pv.barcode_data, u.short_code 
             FROM `products` p JOIN `product_variant` pv ON pv.product_id = p.id LEFT JOIN `unit` u ON u.id = pv.measurement_unit_id WHERE pv.id=".$variant_id;
         $db->sql($sql);
         $res = $db->getResult();
@@ -135,6 +136,7 @@ if(isset($_POST['type'])){
     	$subcategory_id = $db->escapeString($fn->xss_clean($_POST['subcategory_id']));
     	$brand_id = $db->escapeString($fn->xss_clean($_POST['brand_id']));
     	$serve_for = $db->escapeString($fn->xss_clean($_POST['serve_for']));
+    	$available_time = !empty($_POST['available_time']) ? $db->escapeString($fn->xss_clean($_POST['available_time'])) : '';
     	$description = $db->escapeString($fn->xss_clean($_POST['description']));
     	$image = $db->escapeString($fn->xss_clean($_FILES['image']['name']));
     	$image_error = $db->escapeString($fn->xss_clean($_FILES['image']['error']));
@@ -157,13 +159,13 @@ if(isset($_POST['type'])){
         		$image = $function->get_random_string($string, 4)."-".date("Y-m-d").".".$extension;
         		$upload = move_uploaded_file($_FILES['image']['tmp_name'], '../upload/images/'.$image);
         		$upload_image='upload/images/'.$image;
-        		$sql="UPDATE products SET name = '$name' ,slug = '$slug' , category_id = '$category_id' ,subcategory_id = '$subcategory_id', brand_id = '$brand_id', image = '$upload_image', description = '$description' WHERE id = $product_id";
+        		$sql="UPDATE products SET name = '$name' ,slug = '$slug' , category_id = '$category_id' ,subcategory_id = '$subcategory_id', brand_id = '$brand_id', image = '$upload_image', description = '$description', available_time = '$available_time' WHERE id = $product_id";
             }else{
                 $sql = "SELECT pv.product_id, (SELECT image FROM products p WHERE p.id=pv.product_id) AS image FROM product_variant pv WHERE pv.id =".$variant_id;
     $db->sql($sql);
     $res = $db->getResult();
     $product_id=$res[0]['product_id'];
-                $sql="UPDATE products SET name = '$name' ,slug = '$slug' , category_id = '$category_id' ,subcategory_id = '$subcategory_id', brand_id = '$brand_id', description = '$description' WHERE id = $product_id";
+                $sql="UPDATE products SET name = '$name' ,slug = '$slug' , category_id = '$category_id' ,subcategory_id = '$subcategory_id', brand_id = '$brand_id', description = '$description', available_time = '$available_time' WHERE id = $product_id";
             }
                 $db->sql($sql);
                 $res = $db->getResult();

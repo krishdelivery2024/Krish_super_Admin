@@ -9,6 +9,7 @@
     date_default_timezone_set('Asia/Kolkata');
     include_once('../includes/custom-functions.php');
     $fn = new custom_functions;
+    $meal_filter = $fn->get_meal_availability_filter();
 
 	/* accesskey:90336
   	 brand_id:28 */
@@ -49,18 +50,18 @@
             }
 		    
 		    if(!empty($brand_id)){ 
-		         $sql = "SELECT count(id) as total from products p where brand_id='".$brand_id."'";
+		         $sql = "SELECT count(id) as total from products p where brand_id='".$brand_id."'".(!empty($meal_filter)?' AND '.$meal_filter:'');
 		         $db->sql($sql);
 		         $total = $db->getResult();
 		         
-		         $sql="SELECT *,(SELECT ".$price." FROM product_variant pv WHERE pv.product_id=p.id) as price,(SELECT count(id) FROM product_variant pv WHERE pv.product_id=p.id AND pv.stock!=0 AND pv.serve_for='Available') as stock_check,(SELECT b.name FROM brand b WHERE p.brand_id=b.id) as brand_name FROM products p WHERE brand_id='".$brand_id."' ".$sort." LIMIT $offset, $limit";
+		         $sql="SELECT *,(SELECT ".$price." FROM product_variant pv WHERE pv.product_id=p.id) as price,(SELECT count(id) FROM product_variant pv WHERE pv.product_id=p.id AND pv.stock!=0 AND pv.serve_for='Available') as stock_check,(SELECT b.name FROM brand b WHERE p.brand_id=b.id) as brand_name FROM products p WHERE brand_id='".$brand_id."'".(!empty($meal_filter)?' AND '.$meal_filter:'')." ".$sort." LIMIT $offset, $limit";
 		        
 		    }else{
                 
-                $sql = "SELECT count(id) as total from products ";
+                $sql = "SELECT count(id) as total from products ".(!empty($meal_filter)?'WHERE '.$meal_filter:'');
                 $db->sql($sql);
                 $total = $db->getResult();
-                $sql="SELECT *,(SELECT ".$price." FROM product_variant pv WHERE pv.product_id=p.id) as price,(SELECT count(id) FROM product_variant pv WHERE pv.product_id=p.id AND pv.stock!=0 AND pv.serve_for='Available') as stock_check,(SELECT b.name FROM brand b WHERE p.brand_id=b.id) as brand_name FROM products p ".$sort." LIMIT $offset, $limit";
+                $sql="SELECT *,(SELECT ".$price." FROM product_variant pv WHERE pv.product_id=p.id) as price,(SELECT count(id) FROM product_variant pv WHERE pv.product_id=p.id AND pv.stock!=0 AND pv.serve_for='Available') as stock_check,(SELECT b.name FROM brand b WHERE p.brand_id=b.id) as brand_name FROM products p ".(!empty($meal_filter)?'WHERE '.$meal_filter:'')." ".$sort." LIMIT $offset, $limit";
             }
                 
             $db->sql($sql);
