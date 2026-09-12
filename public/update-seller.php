@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 // Required fields for update
 $required_fields = ['id', 'name', 'email', 'mobile', 'company_name', 'personal_address',
-        'company_address', 'dob', 'account_details', 'gst_no', 'pan_no','opening_time', 'closing_time',  'city_id', 'area_id', 'main_cat_id', 'status'];
+        'company_address', 'dob', 'account_details', 'gst_no', 'pan_no','opening_time', 'closing_time', 'preparation_time', 'city_id', 'area_id', 'main_cat_id', 'status'];
 
 foreach ($required_fields as $field) {
     if (!isset($_POST[$field])) {
@@ -43,6 +43,7 @@ $gst_no          = $db->escapeString($_POST['gst_no']);
 $pan_no          = $db->escapeString($_POST['pan_no']);
 $opening_time    = $db->escapeString($_POST['opening_time']);
 $closing_time    = $db->escapeString($_POST['closing_time']);
+$preparation_time= $db->escapeString($_POST['preparation_time']);
 $city_id         = $db->escapeString($_POST['city_id']);
 $area_id         = $db->escapeString($_POST['area_id']);
 $main_cat_id     = $db->escapeString($_POST['main_cat_id']);
@@ -68,6 +69,7 @@ $sql = "UPDATE seller SET
     pan_no = '$pan_no',
       opening_time = '$opening_time',
     closing_time = '$closing_time',
+    preparation_time = '$preparation_time',
     city_id = '$city_id',
     area_id = '$area_id',
     main_cat_id = '$main_cat_id',

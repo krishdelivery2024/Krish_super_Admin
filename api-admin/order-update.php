@@ -636,7 +636,7 @@ if ($total == 0) {
                 $function->send_notification_to_delivery_boy(0,"New Order Ready for Delivery",$message_delivery_boy,'delivery_boys',$id);
                 $function->store_delivery_boy_notification(0,$id,"New Order Ready for Delivery",$message_delivery_boy,'order_status');
             }
-s($mobile,$message,$country_code);
+// sendSms($mobile,$message,$country_code);
 
     	//	echo ucwords($subject);
      	//	exit;

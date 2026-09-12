@@ -62,6 +62,7 @@ $res_main_category = $db->getResult();
         renderInput("PAN No", "pan_no", $seller['pan_no']);
          renderInput("Opening Time", "opening_time", $seller['opening_time'] ?? '09:00', "time");
         renderInput("Closing Time", "closing_time", $seller['closing_time'] ?? '21:00', "time");
+        renderInput("Preparation Time (mins)", "preparation_time", $seller['preparation_time'] ?? '20', "number");
         renderInput("Date Created", "date_created", $seller['date_created'], "text", false, true);
         ?>
 
