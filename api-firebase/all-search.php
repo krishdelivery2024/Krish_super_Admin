@@ -93,6 +93,17 @@ if (isset($_POST['type']) && $_POST['type'] == 'all-search') {
 				$res[$i]['image'] = (!empty($res[$i]['image'])) ? DOMAIN_URL . 'upload/sellers/' . $res[$i]['image'] : '';
 				$res[$i]['banner'] = (!empty($res[$i]['banner'])) ? DOMAIN_URL . 'upload/sellers/' . $res[$i]['banner'] : '';
 			}
+			// Fetch global delivery_time_per_km from settings
+			$delivery_time_per_km = 5; // default
+			$db->sql("SELECT value FROM settings WHERE variable = 'system_timezone'");
+			$settings_res = $db->getResult();
+			if (!empty($settings_res)) {
+				$sys_settings = json_decode($settings_res[0]['value'], true);
+				if (isset($sys_settings['delivery_time_per_km'])) {
+					$delivery_time_per_km = intval($sys_settings['delivery_time_per_km']);
+				}
+			}
+			$response['delivery_time_per_km'] = $delivery_time_per_km;
         $response['error'] = false;
         $response['data'] = $res;
     }
