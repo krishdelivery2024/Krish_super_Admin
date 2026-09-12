@@ -636,13 +636,24 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 	}
 
 	$sub_amount = 0;
+    $total_cod_amount = 0;
+    $total_online_amount = 0;
+    $total_delivery_charge_amount = 0;
 	if (!empty($id)) {
 	    // Sum final_total for the given date range filter
-	    $sql_sub_amount = "SELECT IFNULL(SUM(o.final_total),0) AS sub_amount FROM `orders` o " . $orders_join . " " . $where1;
+	    $sql_sub_amount = "SELECT 
+            IFNULL(SUM(o.final_total),0) AS sub_amount,
+            IFNULL(SUM(CASE WHEN o.payment_method = 'Cash on Delivery' THEN o.final_total ELSE 0 END),0) AS total_cod_amount,
+            IFNULL(SUM(CASE WHEN o.payment_method != 'Cash on Delivery' THEN o.final_total ELSE 0 END),0) AS total_online_amount,
+            IFNULL(SUM(o.delivery_charge),0) AS total_delivery_charge_amount
+            FROM `orders` o " . $orders_join . " " . $where1;
 	    $db->sql($sql_sub_amount);
 	    $sub_result = $db->getResult();
 	    if (!empty($sub_result)) {
 	        $sub_amount = floatval($sub_result[0]['sub_amount']);
+            $total_cod_amount = floatval($sub_result[0]['total_cod_amount']);
+            $total_online_amount = floatval($sub_result[0]['total_online_amount']);
+            $total_delivery_charge_amount = floatval($sub_result[0]['total_delivery_charge_amount']);
 	    }
 	}
 
@@ -666,6 +677,9 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 	$response_data['today_delivery_charge'] = (string) ($today_delivery_charge ?? 0);
 	
 	$response_data['sub_amount'] = number_format($sub_amount, 2, '.', '');
+    $response_data['total_cod_amount'] = number_format($total_cod_amount, 2, '.', '');
+    $response_data['total_online_amount'] = number_format($total_online_amount, 2, '.', '');
+    $response_data['total_delivery_charge_amount'] = number_format($total_delivery_charge_amount, 2, '.', '');
 	$response_data['platform_charges'] = number_format($platform_charges, 2, '.', '');
 	$response_data['gst_amount'] = number_format($gst_amount, 2, '.', '');
 	$response_data['total_deduction'] = number_format($total_deduction, 2, '.', '');

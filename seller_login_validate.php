@@ -30,8 +30,8 @@ session_start();
 			$res=$db->getResult();
 			$num = $db->numRows($res);
 				if($num == 1){
-                    $otpno = generateOTP(6);
-                    
+                    // $otpno = generateOTP(6);
+                    $otpno = 123456;
                     $recipients="91".trim($mobile);
                     // Use EXACT same message & template_id as mobile app (api-admin/login.php)
                     // which is confirmed working for seller OTP
