@@ -71,6 +71,7 @@
                             <th data-field="measurement" data-sortable="true">Measurement (Kg, gm, Ltr)</th> 
                             <th data-field="stock" data-sortable="true" >Stock</th>
                             <th data-field="serve_for" data-sortable="true">Availability</th>
+                            <th data-field="available_time" data-sortable="true">Available Time</th>
                             <th data-field="is_active" data-sortable="true">Status</th>
                             <!-- <th data-field="discounted_price" data-sortable="true" >Discounted Price</th> -->
                             <!--<th data-field="category_id" data-sortable="true">Category ID</th>-->

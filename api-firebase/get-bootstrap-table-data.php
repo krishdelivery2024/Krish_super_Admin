@@ -801,7 +801,7 @@
 			$total = $row['total'];
 		
 // 		$sql = "SELECT * FROM products ".$where." ORDER BY ".$sort." ".$order." LIMIT ".$offset.", ".$limit;
-        $sql = "SELECT p.id AS id, p.name, p.image, pv.price, pv.discounted_price, pv.measurement, pv.serve_for, pv.stock,pv.barcode_data, u.short_code ,p.is_active
+        $sql = "SELECT p.id AS id, p.name, p.image, pv.price, pv.discounted_price, pv.measurement, pv.serve_for, pv.stock,pv.barcode_data, u.short_code ,p.is_active, p.available_time
             FROM `products` p
             $join 
             $where ORDER BY $sort $order LIMIT $offset, $limit";
@@ -837,6 +837,7 @@
 			$tempRow['discounted_price'] = $currency." ".$row['discounted_price'];
 			$tempRow['serve_for'] = $row['serve_for'];
 			$tempRow['stock'] = $row['stock'];
+			$tempRow['available_time'] = !empty($row['available_time']) ? $row['available_time'] : 'n/a';
 			$tempRow['is_active'] = ($row['is_active'] == 1)
 			? '<span style="color: green;">Active</span>'
 			: '<span style="color: red;">Inactive</span>';
@@ -890,7 +891,7 @@
 			$total = $row['total'];
 		
 // 		$sql = "SELECT * FROM products ".$where." ORDER BY ".$sort." ".$order." LIMIT ".$offset.", ".$limit;
-        $sql = "SELECT p.id AS id, p.name, p.image, pv.price, pv.discounted_price, pv.measurement, pv.serve_for, pv.stock,pv.barcode_data, u.short_code, p.is_active 
+        $sql = "SELECT p.id AS id, p.name, p.image, pv.price, pv.discounted_price, pv.measurement, pv.serve_for, pv.stock,pv.barcode_data, u.short_code, p.is_active, p.available_time 
             FROM `products` p
             $join 
             $where ORDER BY $sort $order LIMIT $offset, $limit";
@@ -926,6 +927,7 @@
 			$tempRow['discounted_price'] = $currency." ".$row['discounted_price'];
 			$tempRow['serve_for'] = $row['serve_for'];
 			$tempRow['stock'] = $row['stock'];
+			$tempRow['available_time'] = !empty($row['available_time']) ? $row['available_time'] : 'n/a';
 			$tempRow['is_active'] = ($row['is_active'] == 1)
 			? '<span style="color: green;">Active</span>'
 			: '<span style="color: red;">Inactive</span>';

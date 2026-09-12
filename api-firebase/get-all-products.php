@@ -8,6 +8,7 @@
     date_default_timezone_set('Asia/Kolkata');
     include_once('../includes/custom-functions.php');
 	$fn = new custom_functions;
+    $meal_filter = $fn->get_meal_availability_filter();
     
   	/* accesskey:90336
   	 product_id:230 */
@@ -24,12 +25,12 @@
 		    $sort = (isset($_POST['sort']) && !empty($_POST['sort']))? $db->escapeString($fn->xss_clean($_POST['sort'])):"row_order + 0 ";
 		    $order = (isset($_POST['order']) && !empty($_POST['order']))? $db->escapeString($fn->xss_clean($_POST['order'])):"ASC";
 		    
-		    $sql = "SELECT count(id) as total FROM products ";
+		    $sql = "SELECT count(id) as total FROM products ".(!empty($meal_filter)?'WHERE '.$meal_filter:'')."";
             $db->sql($sql);
             $total = $db->getResult();
             
 		    
-            $sql = "SELECT *,(SELECT b.name FROM brand b WHERE p.brand_id=b.id) as brand_name FROM products p ORDER BY $sort $order LIMIT $offset,$limit ";
+            $sql = "SELECT *,(SELECT b.name FROM brand b WHERE p.brand_id=b.id) as brand_name FROM products p ".(!empty($meal_filter)?'WHERE '.$meal_filter:'')." ORDER BY $sort $order LIMIT $offset,$limit ";
             $db->sql($sql);
             $res = $db->getResult();
             // return $res;

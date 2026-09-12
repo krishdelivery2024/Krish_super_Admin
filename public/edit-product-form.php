@@ -68,6 +68,7 @@
             $min_stock = $db->escapeString($fn->xss_clean($_POST['min_stock']));
             $min_order_qty = $db->escapeString($fn->xss_clean($_POST['min_order_qty']));
             $indicator = $db->escapeString($fn->xss_clean($_POST['indicator']));
+            $available_time = !empty($_POST['available_time']) ? implode(',', array_map(function($value) use ($fn, $db){ return $db->escapeString($fn->xss_clean($value)); }, $_POST['available_time'])) : '';
             // $quantity = $_POST['quantity'];
             
             // get image info
@@ -219,10 +220,10 @@
                     $upload = move_uploaded_file($_FILES['image']['tmp_name'], 'upload/images/'.$image);
       
                     $upload_image = 'upload/images/'.$image;
-                    $sql_query = "UPDATE products SET name = '$name' ,slug = '$slug' , category_id = '$category_id' ,subcategory_id = '$subcategory_id', brand_id = '$brand_id',price_type='$price_type', hsn = '$hsn',sgst = '$sgst',cgst = '$cgst',igst = '$igst', image = '$upload_image', description = '$description', min_stock = '$min_stock', min_order_qty = '$min_order_qty', status = '$product_status',  indicator = '$indicator'  WHERE id = $ID";
+                    $sql_query = "UPDATE products SET name = '$name' ,slug = '$slug' , category_id = '$category_id' ,subcategory_id = '$subcategory_id', brand_id = '$brand_id',price_type='$price_type', hsn = '$hsn',sgst = '$sgst',cgst = '$cgst',igst = '$igst', image = '$upload_image', description = '$description', available_time = '$available_time', min_stock = '$min_stock', min_order_qty = '$min_order_qty', status = '$product_status',  indicator = '$indicator'  WHERE id = $ID";
                     $db->sql($sql_query);
                 }else{
-                    $sql_query = "UPDATE products SET name = '$name' ,slug = '$slug' ,category_id = '$category_id' ,subcategory_id = '$subcategory_id' , brand_id = '$brand_id',price_type='$price_type', hsn = '$hsn',sgst = '$sgst',cgst = '$cgst',igst = '$igst', description = '$description', min_stock = '$min_stock', min_order_qty = '$min_order_qty', status = '$product_status',  indicator = '$indicator' WHERE id = $ID";
+                    $sql_query = "UPDATE products SET name = '$name' ,slug = '$slug' ,category_id = '$category_id' ,subcategory_id = '$subcategory_id' , brand_id = '$brand_id',price_type='$price_type', hsn = '$hsn',sgst = '$sgst',cgst = '$cgst',igst = '$igst', description = '$description', available_time = '$available_time', min_stock = '$min_stock', min_order_qty = '$min_order_qty', status = '$product_status',  indicator = '$indicator' WHERE id = $ID";
                     $db->sql($sql_query);
                 }
                 //print_r($sql_query);die;
@@ -1058,6 +1059,16 @@
                                 <option <?=($data['indicator']=='1')?'selected':''; ?> value="1" >Veg</option>
                                 <option <?=($data['indicator']=='2')?'selected':''; ?> value="2" >Non Veg</option>
                             </select>
+                        </div>
+
+                        <?php $available_time_arr = array_filter(array_map('trim', explode(',', isset($data['available_time']) ? $data['available_time'] : ''))); ?>
+                        <div class="form-group col-md-4">
+                            <label for="available_time">Available Time</label>
+                            <br>
+                            <label class="checkbox-inline"><input type="checkbox" name="available_time[]" value="Anytime" <?=(in_array('Anytime',$available_time_arr))?'checked':''; ?>> Anytime</label>
+                            <label class="checkbox-inline"><input type="checkbox" name="available_time[]" value="Breakfast" <?=(in_array('Breakfast',$available_time_arr))?'checked':''; ?>> Breakfast</label>
+                            <label class="checkbox-inline"><input type="checkbox" name="available_time[]" value="Lunch" <?=(in_array('Lunch',$available_time_arr))?'checked':''; ?>> Lunch</label>
+                            <label class="checkbox-inline"><input type="checkbox" name="available_time[]" value="Dinner" <?=(in_array('Dinner',$available_time_arr))?'checked':''; ?>> Dinner</label>
                         </div>
                     
                             

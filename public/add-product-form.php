@@ -48,6 +48,7 @@
         $indicator = $db->escapeString($fn->xss_clean($_POST['indicator']));
     	
     	$min_order_qty = $db->escapeString($fn->xss_clean($_POST['min_order_qty']));
+    	$available_time = !empty($_POST['available_time']) ? implode(',', array_map(function($value) use ($fn, $db){ return $db->escapeString($fn->xss_clean($value)); }, $_POST['available_time'])) : '';
     	// get image info
     	$image = $db->escapeString($fn->xss_clean($_FILES['image']['name']));
     	$image_error = $db->escapeString($fn->xss_clean($_FILES['image']['error']));
@@ -205,7 +206,7 @@
     		    );
     		   // $product_id=$db->insert('products',$data);
                 //$sql='INSERT INTO products (name,slug,category_id,subcategory_id,brand_id,image,other_images,description,min_stock) VALUES("'.$name.'","'.$slug.'","'.$category_id.'","'.$subcategory_id.'","'.$brand_id.'","'.$upload_image.'","'.$other_images.'","'.$description.'","'.$min_stock.'")';
-                $sql="INSERT INTO products (name,slug,category_id,subcategory_id,brand_id,price_type,hsn,sgst,cgst,igst,image,other_images,description,min_stock,min_order_qty,status,seller_id,indicator) VALUES('".$name."','".$slug."','".$category_id."','".$subcategory_id."','".$brand_id."','".$price_type."','".$hsn."','".$sgst."','".$cgst."','".$igst."','".$upload_image."','".$other_images."','".$description."','".$min_stock."','".$min_order_qty."','".$product_status."','".$seller_id."','".$indicator."')";
+                $sql="INSERT INTO products (name,slug,category_id,subcategory_id,brand_id,price_type,hsn,sgst,cgst,igst,image,other_images,description,available_time,min_stock,min_order_qty,status,seller_id,indicator) VALUES('".$name."','".$slug."','".$category_id."','".$subcategory_id."','".$brand_id."','".$price_type."','".$hsn."','".$sgst."','".$cgst."','".$igst."','".$upload_image."','".$other_images."','".$description."','".$available_time."','".$min_stock."','".$min_order_qty."','".$product_status."','".$seller_id."','".$indicator."')";
                 // print_r($sql);die;
                 $db->sql($sql);
     			$product_id = $db->getResult();
@@ -664,6 +665,15 @@
                                 <option value="1" >Veg</option>
                                 <option value="2" >Non Veg</option>
                             </select>
+                        </div>
+
+                        <div class="form-group col-md-4">
+                            <label for="available_time">Available Time</label>
+                            <br>
+                            <label class="checkbox-inline"><input type="checkbox" name="available_time[]" value="Anytime"> Anytime</label>
+                            <label class="checkbox-inline"><input type="checkbox" name="available_time[]" value="Breakfast"> Breakfast</label>
+                            <label class="checkbox-inline"><input type="checkbox" name="available_time[]" value="Lunch"> Lunch</label>
+                            <label class="checkbox-inline"><input type="checkbox" name="available_time[]" value="Dinner"> Dinner</label>
                         </div>
                         
                     </div>

@@ -8,6 +8,7 @@ $db->connect();
 include_once('../includes/custom-functions.php');
 
 $fn = new custom_functions;
+$meal_filter = $fn->get_meal_availability_filter();
 date_default_timezone_set('Asia/Kolkata');
 /* accesskey:90336
 	type:products-search
@@ -58,7 +59,7 @@ if(isset($_POST['type']) && $_POST['type'] == 'products-search'){
 			}
 
 	}
-		$sql = "SELECT COUNT(id) as total FROM `products` WHERE is_active='1'".$where;
+		$sql = "SELECT COUNT(id) as total FROM `products` WHERE is_active='1'".$where.(!empty($meal_filter)?' AND '.$meal_filter:'');
 		$db->sql($sql);
 		$res = $db->getResult();
 
@@ -66,7 +67,7 @@ if(isset($_POST['type']) && $_POST['type'] == 'products-search'){
 		$total = $row['total'];
 	}
 
-	$sql = "SELECT *,(SELECT b.name FROM brand b WHERE p.brand_id=b.id) as brand_name,(SELECT count(id) FROM product_variant pv WHERE pv.product_id=p.id AND pv.stock!=0 AND pv.serve_for='Available') as stock_check FROM products p  WHERE is_active='1'".$where;
+	$sql = "SELECT *,(SELECT b.name FROM brand b WHERE p.brand_id=b.id) as brand_name,(SELECT count(id) FROM product_variant pv WHERE pv.product_id=p.id AND pv.stock!=0 AND pv.serve_for='Available') as stock_check FROM products p  WHERE is_active='1'".$where.(!empty($meal_filter)?' AND '.$meal_filter:'');
 		
 	$db->sql($sql);
 	$res = $db->getResult();

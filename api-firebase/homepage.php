@@ -11,6 +11,7 @@ include_once('../includes/crud.php');
 $db=new Database();
 include_once('../includes/custom-functions.php');
 $fn = new custom_functions;
+$meal_filter = $fn->get_meal_availability_filter();
 $db->connect(); 
 include_once('../includes/variables.php');
 include_once('verify-token.php');
@@ -136,7 +137,7 @@ if(isset($_POST['accesskey'])) {
 		$product_ids = implode(',', $product_ids);
 		
 		// $sql = 'SELECT * FROM `products` where id in ('.$row['product_ids'].') ORDER BY FIELD(id, '.$row['product_ids'].')';
-		$sql = 'SELECT *,(SELECT b.name FROM brand b WHERE p.brand_id=b.id) as brand_name FROM products p WHERE status="1" and id IN ('.$product_ids.')';
+		$sql = 'SELECT *,(SELECT b.name FROM brand b WHERE p.brand_id=b.id) as brand_name FROM products p WHERE status="1" and id IN ('.$product_ids.')'.(!empty($meal_filter)?' AND '.$meal_filter:'');
 		// echo $sql;
 		$db->sql($sql);
 		$result1 = $db->getResult();
