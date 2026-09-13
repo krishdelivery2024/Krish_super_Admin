@@ -944,6 +944,352 @@ if (isset($_POST['accept_order_delivery_boy'])) {
 ---------------------------------------------------------------------------------------------------------
 */
 
+if (isset($_POST['get_parcel_orders'])) {
+
+	/* 
+	get_parcel_orders
+		accesskey:90336
+		get_parcel_orders:10        // delivery boy id (caller)    
+		id:10                       // {optional}
+		status:new / active / past  // {optional, default new}
+		latitude:12.34              // {optional - delivery boy's live location}
+		longtitude:56.78            // {optional}
+		offset:0                    // {optional}
+		limit:10                    // {optional}
+	*/
+	$response_data = array();
+
+	$id = (isset($_POST['id']) && !empty(trim($_POST['id'])) && is_numeric($_POST['id'])) ? $db->escapeString(trim($fn->xss_clean($_POST['id']))) : '';
+
+	// For 'new' parcel orders, the delivery boy ID is passed as get_parcel_orders value
+	$caller_id = $id;
+	if (empty($caller_id) && isset($_POST['get_parcel_orders']) && is_numeric($_POST['get_parcel_orders']) && intval($_POST['get_parcel_orders']) > 1) {
+		$caller_id = $db->escapeString(trim($fn->xss_clean($_POST['get_parcel_orders'])));
+	}
+
+	// Accept both 'latitude' and correctly-spelled/misspelled longitude keys
+	$deliveryboylatitude = (isset($_POST['latitude']) && !empty(trim($_POST['latitude'])) && is_numeric($_POST['latitude'])) ? $db->escapeString(trim($fn->xss_clean($_POST['latitude']))) : '';
+
+	if (isset($_POST['longitude']) && !empty(trim($_POST['longitude'])) && is_numeric($_POST['longitude'])) {
+		$deliveryboylongtitude = $db->escapeString(trim($fn->xss_clean($_POST['longitude'])));
+	} elseif (isset($_POST['longtitude']) && !empty(trim($_POST['longtitude'])) && is_numeric($_POST['longtitude'])) {
+		$deliveryboylongtitude = $db->escapeString(trim($fn->xss_clean($_POST['longtitude'])));
+	} else {
+		$deliveryboylongtitude = '';
+	}
+
+	$offset = (isset($_POST['offset']) && !empty(trim($_POST['offset'])) && is_numeric($_POST['offset'])) ? (int) $db->escapeString(trim($fn->xss_clean($_POST['offset']))) : 0;
+	$limit = (isset($_POST['limit']) && !empty(trim($_POST['limit'])) && is_numeric($_POST['limit'])) ? (int) $db->escapeString(trim($fn->xss_clean($_POST['limit']))) : 10;
+	$status = (isset($_POST['status']) && !empty(trim($_POST['status']))) ? $db->escapeString(trim($fn->xss_clean($_POST['status']))) : 'new';
+
+	$boy_id = !empty($id) ? $id : $caller_id;
+
+	if (($status == 'active' || $status == 'past') && empty($boy_id)) {
+		$response_data['error'] = true;
+		$response_data['message'] = "Delivery Boy ID is required when status is active or past.";
+		echo json_encode($response_data);
+		die;
+	}
+
+	$where = " WHERE 1";
+	if ($status == 'new' || $status == '') {
+		if (!empty($boy_id)) {
+			$sql_check = "SELECT active_status FROM delivery_boys WHERE id='$boy_id'";
+			$db->sql($sql_check);
+			$res_check = $db->getResult();
+			if (!empty($res_check) && $res_check[0]['active_status'] == 'false') {
+				$response_data['error'] = true;
+				$response_data['message'] = "You are currently offline. Please turn on your active status to receive new parcel orders.";
+				$response_data['data'] = array();
+				echo json_encode($response_data);
+				die;
+			}
+		}
+		$where .= " AND p.status IN ('pending','accepted') AND p.delivery_boy_id = 0";
+		// Exclude parcel orders this delivery boy has already rejected
+		if (!empty($boy_id)) {
+			$where .= " AND (p.rejected_by IS NULL OR p.rejected_by = '' OR NOT FIND_IN_SET('$boy_id', p.rejected_by)) ";
+		}
+	} else if ($status == 'active') {
+		$where .= " AND p.delivery_boy_id = '" . $boy_id . "' AND p.status IN ('accepted','picked')";
+	} else if ($status == 'past') {
+		$where .= " AND p.delivery_boy_id = '" . $boy_id . "' AND p.status = 'delivered'";
+	} else {
+		$response_data['error'] = true;
+		$response_data['message'] = "Invalid status.";
+		echo json_encode($response_data);
+		die;
+	}
+
+	$sql = "SELECT COUNT(p.id) as total FROM `parcel_requests` p" . $where;
+	$db->sql($sql);
+	$res = $db->getResult();
+	$total = (!empty($res)) ? $res[0]['total'] : 0;
+
+	$sql = "SELECT p.* FROM `parcel_requests` p" . $where . " ORDER BY p.id DESC LIMIT " . $offset . ", " . $limit;
+	$db->sql($sql);
+	$res = $db->getResult();
+
+	$rows1 = array();
+	foreach ($res as $row) {
+		$images = (!empty($row['parcel_image'])) ? array_values(array_filter(array_map('trim', explode(',', $row['parcel_image'])))) : array();
+		$first_image = (!empty($images)) ? DOMAIN_URL . $images[0] : '';
+
+		$pickup_lat = $row['pickup_lat'];
+		$pickup_lng = $row['pickup_lng'];
+		$drop_lat = $row['drop_lat'];
+		$drop_lng = $row['drop_lng'];
+
+		$distance = 0;
+		if ($status == 'new' || $status == '') {
+			// distance between delivery boy (live) and pickup point (sender)
+			$distance = calculateDistance($deliveryboylatitude, $deliveryboylongtitude, $pickup_lat, $pickup_lng);
+		} else {
+			// active/past -> distance between delivery boy (live) and drop point (recipient)
+			$distance = calculateDistance($deliveryboylatitude, $deliveryboylongtitude, $drop_lat, $drop_lng);
+		}
+
+		$weight = ($row['weight_kg'] != '' && $row['weight_kg'] !== null) ? $row['weight_kg'] . ' kg' : '';
+
+		$items = array(
+			array(
+				'id' => $row['id'],
+				'product_variant_id' => '0',
+				'name' => ($row['item_type_name'] != '') ? $row['item_type_name'] : 'Parcel',
+				'unit' => ($weight != '') ? $weight : 'Standard',
+				'product_image' => $first_image,
+				'price' => (string) $row['per_km_price'],
+				'quantity' => '1',
+				'subtotal' => (string) $row['total_price'],
+				'active_status' => $row['status']
+			)
+		);
+
+		$tempRow = array();
+		$tempRow['order_type'] = 'parcel';
+		$tempRow['item_type_name'] = $row['item_type_name'];
+		$tempRow['weight_kg'] = $weight;
+		$tempRow['parcel_image'] = $first_image;
+		$tempRow['id'] = $row['id'];
+		$tempRow['user_id'] = $row['user_id'];
+		$tempRow['delivery_boy_id'] = $row['delivery_boy_id'];
+		$tempRow['name'] = $row['recipient_name'];
+		$tempRow['mobile'] = $row['recipient_phone'];
+		$tempRow['seller_name'] = $row['sender_name'];
+		$tempRow['seller_company_name'] = $row['sender_name'];
+		$tempRow['seller_mobile'] = $row['sender_phone'];
+		$tempRow['seller_company_address'] = $row['pickup_location'];
+		$tempRow['seller_image'] = $first_image;
+		$tempRow['items'] = $items;
+		$tempRow['total'] = $row['total_price'];
+		$tempRow['tax'] = '0(0%)';
+		$tempRow['promo_discount'] = '0';
+		$tempRow['wallet_balance'] = '0';
+		$tempRow['discount'] = '0(0%)';
+		$tempRow['qty'] = '1';
+		$tempRow['final_total'] = ceil($row['total_price']);
+		$tempRow['promo_code'] = '';
+		$tempRow['deliver_by'] = '';
+		$tempRow['payment_method'] = ($row['payment_status'] == 'paid') ? 'Paid' : 'Not Paid';
+		$tempRow['payment_status'] = $row['payment_status'];
+		$tempRow['payment_request'] = '0';
+		$tempRow['address'] = $row['drop_location'];
+		$tempRow['seller_latitude'] = $pickup_lat;
+		$tempRow['seller_longitude'] = $pickup_lng;
+		$tempRow['latitude'] = $drop_lat;
+		$tempRow['longitude'] = $drop_lng;
+		$tempRow['distance'] = round($distance);
+		$tempRow['accept_status'] = $row['accept_status'];
+		$tempRow['delivery_time'] = date('d F Y, l h:i a', strtotime($row['created_at']));
+		$tempRow['active_status'] = $row['status'];
+		$tempRow['date_added'] = date('d-m-Y', strtotime($row['created_at']));
+
+		$rows1[] = $tempRow;
+	}
+
+	$response_data['error'] = false;
+	$response_data['data'] = $rows1;
+	$response_data['total'] = (string) $total;
+	$response_data['today_earn'] = '0';
+	$response_data['today_earn_cod'] = '0';
+	$response_data['today_earn_online'] = '0';
+	$response_data['today_delivery_charge'] = '0';
+	print_r(json_encode($response_data));
+	die;
+}
+
+/* 
+---------------------------------------------------------------------------------------------------------
+*/
+
+if (isset($_POST['accept_parcel_order'])) {
+
+	if (empty($_POST['id'])) {
+		$response['error'] = true;
+		$response['message'] = "Id of Delivery boy should be Passed!";
+		print_r(json_encode($response));
+		die;
+	}
+	if (empty($_POST['order_id'])) {
+		$response['error'] = true;
+		$response['message'] = "Parcel Order ID should be Passed!";
+		print_r(json_encode($response));
+		die;
+	}
+	if (empty($_POST['status'])) {
+		$response['error'] = true;
+		$response['message'] = "Status should be Passed!";
+		print_r(json_encode($response));
+		die;
+	}
+	$id = $db->escapeString(trim($fn->xss_clean($_POST['id'])));
+	$order_id = $db->escapeString(trim($fn->xss_clean($_POST['order_id'])));
+	$status = $db->escapeString(trim($fn->xss_clean($_POST['status'])));
+
+	$sql = "SELECT * FROM delivery_boys WHERE id = '" . $id . "'";
+	$db->sql($sql);
+	$res = $db->getResult();
+	$num = $db->numRows($res);
+	if ($num == 1) {
+		$sql = "SELECT * FROM parcel_requests WHERE id = '$order_id' AND status != 'delivered' AND status != 'cancelled' AND delivery_boy_id = '0'";
+		$db->sql($sql);
+		$res = $db->getResult();
+		$num = $db->numRows($res);
+		if ($num == 1) {
+			if ($status == "yes") {
+				$sql1 = "UPDATE parcel_requests SET delivery_boy_id = '$id', accept_status = '$status', status = 'accepted' WHERE id = '$order_id'";
+				$db->sql($sql1);
+				$response['error'] = false;
+				$response['message'] = "Parcel Order Accepted Successfully";
+			} else {
+				// Record the rejection so this delivery boy won't see this parcel order again
+				$sql_rejected = "UPDATE parcel_requests SET rejected_by = IF(rejected_by IS NULL OR rejected_by = '', '$id', CONCAT(rejected_by, ',$id')) WHERE id = '$order_id'";
+				$db->sql($sql_rejected);
+				$response['error'] = false;
+				$response['message'] = "Parcel Order Rejected Successfully";
+			}
+		} else {
+			$response['error'] = true;
+			$response['message'] = "Invalid Parcel Order ID!";
+		}
+	} else {
+		$response['error'] = true;
+		$response['message'] = "Invalid Delivery Boy ID!";
+	}
+	print_r(json_encode($response));
+	die;
+}
+
+/* 
+---------------------------------------------------------------------------------------------------------
+*/
+
+if (isset($_POST['update_parcel_order_status']) && isset($_POST['order_id'])) {
+
+	$id = $db->escapeString(trim($fn->xss_clean($_POST['order_id'])));
+	$postStatus = $db->escapeString(trim($fn->xss_clean($_POST['status'])));
+	$delivery_boy_id = (isset($_POST['delivery_boy_id']) && !empty(trim($_POST['delivery_boy_id']))) ? $db->escapeString(trim($fn->xss_clean($_POST['delivery_boy_id']))) : '0';
+	$otp = (isset($_POST['otp'])) ? trim($db->escapeString($fn->xss_clean($_POST['otp']))) : '';
+
+	if (!in_array($postStatus, array('picked', 'delivered'))) {
+		$response['error'] = true;
+		$response['message'] = "Invalid parcel status!";
+		print_r(json_encode($response));
+		die;
+	}
+
+	$sql = "SELECT * FROM parcel_requests WHERE id = '$id'";
+	$db->sql($sql);
+	$res = $db->getResult();
+	if (count($res) != 1) {
+		$response['error'] = true;
+		$response['message'] = "Invalid parcel order ID!";
+		print_r(json_encode($response));
+		die;
+	}
+	$parcel = $res[0];
+
+	if ($parcel['status'] == 'cancelled') {
+		$response['error'] = true;
+		$response['message'] = "This parcel order has been cancelled!";
+		print_r(json_encode($response));
+		die;
+	}
+
+	// Auto assign the delivery boy if the order was not already accepted
+	if ($parcel['delivery_boy_id'] == 0 && $delivery_boy_id != '0') {
+		$sql = "UPDATE parcel_requests SET delivery_boy_id = '$delivery_boy_id' WHERE id = '$id'";
+		$db->sql($sql);
+	}
+
+	if ($postStatus == 'delivered') {
+		// OTP verification before marking as delivered
+		if (empty($otp)) {
+			$response['error'] = true;
+			$response['message'] = "OTP is required to mark this parcel as delivered.";
+			print_r(json_encode($response));
+			die;
+		}
+		if (empty($parcel['otp'])) {
+			$response['error'] = true;
+			$response['message'] = "No OTP found for this parcel request.";
+			print_r(json_encode($response));
+			die;
+		}
+		if ((string)$otp !== (string)$parcel['otp']) {
+			$response['error'] = true;
+			$response['message'] = "Invalid OTP. Please ask the customer for the correct OTP.";
+			print_r(json_encode($response));
+			die;
+		}
+
+		$sql = "UPDATE parcel_requests SET status = 'delivered' WHERE id = '$id'";
+		$db->sql($sql);
+
+		// Credit delivery boy commission
+		$boy_id = ($delivery_boy_id != '0') ? $delivery_boy_id : $parcel['delivery_boy_id'];
+		if ($boy_id != '0') {
+			$sql = "SELECT bonus,name FROM delivery_boys WHERE id='" . $boy_id . "'";
+			$db->sql($sql);
+			$res_boy = $db->getResult();
+			if (!empty($res_boy)) {
+				$reward = floatval($parcel['total_price']) / 100 * floatval($res_boy[0]['bonus']);
+				$sql = "UPDATE delivery_boys SET balance = balance + ceil($reward) WHERE id='" . $boy_id . "'";
+				$db->sql($sql);
+				$fn->add_delivery_boy_commission($boy_id, 'credit', $reward, 'Parcel Delivery Boy Commission.');
+				$message_delivery_boy = "Hello, Dear " . ucwords($res_boy[0]['name']) . ", Your Parcel Delivery Commission of " . ceil($reward) . " has been credited for Parcel #" . $id . ".";
+				$fn->send_notification_to_delivery_boy($boy_id, "Your parcel delivery commission credited", $message_delivery_boy, 'delivery_boys', $id, 'parcel');
+				$fn->store_delivery_boy_notification($boy_id, $id, "Parcel Commission Credited", $message_delivery_boy, 'parcel');
+			}
+		}
+
+		// Notify the user who placed the parcel request
+		$message_user = "Hello, Your parcel request #" . $id . " has been delivered successfully to " . $parcel['recipient_name'] . ". Thank you for using our service.";
+		$fn->send_order_update_notification($parcel['user_id'], "Your parcel has been Delivered", $message_user, 'order');
+	} else {
+		$sql = "UPDATE parcel_requests SET status = '$postStatus' WHERE id = '$id'";
+		$db->sql($sql);
+
+		$message_delivery_boy = "Parcel order #" . $id . " has been updated to " . ucwords($postStatus) . ". Please continue with the delivery.";
+		$fn->send_notification_to_delivery_boy($delivery_boy_id, "Parcel status updated", $message_delivery_boy, 'delivery_boys', $id, 'parcel');
+
+		// Notify the user who placed the parcel request when the parcel is picked up
+		if ($postStatus == 'picked') {
+			$message_user = "Hello, Your parcel request #" . $id . " has been picked up by the delivery boy. Please be ready to receive the delivery.";
+			$fn->send_order_update_notification($parcel['user_id'], "Your parcel has been Picked up", $message_user, 'order');
+		}
+	}
+
+	$response['error'] = false;
+	$response['message'] = "Parcel order updated successfully.";
+	print_r(json_encode($response));
+	die;
+}
+
+/* 
+---------------------------------------------------------------------------------------------------------
+*/
+
 if (isset($_POST['get_fund_transfers'])) {
 
 	/* 

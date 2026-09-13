@@ -136,21 +136,32 @@ class Firebase {
                 ?? $mPushNotification['message'] 
                 ?? $mPushNotification['text'] 
                 ?? '';
-            
+
+            // Data-only payload (no 'notification' block) so the app's
+            // onMessageReceived is invoked in BOTH foreground and background,
+            // and the app controls tray display/channel/actions itself.
+            $data = !empty($mPushNotification['data']) ? array_map('strval', $mPushNotification['data']) : [];
+            $data['title'] = (string) $notif_title;
+            if (empty($data['message'])) {
+                $data['message'] = (string) $notif_body;
+            }
+            if (empty($data['body'])) {
+                $data['body'] = (string) $notif_body;
+            }
+
             $message = [
                 'message' => [
                     'token' => $token,
-                    'notification' => [
-                        'title' => (string) $notif_title,
-                        'body'  => (string) $notif_body
-                    ],
-                                       'data' => !empty($mPushNotification['data']) ? array_map('strval', $mPushNotification['data']) : new stdClass()
-
+                    'data'  => $data,
+                    'android' => [
+                        'priority' => 'high'
+                    ]
                 ]
             ];
 
             if (!empty($mPushNotification['image'])) {
-                $message['message']['notification']['image'] = $mPushNotification['image'];
+                $data['image'] = (string) $mPushNotification['image'];
+                $message['message']['data'] = $data;
             }
 
             $ch = curl_init($url);

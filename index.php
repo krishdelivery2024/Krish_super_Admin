@@ -15,9 +15,9 @@
     $sql_logo="select value from `settings` where variable='Logo' OR variable='logo'";
 	    $db->sql($sql_logo);
 	    $res_logo=$db->getResult();
-		if (!isset($settings['two_auth'])) {
-	        echo "<script src='https://www.google.com/recaptcha/api.js'></script>";
-	    }
+		// if (!isset($settings['two_auth'])) {
+	  //       echo "<script src='https://www.google.com/recaptcha/api.js'></script>";
+	  //   }
 	    if (isset($_SESSION['id'])) {
 	        header("location:home.php");
 	    }

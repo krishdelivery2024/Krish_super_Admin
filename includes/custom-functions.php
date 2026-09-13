@@ -674,7 +674,7 @@ class custom_functions{
         // echo(json_encode($response));
     }
     
-    public function send_notification_to_delivery_boy($delivery_boy_id,$title,$message,$type,$order_id){
+    public function send_notification_to_delivery_boy($delivery_boy_id,$title,$message,$type,$order_id,$order_type='food'){
         if($_SERVER['REQUEST_METHOD']=='POST'){
         //hecking the required params 
             //creating a new push
@@ -693,7 +693,8 @@ class custom_functions{
                     $message,
                     null,
                     $type,
-                    $order_id
+                    $order_id,
+                    $order_type
                 );
             //getting the push from push object
             $m_push_notification = $push->getPush();
@@ -762,6 +763,58 @@ class custom_functions{
         return $this->db->getResult()[0];
     }
     
+    public function send_notification_to_seller($seller_id,$title,$message,$type,$order_id=0,$order_type='food'){
+        if($_SERVER['REQUEST_METHOD']=='POST'){
+        //hecking the required params 
+            //creating a new push
+            /*dynamically getting the domain of the app*/
+            $url  = isset($_SERVER['HTTPS']) ? 'https://' : 'http://';
+            $url .= $_SERVER['SERVER_NAME'];
+            $url .= $_SERVER['REQUEST_URI'];
+            $server_url = dirname($url).'/';
+            
+            $push = null;
+            //echo $order_id;
+            //first check if the push has an image with it
+            //if the push don't have an image give null in place of image
+                $push = new Push(
+                    $title,
+                    $message,
+                    null,
+                    $type,
+                    $order_id,
+                    $order_type
+                );
+            //getting the push from push object
+            $m_push_notification = $push->getPush();
+            
+            //getting the token from database object
+                $sql="SELECT fcm_id FROM seller WHERE id = '".$seller_id."' AND status = '1'";
+            
+            $this->db->sql($sql); 
+            $res=$this->db->getResult();
+            $token = array(); 
+            foreach($res as $row){
+                if(!empty($row['fcm_id'])){
+                    array_push($token, $row['fcm_id']);
+                }
+            }
+            
+            //creating firebase class object 
+            $firebase = new Firebase(); 
+    
+            //sending push notification and displaying result 
+            $firebase->send($token, $m_push_notification);
+            $response['error']=false;
+            $response['message'] = "Successfully Send";
+            //print_r(json_encode($response));
+        }else{
+            $response['error']=true;
+            $response['message']='Invalid request';
+           // print_r(json_encode($response));
+        }
+    }
+
     public function get_role($id){
         $sql = "SELECT role FROM admin WHERE id=".$id;
         // echo $sql;
