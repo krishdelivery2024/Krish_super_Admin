@@ -363,6 +363,16 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
             } catch (Error $e) {
                 log_order_debug("Error in send_new_order_notification: " . $e->getMessage());
             }
+            try {
+			    if(!empty($seller_id)){
+			        $function->send_notification_to_seller($seller_id,"New Order Received",$message,'order',$response['order_id']);
+			        log_order_debug("Successfully sent new order notification to seller ($seller_id).");
+			    }
+            } catch (Exception $e) {
+                log_order_debug("Exception in send_notification_to_seller: " . $e->getMessage());
+            } catch (Error $e) {
+                log_order_debug("Error in send_notification_to_seller: " . $e->getMessage());
+            }
 			// sendSms($mobile,$message,$country_code);
             log_order_debug("Order placement finished. Sending response.");
 			print_r(json_encode($response));
@@ -1599,6 +1609,21 @@ if(isset($_POST['update_order_status']) && isset($_POST['id'])) {
     		$message = "Hello, Dear ".ucwords($res_user[0]['name']).", Here is the new update on your order for the order ID : #".$id.". Your order has been ".ucwords($postStatus).". Please take a note of it.";
     		$message .= "Thank you for using our services!You will receive future updates on your order via Email!";
     		$function->send_order_update_notification($user_id,"Your order has been ".ucwords($postStatus),$message,'order');
+    		
+    		/* notify the seller about this order update */
+    		try {
+        		$sql = "select seller_id from orders where id=".$id;
+        		$db->sql($sql);
+        		$res_seller = $db->getResult();
+        		if(!empty($res_seller) && !empty($res_seller[0]['seller_id'])){
+        		    $seller_message = "Your order with ID : #".$id." has been ".ucwords($postStatus).". Please take a note of it.";
+        		    $function->send_notification_to_seller($res_seller[0]['seller_id'],"Order ".ucwords($postStatus),$seller_message,'order',$id);
+        		}
+            } catch (Exception $e) {
+                log_order_debug("Exception in send_notification_to_seller (status update): " . $e->getMessage());
+            } catch (Error $e) {
+                log_order_debug("Error in send_notification_to_seller (status update): " . $e->getMessage());
+            }
 
         	// 	if(isset($_POST['delivery_boy_id']) && $_POST['delivery_boy_id'] != ''){
             // 		$sql1 = "select name from `delivery_boys` where id=".$delivery_boy_id;

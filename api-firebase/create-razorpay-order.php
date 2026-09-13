@@ -1,5 +1,8 @@
 <?php 
 header('Access-Control-Allow-Origin: *');
+@ini_set('display_errors', '0');
+error_reporting(E_ALL & ~E_DEPRECATED);
+ob_start();
 require 'razorpay/Razorpay.php';
 
 use Razorpay\Api\Api;
@@ -59,6 +62,7 @@ if(isset($_POST) && isset($_POST['accesskey']) && isset($_POST['amount']) && !em
         $order['status'] = $razorpay_order['status'];
         $order['attempts'] = $razorpay_order['attempts'];
         $order['created_at'] = $razorpay_order['created_at'];
+        ob_end_clean();
         echo json_encode($order);
     }else{
         $order['error'] = true;

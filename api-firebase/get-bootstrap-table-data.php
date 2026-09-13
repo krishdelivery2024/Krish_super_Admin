@@ -2006,6 +2006,155 @@
 		$bulkData['rows'] = $rows;
 		print_r(json_encode($bulkData));
 	}
+		// data of 'Parcel Item Types' table goes here
+	if(isset($_GET['table']) && $_GET['table'] == 'parcel_item_types'){
+		
+		$offset = 0; $limit = 10;
+		$sort = 'id'; $order = 'DESC';
+		$where = '';
+		if(isset($_GET['offset']))
+			$offset = $_GET['offset'];
+		if(isset($_GET['limit']))
+			$limit = $_GET['limit'];
+		
+		if(isset($_GET['sort']))
+			$sort = $_GET['sort'];
+		if(isset($_GET['order']))
+			$order = $_GET['order'];
+		
+		if(isset($_GET['search']) && $_GET['search'] !=''){
+			$search = $_GET['search'];
+			$where = " Where `id` like '%".$search."%' OR `name` like '%".$search."%'";
+		}
+		
+		$sql = "SELECT COUNT(*) as total FROM `parcel_item_types` ".$where;
+		$db->sql($sql);
+		$res = $db->getResult();
+		foreach($res as $row)
+			$total = $row['total'];
+		
+		$sql = "SELECT * FROM `parcel_item_types` ".$where." ORDER BY ".$sort." ".$order." LIMIT ".$offset.", ".$limit;
+		$db->sql($sql);
+		$res = $db->getResult();
+		
+		$bulkData = array();
+		$bulkData['total'] = $total;
+		$rows = array();
+		$tempRow = array();
+		
+		foreach($res as $row){
+			$operate = "<a href='edit-parcel-item-type.php?id=".$row['id']."'><i class='fa fa-edit'></i>Edit</a>";
+			$operate .= "&nbsp;<a class='btn-xs btn-danger' href='delete-parcel-item-type.php?id=".$row['id']."'><i class='fa fa-trash-o'></i>Delete</a>";
+			
+			$tempRow['id'] = $row['id'];
+			$tempRow['name'] = $row['name'];
+			$tempRow['image'] = "<a data-lightbox='parcel_item_types' href='".DOMAIN_URL.$row['image']."' data-caption='".$row['name']."'><img src='".DOMAIN_URL.$row['image']."' title='".$row['name']."' style='height:50px !important' /></a>";
+			if($row['status']==0)
+			    $tempRow['status']="<label class='label label-danger'>Deactive</label>";
+            else
+                $tempRow['status']="<label class='label label-success'>Active</label>";
+			$tempRow['operate'] = $operate;
+			$rows[] = $tempRow;
+		}
+		$bulkData['rows'] = $rows;
+		print_r(json_encode($bulkData));
+	}
+		// data of 'Parcel Requests' table goes here
+	if(isset($_GET['table']) && $_GET['table'] == 'parcel_requests'){
+		
+		$offset = 0; $limit = 10;
+		$sort = 'pr.id'; $order = 'DESC';
+		$where = '';
+		if(isset($_GET['offset']))
+			$offset = $_GET['offset'];
+		if(isset($_GET['limit']))
+			$limit = $_GET['limit'];
+		
+		if(isset($_GET['sort']) && !empty($_GET['sort'])){
+			$sort = $_GET['sort'];
+		}
+		if(isset($_GET['order']))
+			$order = $_GET['order'];
+		
+		if(isset($_GET['search']) && $_GET['search'] !=''){
+			$search = $_GET['search'];
+			$where = " Where `pr`.`id` like '%".$search."%' OR `pr`.`item_type_name` like '%".$search."%' OR `pr`.`pickup_location` like '%".$search."%' OR `pr`.`drop_location` like '%".$search."%' OR `pr`.`sender_name` like '%".$search."%' OR `pr`.`recipient_name` like '%".$search."%' OR `pr`.`sender_phone` like '%".$search."%' OR `pr`.`recipient_phone` like '%".$search."%' OR `pr`.`status` like '%".$search."%' OR `pr`.`payment_status` like '%".$search."%' OR `pr`.`otp` like '%".$search."%'";
+		}
+		
+		$sql = "SELECT COUNT(*) as total FROM `parcel_requests` pr ".$where;
+		$db->sql($sql);
+		$res = $db->getResult();
+		foreach($res as $row)
+			$total = $row['total'];
+		
+		$sql = "SELECT pr.*, (SELECT name FROM users u WHERE u.id = pr.user_id) AS user_name, (SELECT mobile FROM users u WHERE u.id = pr.user_id) AS user_mobile FROM `parcel_requests` pr ".$where." ORDER BY ".$sort." ".$order." LIMIT ".$offset.", ".$limit;
+		//echo $sql;
+		$db->sql($sql);
+		$res = $db->getResult();
+		
+		$bulkData = array();
+		$bulkData['total'] = $total;
+		$rows = array();
+		$tempRow = array();
+		
+		foreach($res as $row){
+			$operate = "<a class='btn btn-xs btn-warning' href='parcel-request-status-update.php?id=".$row['id']."' title='Update Status'><i class='fa fa-pencil-square-o'></i>Status</a> ";
+			$operate .= "<a class='btn btn-xs btn-danger' href='delete-parcel-request.php?id=".$row['id']."' title='Delete'><i class='fa fa-trash-o'></i>Delete</a>";
+			
+			$tempRow['id'] = $row['id'];
+			$tempRow['item_type_name'] = $row['item_type_name'];
+			$tempRow['parcel_image'] = '-';
+			if(!empty($row['parcel_image'])){
+				$images = explode(',', $row['parcel_image']);
+				$image_html = '';
+				foreach($images as $img){
+					$img = trim($img);
+					if($img != ''){
+						$image_html .= '<a href="'.DOMAIN_URL.''.$img.'" target="_blank" style="display:inline-block;margin-right:3px;"><img src="'.DOMAIN_URL.''.$img.'" style="width:45px;height:45px;object-fit:cover;border-radius:4px;border:1px solid #ddd;cursor:pointer;"></a>';
+					}
+				}
+				if($image_html != ''){
+					$tempRow['parcel_image'] = $image_html;
+				}
+			}
+			$tempRow['weight_kg'] = !empty($row['weight_kg'])?$row['weight_kg'] : '-';
+			$tempRow['distance_km'] = !empty($row['distance_km'])?$row['distance_km'] : '-';
+			$tempRow['base_price'] = '&#8377; '.($row['base_price']>0?$row['base_price']:'0.00');
+			$tempRow['per_km_price'] = '&#8377; '.($row['per_km_price']>0?$row['per_km_price']:'0.00');
+			$tempRow['total_price'] = '&#8377; '.($row['total_price']>0?$row['total_price']:'0.00');
+			$payment_status = strtolower($row['payment_status']);
+			if($payment_status == 'paid'){
+			    $tempRow['payment_status']="<label class='label label-success'>Paid</label>";
+			}else if($payment_status == 'failed'){
+			    $tempRow['payment_status']="<label class='label label-danger'>Failed</label>";
+			}else{
+				$tempRow['payment_status']="<label class='label label-warning'>Pending</label>";
+			}
+			$tempRow['user_name'] = (!empty($row['user_name']))?$row['user_name'].' ('.$row['user_id'].')':'User #'.$row['user_id'];
+			$tempRow['pickup_location'] = $row['pickup_location'].($row['pickup_lat']!=''?'<br/><small>Lat: '.$row['pickup_lat'].', Lng: '.$row['pickup_lng'].'</small>':'');
+			$tempRow['drop_location'] = $row['drop_location'].($row['drop_lat']!=''?'<br/><small>Lat: '.$row['drop_lat'].', Lng: '.$row['drop_lng'].'</small>':'');
+			$tempRow['sender_name'] = $row['sender_name'].'<br/><small>'.$row['sender_phone'].'</small>';
+			$tempRow['recipient_name'] = $row['recipient_name'].'<br/><small>'.$row['recipient_phone'].'</small>';
+			$tempRow['pickup_time'] = $row['pickup_time'];
+			$status = strtolower($row['status']);
+			if($status == 'delivered'){
+			    $tempRow['status']="<label class='label label-success'>Order Delivered</label>";
+			}else if($status == 'accepted'){
+			    $tempRow['status']="<label class='label label-primary'>Order Accepted</label>";
+			}else if($status == 'picked'){
+			    $tempRow['status']="<label class='label label-info'>Order Picked</label>";
+			}else if($status == 'cancelled'){
+			    $tempRow['status']="<label class='label label-danger'>Cancelled</label>";
+			}else{
+				$tempRow['status']="<label class='label label-warning'>Order Placed</label>";
+			}
+			$tempRow['created_at'] = $row['created_at'];
+			$tempRow['operate'] = $operate;
+			$rows[] = $tempRow;
+		}
+		$bulkData['rows'] = $rows;
+		print_r(json_encode($bulkData));
+	}
 		// data of 'Return Request' table goes here
 	if(isset($_GET['table']) && $_GET['table'] == 'return-requests'){
 		

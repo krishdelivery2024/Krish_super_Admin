@@ -54,30 +54,32 @@
 				// upload new image
 				$upload = move_uploaded_file($_FILES['category_image']['tmp_name'], 'upload/images/'.$menu_image);
 		
-				// insert new data to menu table
-				$upload_image = 'upload/images/'.$menu_image;
-				$sql_query = "INSERT INTO main_category (name, image)
-						VALUES('$category_name', '$upload_image')";
-					// Execute query
-					$db->sql($sql_query);
-					// store result 
-					$result = $db->getResult();
-					if(!empty($result)){
-						$result=0;
-					}else{
-						$result=1;
-					}
-				
-				
-				if($result==1){
-					$error['add_category'] = " <div class='content-header'>
-												<span class='label label-success'>Main Category Added Successfully</span>
-												
-												
-												</div>";
-				}else{
-					$error['add_category'] = " <span class='label label-danger'>Failed add category</span>";
-				}
+                if($upload) {
+				    // insert new data to menu table
+				    $upload_image = 'upload/images/'.$menu_image;
+				    $sql_query = "INSERT INTO main_category (name, image)
+						    VALUES('$category_name', '$upload_image')";
+					    // Execute query
+					    $db->sql($sql_query);
+					    // store result 
+					    $result = $db->getResult();
+					    if(!empty($result)){
+						    $result=0;
+					    }else{
+						    $result=1;
+					    }
+				    
+				    
+				    if($result==1){
+					    $error['add_category'] = " <div class='content-header'>
+												    <span class='label label-success'>Main Category Added Successfully</span>
+												    </div>";
+				    }else{
+					    $error['add_category'] = " <span class='label label-danger'>Failed add category</span>";
+				    }
+                } else {
+                    $error['add_category'] = " <span class='label label-danger'>Image upload failed! Please check folder permissions (chmod 777) for upload/images/ on your live server.</span>";
+                }
 			}
 		}else{
 			$error['check_permission'] = " <div class='content-header'>
