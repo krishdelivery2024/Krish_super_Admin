@@ -21,7 +21,7 @@
 		}
 
 		if(!empty($ID)){
-			$sql_query = "SELECT pr.*, (SELECT name FROM users u WHERE u.id = pr.user_id) AS user_name, (SELECT mobile FROM users u WHERE u.id = pr.user_id) AS user_mobile FROM `parcel_requests` pr WHERE pr.id = ".$ID;
+			$sql_query = "SELECT pr.*, (SELECT name FROM users u WHERE u.id = pr.user_id) AS user_name, (SELECT mobile FROM users u WHERE u.id = pr.user_id) AS user_mobile, (SELECT name FROM delivery_boys b WHERE b.id = pr.delivery_boy_id) AS delivery_boy_name, (SELECT mobile FROM delivery_boys b WHERE b.id = pr.delivery_boy_id) AS delivery_boy_mobile FROM `parcel_requests` pr WHERE pr.id = ".$ID;
 			$db->sql($sql_query);
 			$res = $db->getResult();
 			if(count($res) == 0){
@@ -72,7 +72,7 @@
 			}
 
 			// reload fresh data
-			$sql_query = "SELECT pr.*, (SELECT name FROM users u WHERE u.id = pr.user_id) AS user_name, (SELECT mobile FROM users u WHERE u.id = pr.user_id) AS user_mobile FROM `parcel_requests` pr WHERE pr.id = ".$ID;
+			$sql_query = "SELECT pr.*, (SELECT name FROM users u WHERE u.id = pr.user_id) AS user_name, (SELECT mobile FROM users u WHERE u.id = pr.user_id) AS user_mobile, (SELECT name FROM delivery_boys b WHERE b.id = pr.delivery_boy_id) AS delivery_boy_name, (SELECT mobile FROM delivery_boys b WHERE b.id = pr.delivery_boy_id) AS delivery_boy_mobile FROM `parcel_requests` pr WHERE pr.id = ".$ID;
 			$db->sql($sql_query);
 			$res = $db->getResult();
 			$order = $res[0];
@@ -112,6 +112,9 @@
 					<div class="kv"><b>Pickup Time</b><span><?php echo $order['pickup_time'] ?: '-'; ?></span></div>
 					<div class="kv"><b>Placed On</b><span><?php echo $order['created_at']; ?></span></div>
 					<div class="kv"><b>User</b><span><?php echo (!empty($order['user_name']))?$order['user_name'].' ('.$order['user_mobile'].')':'User #'.$order['user_id']; ?></span></div>
+					<?php if(!empty($order['delivery_boy_id']) && !empty($order['delivery_boy_name'])): ?>
+						<div class="kv"><b>Delivery Boy</b><span><?php echo $order['delivery_boy_name'].' ('.$order['delivery_boy_mobile'].')'; ?></span></div>
+					<?php endif; ?>
 					<?php if($order['parcel_image'] != ''): ?>
 						<?php foreach(explode(',', $order['parcel_image']) as $img): ?>
 							<?php $img = trim($img); if($img != ''): ?>

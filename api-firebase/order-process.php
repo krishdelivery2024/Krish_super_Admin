@@ -153,6 +153,24 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 	$notes 	= (isset($_POST['notes']))?$db->escapeString($_POST['notes']):"";
 	
 	$item_details=$function->get_product_by_variant_id($items);
+	
+	// Meal-time availability check for every ordered item
+	if(!empty($item_details)){
+	    foreach($item_details as $item){
+	        $avail_time = isset($item['available_time']) ? $item['available_time'] : '';
+	        $avail_info = $function->get_meal_availability_info($avail_time);
+	        if(!$avail_info['available_now']){
+	            $item_name = isset($item['name']) ? $item['name'] : 'an item';
+	            $avail_label = !empty($avail_info['label']) ? $avail_info['label'] : 'not available at this time';
+	            $response['error'] = true;
+	            $response['message'] = ucfirst($item_name).' is '.$avail_label.'. Please remove unavailable items and try again.';
+	            log_order_debug("Order rejected, item not available: " . $item_name);
+	            print_r(json_encode($response));
+	            return false;
+	        }
+	    }
+	}
+	
 	if($delivery_charge == 'Free'){
 	    $delivery_charge=0;
 	}
@@ -436,7 +454,7 @@ if(isset($_POST['get_orders']) && isset($_POST['user_id'])) {
 	if(isset($_POST['status'])){
 	        $where1="AND o.active_status='".$_POST['status']."'";
 	}
-    $sql = "select *,(select name from users u where u.id=o.user_id) as user_name,(select email from users u where u.id=o.user_id) as user_email, (SELECT s.company_name FROM seller s WHERE s.id = o.seller_id) AS company_name,(SELECT s.image FROM seller s WHERE s.id = o.seller_id) AS company_image from orders o where user_id=".$user_id." ".$where1." ORDER BY date_added DESC LIMIT $offset,$limit";
+    $sql = "select *,(select name from users u where u.id=o.user_id) as user_name,(select email from users u where u.id=o.user_id) as user_email, (SELECT s.company_name FROM seller s WHERE s.id = o.seller_id) AS company_name,(SELECT s.image FROM seller s WHERE s.id = o.seller_id) AS company_image, (SELECT name FROM delivery_boys db WHERE db.id = o.delivery_boy_id) AS delivery_boy_name, (SELECT mobile FROM delivery_boys db WHERE db.id = o.delivery_boy_id) AS delivery_boy_mobile from orders o where user_id=".$user_id." ".$where1." ORDER BY date_added DESC LIMIT $offset,$limit";
     $db->sql($sql);
     $res = $db->getResult();
     $i=0; $j=0;

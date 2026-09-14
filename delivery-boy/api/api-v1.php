@@ -1034,6 +1034,7 @@ if (isset($_POST['get_parcel_orders'])) {
 	foreach ($res as $row) {
 		$images = (!empty($row['parcel_image'])) ? array_values(array_filter(array_map('trim', explode(',', $row['parcel_image'])))) : array();
 		$first_image = (!empty($images)) ? DOMAIN_URL . $images[0] : '';
+		$parcel_images = array_map(function($img){ return DOMAIN_URL . $img; }, $images);
 
 		$pickup_lat = $row['pickup_lat'];
 		$pickup_lng = $row['pickup_lng'];
@@ -1070,6 +1071,7 @@ if (isset($_POST['get_parcel_orders'])) {
 		$tempRow['item_type_name'] = $row['item_type_name'];
 		$tempRow['weight_kg'] = $weight;
 		$tempRow['parcel_image'] = $first_image;
+		$tempRow['parcel_images'] = $parcel_images;
 		$tempRow['id'] = $row['id'];
 		$tempRow['user_id'] = $row['user_id'];
 		$tempRow['delivery_boy_id'] = $row['delivery_boy_id'];

@@ -189,6 +189,11 @@ class custom_functions{
         }
     }
     public function get_meal_availability_filter(){
+        /* All products are returned to the app now; availability is decided
+           client-side using get_meal_time_slots() + each product's available_time. */
+        return '';
+    }
+    public function get_meal_time_slots(){
         $config = $this->get_configurations();
         $timezone = (!empty($config) && isset($config['system_timezone']) && !empty($config['system_timezone'])) ? $config['system_timezone'] : 'Asia/Kolkata';
         date_default_timezone_set($timezone);
@@ -218,21 +223,76 @@ class custom_functions{
                 }
             }
         }
+        return $meal_slots;
+    }
+    public function get_meal_availability_info($available_time){
+        /* All timing logic lives on the server. Returns:
+           available_now : boolean
+           label         : display text for the app badge or null when always available */
+        $meal_slots = $this->get_meal_time_slots();
         $current = date('H:i');
-        $active_meals = array();
-        foreach(array('breakfast','lunch','dinner') as $meal){
-            $from = $meal_slots[$meal]['from_time'];
-            $to   = $meal_slots[$meal]['to_time'];
-            if(strcmp($from, $current) <= 0 && strcmp($current, $to) < 0){
-                $active_meals[] = ucfirst($meal);
+        $meals = array_filter(array_map('trim', explode(',', (string)$available_time)));
+        if(empty($meals)){
+            return array('available_now' => true, 'label' => null);
+        }
+        foreach($meals as $m){
+            if(strcasecmp($m, 'anytime') == 0){
+                return array('available_now' => true, 'label' => null);
             }
         }
-        $condition = "(available_time IS NULL OR available_time = '' OR FIND_IN_SET('Anytime', available_time)";
-        foreach($active_meals as $meal){
-            $condition .= " OR FIND_IN_SET('$meal', available_time)";
+        $specified = array();
+        foreach(array('breakfast','lunch','dinner') as $meal){
+            foreach($meals as $m){
+                if(strcasecmp($m, $meal) == 0){
+                    $specified[$meal] = array($meal_slots[$meal]['from_time'], $meal_slots[$meal]['to_time']);
+                    break;
+                }
+            }
         }
-        $condition .= ")";
-        return $condition;
+        if(empty($specified)){
+            return array('available_now' => true, 'label' => null);
+        }
+        foreach($specified as $range){
+            if(strcmp($range[0], $current) <= 0 && strcmp($current, $range[1]) < 0){
+                return array('available_now' => true, 'label' => 'Available '.$this->format_meal_window($range[0], $range[1]));
+            }
+        }
+        $next = null;
+        $next_min = PHP_INT_MAX;
+        foreach($specified as $range){
+            $min = $this->minutes_until_meal($current, $range[0]);
+            if($min < $next_min){
+                $next_min = $min;
+                $next = $range;
+            }
+        }
+        if($next !== null){
+            return array('available_now' => false, 'label' => 'Available '.$this->format_meal_window($next[0], $next[1]));
+        }
+        return array('available_now' => false, 'label' => null);
+    }
+    public function minutes_until_meal($current, $from){
+        $parts = explode(':', $current);
+        $now_total = (int)$parts[0] * 60 + (int)$parts[1];
+        $parts = explode(':', $from);
+        $from_total = (int)$parts[0] * 60 + (int)$parts[1];
+        $diff = $from_total - $now_total;
+        if($diff <= 0){
+            $diff += 1440;
+        }
+        return $diff;
+    }
+    public function format_meal_window($from, $to){
+        $format = function($time){
+            $parts = explode(':', $time);
+            $h = (int)$parts[0];
+            $m = (int)$parts[1];
+            $suffix = $h >= 12 ? 'PM' : 'AM';
+            $h12 = $h % 12;
+            if($h12 == 0){ $h12 = 12; }
+            return $h12.':'.str_pad($m, 2, '0', STR_PAD_LEFT).' '.$suffix;
+        };
+        return $format($from).' - '.$format($to);
     }
     public function get_balance($id){
         $sql = "SELECT balance FROM delivery_boys WHERE id=".$id;
