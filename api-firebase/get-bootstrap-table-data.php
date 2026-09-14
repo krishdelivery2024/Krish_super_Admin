@@ -2155,6 +2155,68 @@
 		$bulkData['rows'] = $rows;
 		print_r(json_encode($bulkData));
 	}
+		// data of 'Parcel Transactions' table goes here
+	if(isset($_GET['table']) && $_GET['table'] == 'parcel_transactions'){
+		
+		$offset = 0; $limit = 10;
+		$sort = 't.id'; $order = 'DESC';
+		$where = "WHERE t.message = 'Parcel Payment Success'";
+		if(isset($_GET['offset']))
+			$offset = (int)$_GET['offset'];
+		if(isset($_GET['limit']))
+			$limit = (int)$_GET['limit'];
+		
+		if(isset($_GET['sort']) && !empty($_GET['sort'])){
+			$sort = $_GET['sort'];
+		}
+		if(isset($_GET['order']))
+			$order = $_GET['order'];
+		
+		if(isset($_GET['search']) && $_GET['search'] !=''){
+			$search = $db->escapeString($_GET['search']);
+			$where .= " AND (t.`id` like '%".$search."%' OR t.`order_id` like '%".$search."%' OR t.`txn_id` like '%".$search."%' OR t.`type` like '%".$search."%' OR t.`status` like '%".$search."%' OR t.`transaction_date` like '%".$search."%' OR u.`name` like '%".$search."%' OR u.`mobile` like '%".$search."%')";
+		}
+		
+		$sql = "SELECT COUNT(*) as total FROM `transactions` t INNER JOIN `users` u ON u.id = t.user_id ".$where;
+		$db->sql($sql);
+		$res = $db->getResult();
+		$total = (isset($res[0]['total']))?$res[0]['total']:0;
+		
+		$sql = "SELECT t.*, u.name AS user_name, u.mobile AS user_mobile FROM `transactions` t INNER JOIN `users` u ON u.id = t.user_id ".$where." ORDER BY ".$sort." ".$order." LIMIT ".$offset.", ".$limit;
+		$db->sql($sql);
+		$res = $db->getResult();
+		
+		$bulkData = array();
+		$bulkData['total'] = $total;
+		$rows = array();
+		$tempRow = array();
+		
+		foreach($res as $row){
+			$operate = "<a class='btn btn-xs btn-warning' href='../parcel-request-status-update.php?id=".$row['order_id']."' title='View Parcel Request'><i class='fa fa-eye'></i> View</a>";
+			
+			$tempRow['id'] = $row['id'];
+			$tempRow['user_name'] = $row['user_name'].' ('.$row['user_id'].')';
+			$tempRow['user_mobile'] = $row['user_mobile'];
+			$tempRow['order_id'] = "<a href='../parcel-request-status-update.php?id=".$row['order_id']."'>#".$row['order_id']."</a>";
+			$tempRow['type'] = $row['type'];
+			$tempRow['txn_id'] = !empty($row['txn_id'])?$row['txn_id']:'&mdash;';
+			$tempRow['amount'] = '&#8377; '.$row['amount'];
+			$status = strtolower($row['status']);
+			if($status == 'success'){
+			    $tempRow['status'] = "<label class='label label-success'>Success</label>";
+			}else if($status == 'failed'){
+			    $tempRow['status'] = "<label class='label label-danger'>Failed</label>";
+			}else{
+				$tempRow['status'] = "<label class='label label-warning'>".$row['status']."</label>";
+			}
+			$tempRow['message'] = $row['message'];
+			$tempRow['transaction_date'] = $row['transaction_date'];
+			$tempRow['operate'] = $operate;
+			$rows[] = $tempRow;
+		}
+		$bulkData['rows'] = $rows;
+		print_r(json_encode($bulkData));
+	}
 		// data of 'Return Request' table goes here
 	if(isset($_GET['table']) && $_GET['table'] == 'return-requests'){
 		

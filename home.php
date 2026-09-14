@@ -16,7 +16,7 @@ include"header.php";?>
                </span>
          </div>
 		<div class="row small-spacing">
-			<div class="col-lg-4 col-xs-12">
+			<div class="col-lg-3 col-xs-6">
 				<a href="orders.php"><div class="box-content">
 					<div class="statistics-box with-icon">
 						<i class="ico ti-notepad text-inverse"></i>
@@ -27,7 +27,7 @@ include"header.php";?>
 				</div></a>
 				<!-- /.box-content -->
 			</div>
-			<div class="col-lg-4 col-xs-12">
+			<div class="col-lg-3 col-xs-6">
 				<a href="products.php"><div class="box-content">
 					<div class="statistics-box with-icon">
 						<i class="ico ti-dropbox text-success"></i>
@@ -38,13 +38,24 @@ include"header.php";?>
 				</div></a>
 				<!-- /.box-content -->
 			</div>
-			<div class="col-lg-4 col-xs-12">
+			<div class="col-lg-3 col-xs-6">
 
 				<a href="customers.php"><div class="box-content">
 					<div class="statistics-box with-icon">
 						<i class="ico ti-user text-primary"></i>
 						<h2 class="counter text-primary"><?=$function->rows_count('users');?></h2>
 						<p class="text">Customers</p>
+					</div>
+					<!-- .statistics-box .with-icon -->
+				</div></a>
+				<!-- /.box-content -->
+			</div>
+			<div class="col-lg-3 col-xs-6">
+				<a href="parcel-requests.php"><div class="box-content">
+					<div class="statistics-box with-icon">
+						<i class="ico ti-package text-warning"></i>
+						<h2 class="counter text-warning"><?=$function->rows_count('parcel_requests');?></h2>
+						<p class="text">Parcel Orders</p>
 					</div>
 					<!-- .statistics-box .with-icon -->
 				</div></a>

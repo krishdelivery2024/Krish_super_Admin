@@ -43,7 +43,7 @@ if (!empty($user_id)) {
     $where_user = " AND pr.user_id = '" . $user_id . "'";
 }
 
-$sql = "SELECT pr.*, (SELECT name FROM users u WHERE u.id = pr.user_id) AS user_name, (SELECT mobile FROM users u WHERE u.id = pr.user_id) AS user_mobile FROM `parcel_requests` pr WHERE pr.id = '" . $order_id . "'" . $where_user;
+$sql = "SELECT pr.*, (SELECT name FROM users u WHERE u.id = pr.user_id) AS user_name, (SELECT mobile FROM users u WHERE u.id = pr.user_id) AS user_mobile, (SELECT name FROM delivery_boys db WHERE db.id = pr.delivery_boy_id) AS delivery_boy_name, (SELECT mobile FROM delivery_boys db WHERE db.id = pr.delivery_boy_id) AS delivery_boy_mobile FROM `parcel_requests` pr WHERE pr.id = '" . $order_id . "'" . $where_user;
 $db->sql($sql);
 $res = $db->getResult();
 

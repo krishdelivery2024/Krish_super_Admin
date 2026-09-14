@@ -369,10 +369,11 @@ session_start();
 					</ul>
 				</li>
 
-				<li <?php if($page=="Parcel Pickup" || $page=="Add Parcel Item Type" || $page=="Edit Parcel Item Type" || $page=="Parcel Requests" || $page=="Delete Parcel Request" || $page=="Parcel Settings" || $page=="Edit Parcel Settings"){?> class="active"<?php } ?>>
+				<li <?php if($page=="Parcel Pickup" || $page=="Add Parcel Item Type" || $page=="Edit Parcel Item Type" || $page=="Parcel Requests" || $page=="Delete Parcel Request" || $page=="Parcel Settings" || $page=="Edit Parcel Settings" || $page=="Parcel Transactions"){?> class="active"<?php } ?>>
 					<a class="waves-effect parent-item js__control" href="#"><i class="menu-icon ti-package"></i><span>Parcel Pickup</span><span class="menu-arrow fa fa-angle-down"></span></a>
-					<ul class="sub-menu js__content" <?php if($page=="Parcel Pickup" || $page=="Add Parcel Item Type" || $page=="Edit Parcel Item Type" || $page=="Parcel Requests" || $page=="Delete Parcel Request" || $page=="Parcel Settings" || $page=="Edit Parcel Settings"){?>style="display: block;"<?php } ?>>
+					<ul class="sub-menu js__content" <?php if($page=="Parcel Pickup" || $page=="Add Parcel Item Type" || $page=="Edit Parcel Item Type" || $page=="Parcel Requests" || $page=="Delete Parcel Request" || $page=="Parcel Settings" || $page=="Edit Parcel Settings" || $page=="Parcel Transactions"){?>style="display: block;"<?php } ?>>
 						<li <?php if($page=="Parcel Requests"){?>class="current"<?php } ?>><a <?php if($page=="Parcel Requests"){?>class="active"<?php } ?> href="parcel-requests.php">Requests</a></li>
+						<li <?php if($page=="Parcel Transactions"){?>class="current"<?php } ?>><a <?php if($page=="Parcel Transactions"){?>class="active"<?php } ?> href="parcel-transactions.php">Transactions</a></li>
 						<li <?php if($page=="Parcel Pickup"){?>class="current"<?php } ?>><a <?php if($page=="Parcel Pickup"){?>class="active"<?php } ?> href="parcel-item-types.php">Item Types</a></li>
 						<li <?php if($page=="Parcel Settings" || $page=="Edit Parcel Settings"){?>class="current"<?php } ?>><a <?php if($page=="Parcel Settings" || $page=="Edit Parcel Settings"){?>class="active"<?php } ?> href="parcel-settings.php">Settings</a></li>
 					</ul>

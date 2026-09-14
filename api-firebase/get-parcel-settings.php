@@ -28,9 +28,22 @@ if(isset($_POST['accesskey'])) {
 		$db->sql($sql_query);
 		$res=$db->getResult();
 		if (!empty($res)) {
+			// append platform fee & tax from store settings (system_timezone row)
+			$sql_settings = "SELECT value FROM settings WHERE variable = 'system_timezone'";
+			$db->sql($sql_settings);
+			$settings_res = $db->getResult();
+			$platform_fee = 0;
+			$tax = 0;
+			if (!empty($settings_res)) {
+				$sys_settings = json_decode($settings_res[0]['value'], true);
+				$platform_fee = isset($sys_settings['platform_fee']) ? floatval($sys_settings['platform_fee']) : 0;
+				$tax = isset($sys_settings['tax']) ? floatval($sys_settings['tax']) : 0;
+			}
 			$response['error'] = "false";
 			$response['message'] = "Parcel settings retrieved successfully";
 			$response['data'] = $res[0];
+			$response['data']['platform_fee'] = $platform_fee;
+			$response['data']['tax'] = $tax;
 		}else{
 			$response['error'] = "true";
 			$response['message'] = "No data found!";

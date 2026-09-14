@@ -71,6 +71,21 @@
         $stock = $result[0]['stock'];
         $serve_for = $result[0]['serve_for'];       
 
+        // Meal-time availability check
+        $sql = "SELECT p.available_time FROM product_variant pv JOIN products p ON p.id = pv.product_id WHERE pv.id='$product_variant_id'";
+        $db->sql($sql);
+        $prod_res = $db->getResult();
+        $available_time = !empty($prod_res[0]['available_time']) ? $prod_res[0]['available_time'] : '';
+        $avail_info = $fn->get_meal_availability_info($available_time);
+        if(!$avail_info['available_now']){
+            $message = !empty($avail_info['label']) ? $avail_info['label'].'. Please try again later.' : 'This item is not available at this time.';
+            $output = json_encode(array('error' => true,
+            'message' => $message));
+            echo $output;
+            $db->disconnect();
+            die;
+        }       
+
 
         $sql_query="SELECT * FROM `carts` WHERE user_id='$user_id' AND product_variant_id='$product_variant_id'";  
         $db->sql($sql_query);

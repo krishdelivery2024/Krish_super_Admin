@@ -105,6 +105,9 @@
                     }
                     
                     $row['image'] = DOMAIN_URL.$row['image'];
+                    $avail_info = $fn->get_meal_availability_info(isset($row['available_time']) ? $row['available_time'] : '');
+                    $row['available_now'] = $avail_info['available_now'];
+                    $row['available_now_label'] = $avail_info['label'];
                     for($k=0;$k<count($variants);$k++){
                         //print_r($variants);exit;
             		    if($variants[$k]['serve_for']=='Available'){
