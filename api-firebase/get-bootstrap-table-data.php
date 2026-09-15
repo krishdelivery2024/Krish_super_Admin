@@ -1589,6 +1589,16 @@
 			$tempRow['address'] = $row['address'];
 			$tempRow['bonus'] = $row['bonus'];
 			$tempRow['balance'] = $row['balance'];
+			$tempRow['aadhaar'] = $row['aadhaar'];
+			$tempRow['driving_license'] = $row['driving_license'];
+			$tempRow['profile'] = (!empty($row['profile'])) ? '<img src="'.DOMAIN_URL.$row['profile'].'" style="width:40px;height:40px;border-radius:50%;object-fit:cover;">' : '';
+			$thumb = "height:40px;width:40px;object-fit:cover;border:1px solid #ddd;";
+			$tempRow['aadhaar_image'] = (!empty($row['aadhaar_image'])) ? '<img src="'.DOMAIN_URL.$row['aadhaar_image'].'" style="'.$thumb.'">' : '';
+			$tempRow['driving_license_image'] = (!empty($row['driving_license_image'])) ? '<img src="'.DOMAIN_URL.$row['driving_license_image'].'" style="'.$thumb.'">' : '';
+			$service_labels = array('food' => 'Food', 'parcel' => 'Parcel', 'both' => 'Both');
+			$service_key = (!empty($row['service_type']) && isset($service_labels[$row['service_type']])) ? $row['service_type'] : 'both';
+			$tempRow['service_type'] = "<label class='label label-primary'>".$service_labels[$service_key]."</label>";
+			$tempRow['service_type_value'] = $service_key;
 			if($row['status']==0)
 			    $tempRow['status']="<label class='label label-danger'>Deactive</label>";
             else

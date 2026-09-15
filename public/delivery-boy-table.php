@@ -24,7 +24,7 @@
 
                 </div><!-- /.box-header -->
                 <!-- form start -->
-                <form  method="post" id="add_form" action="public/db-operation.php">
+                <form  method="post" id="add_form" action="public/db-operation.php" enctype="multipart/form-data">
                     <input type="hidden" id="add_delivery_boy" name="add_delivery_boy" required="" value="1" aria-required="true">
                   <div class="box-body">
                     <div class="form-group">
@@ -52,6 +52,34 @@
                     <div class="form-group">
                       <label for="">Bonus (%)</label>
                       <input type="number" class="form-control"  name="bonus" id="bonus" value="<?=$config['delivery-boy-bonus-percentage']?>">
+                    </div>
+                    <div class="form-group">
+                      <label for="">Service Type</label>
+                      <select class="form-control" name="service_type">
+                        <option value="both">Both (Food &amp; Parcel)</option>
+                        <option value="food">Food Only</option>
+                        <option value="parcel">Parcel Only</option>
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label for="">Aadhaar Number <span style="color:red;">*</span></label>
+                      <input type="text" class="form-control" name="aadhaar" id="aadhaar" maxlength="12" placeholder="12-digit Aadhaar number">
+                    </div>
+                    <div class="form-group">
+                      <label for="">Driving License Number <span style="color:red;">*</span></label>
+                      <input type="text" class="form-control" name="driving_license" id="driving_license" placeholder="e.g. MH12 20250012345">
+                    </div>
+                    <div class="form-group">
+                      <label for="">Photo <span style="color:red;">*</span></label>
+                      <input type="file" class="form-control" name="profile" id="profile" accept="image/*">
+                    </div>
+                    <div class="form-group">
+                      <label for="">Aadhaar Card Photo <span style="color:red;">*</span></label>
+                      <input type="file" class="form-control" name="aadhaar_image" id="aadhaar_image" accept="image/*">
+                    </div>
+                    <div class="form-group">
+                      <label for="">Driving License Photo <span style="color:red;">*</span></label>
+                      <input type="file" class="form-control" name="driving_license_image" id="driving_license_image" accept="image/*">
                     </div>
                     
                     
@@ -92,6 +120,12 @@
                             <th data-field="address" data-sortable="true">Address</th>
                             <th data-field="bonus" data-sortable="true">Bonus(%)</th>
                             <th data-field="balance" data-sortable="true">Balance</th>
+                            <th data-field="service_type" data-sortable="true">Service Type</th>
+                            <th data-field="aadhaar" data-sortable="true">Aadhaar</th>
+                            <th data-field="driving_license" data-sortable="true">DL No</th>
+                            <th data-field="profile">Photo</th>
+                            <th data-field="aadhaar_image">Aadhaar Photo</th>
+                            <th data-field="driving_license_image">DL Photo</th>
                             <th data-field="status">Status</th>
                             <th data-field="operate" data-events="actionEvents">Action</th>
                         </tr>

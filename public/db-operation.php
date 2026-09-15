@@ -19,6 +19,69 @@ if(isset($config['system_timezone']) && isset($config['system_timezone_gmt'])){
     date_default_timezone_set('Asia/Kolkata');
     $db->sql("SET `time_zone` = '+05:30'");
 }
+function upload_compressed_image($file, $prefix, $max_width = 800){
+    if (empty($file) || !is_array($file) || !isset($file['error'])) {
+        return '';
+    }
+    if ($file['error'] != 0) {
+        return '';
+    }
+    if ($file['size'] > 2*1024*1024) {
+        return 'invalid';
+    }
+    if (empty($file['tmp_name']) || !is_file($file['tmp_name'])) {
+        return 'invalid';
+    }
+    $allowed_types = array('image/jpeg','image/jpg','image/png','image/webp');
+    $file_mime = mime_content_type($file['tmp_name']);
+    if (!in_array($file_mime, $allowed_types)) {
+        return 'invalid';
+    }
+    switch ($file_mime) {
+        case 'image/jpeg':
+        case 'image/jpg':
+            $src = @imagecreatefromjpeg($file['tmp_name']);
+            break;
+        case 'image/png':
+            $src = @imagecreatefrompng($file['tmp_name']);
+            break;
+        case 'image/webp':
+            $src = @imagecreatefromwebp($file['tmp_name']);
+            break;
+        default:
+            return 'invalid';
+    }
+    if (!$src) {
+        return 'invalid';
+    }
+    $w = imagesx($src);
+    $h = imagesy($src);
+    if ($w <= 0 || $h <= 0) {
+        imagedestroy($src);
+        return 'invalid';
+    }
+    $new_w = min($w, $max_width);
+    $new_h = (int) round($new_w * $h / $w);
+    $dst = imagecreatetruecolor($new_w, $new_h);
+    $white = imagecolorallocate($dst, 255, 255, 255);
+    imagefilledrectangle($dst, 0, 0, $new_w, $new_h, $white);
+    imagecopyresampled($dst, $src, 0, 0, 0, 0, $new_w, $new_h, $w, $h);
+
+    $dir = '../upload/delivery_boys/';
+    if (!is_dir($dir)) {
+        mkdir($dir, 0755, true);
+    }
+    $filename = $prefix.'_'.time().'_'.rand(1000, 9999).'.jpg';
+    $path = $dir.$filename;
+    imagejpeg($dst, $path, 70);
+    imagedestroy($src);
+    imagedestroy($dst);
+    if (!file_exists($path)) {
+        return 'invalid';
+    }
+    return 'upload/delivery_boys/'.$filename;
+}
+
 function checkadmin($auth_username){
     $db = new Database();
     $db->connect();
@@ -333,6 +396,28 @@ if(isset($_POST['add_delivery_boy']) && $_POST['add_delivery_boy']==1){
     $mobile = $db->escapeString($fn->xss_clean($_POST['mobile']));
     $address = $db->escapeString($fn->xss_clean($_POST['address']));
     $bonus = $db->escapeString($fn->xss_clean($_POST['bonus']));
+    $service_type = (!empty($_POST['service_type']) && in_array($_POST['service_type'], array('food','parcel','both'))) ? $_POST['service_type'] : 'both';
+    $aadhaar = $db->escapeString($fn->xss_clean(!empty($_POST['aadhaar']) ? $_POST['aadhaar'] : ''));
+    $driving_license = $db->escapeString($fn->xss_clean(!empty($_POST['driving_license']) ? $_POST['driving_license'] : ''));
+    if (empty($aadhaar) || !preg_match('/^\d{12}$/', $aadhaar)) {
+        echo '<label class="alert alert-danger">Aadhaar number is required and must be exactly 12 digits!</label>';
+        return false;
+    }
+    if (empty($driving_license)) {
+        echo '<label class="alert alert-danger">Driving license number is required!</label>';
+        return false;
+    }
+    $profile = upload_compressed_image($_FILES['profile'] ?? null, 'db');
+    $aadhaar_image = upload_compressed_image($_FILES['aadhaar_image'] ?? null, 'aadhaar');
+    $driving_license_image = upload_compressed_image($_FILES['driving_license_image'] ?? null, 'dl');
+    if ($profile === 'invalid' || $aadhaar_image === 'invalid' || $driving_license_image === 'invalid') {
+        echo '<label class="alert alert-danger">Each photo must be a JPG/PNG/WEBP image under 2MB!</label>';
+        return false;
+    }
+    if (empty($profile) || empty($aadhaar_image) || empty($driving_license_image)) {
+        echo '<label class="alert alert-danger">Delivery boy photo, Aadhaar photo and Driving license photo are required!</label>';
+        return false;
+    }
     $password = $db->escapeString($fn->xss_clean($_POST['password']));
     $password = md5($password);
     $sql='SELECT id FROM delivery_boys WHERE mobile='.$mobile;
@@ -343,8 +428,8 @@ if(isset($_POST['add_delivery_boy']) && $_POST['add_delivery_boy']==1){
             echo '<label class="alert alert-danger">Mobile Number Already Exists!</label>';
             return false;
         }
-    $sql = "INSERT INTO delivery_boys (name,mobile,password,address,bonus)
-                        VALUES('$name', '$mobile', '$password', '$address','$bonus')";
+    $sql = "INSERT INTO delivery_boys (name,mobile,password,address,bonus,service_type,aadhaar,driving_license,profile,aadhaar_image,driving_license_image)
+                        VALUES('$name', '$mobile', '$password', '$address','$bonus','$service_type','$aadhaar','$driving_license','$profile','$aadhaar_image','$driving_license_image')";
     if($db->sql($sql)){
         echo '<label class="alert alert-success">Delivery Boy Added Successfully!</label>';
     }else{
@@ -369,15 +454,44 @@ if(isset($_POST['update_delivery_boy']) && $_POST['update_delivery_boy']==1){
     }
     $name = $db->escapeString($fn->xss_clean($_POST['update_name']));
     $password = !empty($_POST['update_password'])?$db->escapeString($fn->xss_clean($_POST['update_password'])) : '';
-    $store_id = $db->escapeString($fn->xss_clean($_POST['store_id1']));
+    $store_id = !empty($_POST['store_id1']) ? $db->escapeString($fn->xss_clean($_POST['store_id1'])) : '0';
     $address = $db->escapeString($fn->xss_clean($_POST['update_address']));
     $bonus = $db->escapeString($fn->xss_clean($_POST['update_bonus']));
+    $service_type = (!empty($_POST['update_service_type']) && in_array($_POST['update_service_type'], array('food','parcel','both'))) ? $_POST['update_service_type'] : 'both';
+    $aadhaar = $db->escapeString($fn->xss_clean(!empty($_POST['update_aadhaar']) ? $_POST['update_aadhaar'] : ''));
+    $driving_license = $db->escapeString($fn->xss_clean(!empty($_POST['update_driving_license']) ? $_POST['update_driving_license'] : ''));
+    if (empty($aadhaar) || !preg_match('/^\d{12}$/', $aadhaar)) {
+        echo '<label class="alert alert-danger">Aadhaar number is required and must be exactly 12 digits!</label>';
+        return false;
+    }
+    if (empty($driving_license)) {
+        echo '<label class="alert alert-danger">Driving license number is required!</label>';
+        return false;
+    }
+    $photo = upload_compressed_image($_FILES['update_profile'] ?? null, 'db_'.$id);
+    if ($photo === 'invalid') {
+        echo '<label class="alert alert-danger">Photo must be a JPG/PNG/WEBP image under 2MB!</label>';
+        return false;
+    }
+    $profile_update = !empty($photo) ? ", `profile`='".$photo."'" : '';
+    $photo = upload_compressed_image($_FILES['update_aadhaar_image'] ?? null, 'aadhaar_'.$id);
+    if ($photo === 'invalid') {
+        echo '<label class="alert alert-danger">Aadhaar photo must be a JPG/PNG/WEBP image under 2MB!</label>';
+        return false;
+    }
+    $aadhaar_image_update = !empty($photo) ? ", `aadhaar_image`='".$photo."'" : '';
+    $photo = upload_compressed_image($_FILES['update_driving_license_image'] ?? null, 'dl_'.$id);
+    if ($photo === 'invalid') {
+        echo '<label class="alert alert-danger">Driving license photo must be a JPG/PNG/WEBP image under 2MB!</label>';
+        return false;
+    }
+    $dl_image_update = !empty($photo) ? ", `driving_license_image`='".$photo."'" : '';
     $status = $db->escapeString($fn->xss_clean($_POST['status']));
     $password = !empty($password)?md5($password):'';
     if(!empty($password)){
-        $sql = "Update delivery_boys set `name`='".$name."',password='".$password."',`address`='".$address."',`bonus`='".$bonus."',`status`='".$status."' where `id`=".$id;
+        $sql = "Update delivery_boys set `name`='".$name."',password='".$password."',`address`='".$address."',`bonus`='".$bonus."',`service_type`='".$service_type."',`aadhaar`='".$aadhaar."',`driving_license`='".$driving_license."',`status`='".$status."'".$profile_update.$aadhaar_image_update.$dl_image_update." where `id`=".$id;
     }else{
-        $sql = "Update delivery_boys set `name`='".$name."',`address`='".$address."',`bonus`='".$bonus."',`status`='".$status."' where `id`=".$id;
+        $sql = "Update delivery_boys set `name`='".$name."',`address`='".$address."',`bonus`='".$bonus."',`service_type`='".$service_type."',`aadhaar`='".$aadhaar."',`driving_license`='".$driving_license."',`status`='".$status."'".$profile_update.$aadhaar_image_update.$dl_image_update." where `id`=".$id;
     }
     if($db->sql($sql)){
         echo "<label class='alert alert-success'>Information Updated Successfully.</label>";
