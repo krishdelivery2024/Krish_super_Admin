@@ -125,7 +125,7 @@
                                 <div class="alert alert-danger">You have no permission to update delivery boy</div>
                             <?php } ?>
                             <div class="box-body">
-                            <form id="update_form"  method="POST" action ="public/db-operation.php" data-parsley-validate class="form-horizontal form-label-left">
+                            <form id="update_form"  method="POST" action ="public/db-operation.php" data-parsley-validate class="form-horizontal form-label-left" enctype="multipart/form-data">
                                 <input type='hidden' name="delivery_boy_id" id="delivery_boy_id" value=''/>
                                 <input type='hidden' name="update_delivery_boy" id="update_delivery_boy" value='1'/>
                                 <!-- <input type='hidden' name="image_url" id="image_url" value=''/> -->
@@ -154,6 +154,34 @@
                                                 <div class="form-group">
                                                    <label for="">Bonus (%)</label>
                                                    <input type="number" class="form-control"  name="update_bonus" id="update_bonus">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="">Service Type</label>
+                                                    <select class="form-control" name="update_service_type" id="update_service_type">
+                                                        <option value="both">Both (Food &amp; Parcel)</option>
+                                                        <option value="food">Food Only</option>
+                                                        <option value="parcel">Parcel Only</option>
+                                                    </select>
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="">Aadhaar Number <span style="color:red;">*</span></label>
+                                                    <input type="text" name="update_aadhaar" id="update_aadhaar" class="form-control col-md-7 col-xs-12" maxlength="12" placeholder="12-digit Aadhaar number">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="">Driving License Number <span style="color:red;">*</span></label>
+                                                    <input type="text" name="update_driving_license" id="update_driving_license" class="form-control col-md-7 col-xs-12" placeholder="e.g. MH12 20250012345">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="">Photo</label><small>( Leave blank for no change )</small>
+                                                    <input type="file" name="update_profile" id="update_profile" class="form-control" accept="image/*">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="">Aadhaar Card Photo</label><small>( Leave blank for no change )</small>
+                                                    <input type="file" name="update_aadhaar_image" id="update_aadhaar_image" class="form-control" accept="image/*">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="">Driving License Photo</label><small>( Leave blank for no change )</small>
+                                                    <input type="file" name="update_driving_license_image" id="update_driving_license_image" class="form-control" accept="image/*">
                                                 </div>
                                                 <div class="form-group">
                                     <label class="control-label col-md-3 col-sm-3 col-xs-12">Status</label>
@@ -3505,6 +3533,16 @@ $(document).on('change','#loose',function(){
         mobile:"required",
         password:"required",
         address:"required",
+        aadhaar : {
+                    required:true,
+                    digits:true,
+                    minlength:12,
+                    maxlength:12
+                },
+        driving_license:"required",
+        profile:"required",
+        aadhaar_image:"required",
+        driving_license_image:"required",
         confirm_password : {
                     required:true,
                     equalTo : "#password"
@@ -3518,6 +3556,13 @@ $(document).on('change','#loose',function(){
         update_name:"required",
         update_mobile:"required",
         update_address:"required",
+        update_aadhaar : {
+                    required:true,
+                    digits:true,
+                    minlength:12,
+                    maxlength:12
+                },
+        update_driving_license:"required",
         confirm_password : {
                     equalTo : "#update_password"
                 }
@@ -3599,6 +3644,12 @@ $(document).on('change','#loose',function(){
             $('#store_id1').val(row.store_id);
             $('#update_address').val(row.address);
             $('#update_bonus').val(row.bonus);
+            if (row.service_type_value !== undefined && row.service_type_value != null && row.service_type_value != '')
+                $('#update_service_type').val(row.service_type_value);
+            else
+                $('#update_service_type').val('both');
+            $('#update_aadhaar').val(row.aadhaar);
+            $('#update_driving_license').val(row.driving_license);
         }
     }
 </script>

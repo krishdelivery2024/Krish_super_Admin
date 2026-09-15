@@ -52,6 +52,9 @@ class custom_functions{
     
     function xss_clean($data)
     {
+        if (!is_string($data)) {
+            $data = ($data === null || is_scalar($data)) ? (string) $data : '';
+        }
         // Fix &entity\n;
         $data = str_replace(array('&amp;','&lt;','&gt;'), array('&amp;amp;','&amp;lt;','&amp;gt;'), $data);
         $data = preg_replace('/(&#*\w+)[\x00-\x20]+;/u', '$1;', $data);
@@ -762,6 +765,11 @@ class custom_functions{
             //getting the token from database object
                 if ($delivery_boy_id == 0) {
                 $sql="SELECT fcm_id FROM delivery_boys WHERE active_status = 'true'";
+                // Broadcast only to delivery boys whose assigned service covers this order type
+                if ($this->delivery_boy_has_service_type()) {
+                    $order_type = in_array($order_type, array('food','parcel')) ? $order_type : 'food';
+                    $sql .= " AND (service_type = 'both' OR service_type = '".$order_type."')";
+                }
             } else {
                 $sql="SELECT fcm_id FROM delivery_boys WHERE id = '".$delivery_boy_id."' AND active_status = 'true'";
             }
@@ -789,6 +797,13 @@ class custom_functions{
         }
     }
     
+    private function delivery_boy_has_service_type(){
+        $sql = "SELECT COUNT(*) as c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'delivery_boys' AND COLUMN_NAME = 'service_type'";
+        $this->db->sql($sql);
+        $res = $this->db->getResult();
+        return (!empty($res) && isset($res[0]['c']) && $res[0]['c'] > 0);
+    }
+
     public function get_promo_details($promo_code){
         $sql = "SELECT * FROM `promo_codes` WHERE `promo_code`='$promo_code'";
         $this->db->sql($sql);
