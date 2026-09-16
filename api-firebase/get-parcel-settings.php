@@ -22,7 +22,7 @@ if(isset($_POST['accesskey'])) {
 	$access_key_received = $db->escapeString($fn->xss_clean($_POST['accesskey']));		
 	if($access_key_received == $access_key){
 		// get parcel settings (first row)
-		$sql_query = "SELECT per_km_price,base_price,max_weight_kg,terms_conditions 
+		$sql_query = "SELECT per_km_price,base_price,max_weight_kg,terms_conditions,is_service_available 
 			FROM parcel_settings 
 			ORDER BY id ASC LIMIT 1 ";
 		$db->sql($sql_query);
