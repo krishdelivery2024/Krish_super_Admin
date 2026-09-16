@@ -1,5 +1,5 @@
 <?php 
-$page="Create or Edit Users";
+$page="Admin Management";
 include"header.php";?>
 
 
@@ -22,18 +22,18 @@ background-color: #dddddd;
 }
 </style>
 <?php
-if($_SESSION['role']=='editor'){
-  echo "<p class='alert alert-danger topmargin-sm'>Access denied - You are not authorized to access this page.</p>";
+if($_SESSION['role']!='super admin'){
+  echo "<p class='alert alert-danger topmargin-sm'>Access denied - Only Super Admin can manage users.</p>";
   return false;
 }
 ?>
 <!-- Main row -->
 <div class="row">
     <div class="col-md-6">
-        <?php if($_SESSION['role']!='editor'){?>
+        <?php if($_SESSION['role']=='super admin'){?>
           <div class="box">
                 <div class="box-header">
-                    <h3 class="box-title">Product master Users</h3>
+                    <h3 class="box-title">Sub Admin Users</h3>
                 </div>
                   <div class="box-body table-responsive">
                     <table class="table table-hover" data-toggle="table" id="system-users"
@@ -68,7 +68,7 @@ if($_SESSION['role']=='editor'){
           <!-- general form elements -->
           <div class="box box-primary">
             <div class="box-header with-border">
-              <h3 class="box-title">Add Product Master User</h3>
+              <h3 class="box-title">Add Sub Admin</h3>
 
             </div><!-- /.box-header -->
             <!-- form start -->
@@ -100,8 +100,7 @@ if($_SESSION['role']=='editor'){
                   <label for="">Role</label>
                   <select name="role" class="form-control">
                   	<option value="">---Select---</option>
-                    <option value="admin">Admin</option>
-                  	<option value="editor" selected>Editor</option>
+                    <option value="sub admin" selected>Sub Admin</option>
                   </select>
                 </div>
                 

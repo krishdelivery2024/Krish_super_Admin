@@ -950,10 +950,10 @@ if(isset($_POST['manage_customer_wallet']) && isset($_POST['user_id'])){
 
 }
 if(isset($_POST['add_system_user']) && $_POST['add_system_user']==1){
-    // if(!checkadmin($auth_username)){
-    //     echo "<label class='alert alert-danger'>Access denied - You are not authorized to access this page.</label>";
-    //     return false;
-    // }
+    if($_SESSION['role'] != 'super admin'){
+        echo "<label class='alert alert-danger'>Access denied - Only Super Admin can add sub admins.</label>";
+        return false;
+    }
     $id = $_SESSION['id'];
     $username = $db->escapeString($fn->xss_clean($_POST['username']));
     $email = $db->escapeString($fn->xss_clean($_POST['email']));
@@ -961,14 +961,17 @@ if(isset($_POST['add_system_user']) && $_POST['add_system_user']==1){
     $mobile = $db->escapeString($fn->xss_clean($_POST['mobile']));
     $password = md5($password);
     $role = $db->escapeString($fn->xss_clean($_POST['role']));
-    
+    if($role != 'sub admin'){
+        echo '<label class="alert alert-danger">Only Sub Admin role can be created!</label>';
+        return false;
+    }
 
-    $sql="SELECT id FROM admin WHERE role='editor'";
+    $sql="SELECT id FROM admin WHERE role='sub admin'";
     $db->sql($sql);
     $res=$db->getResult();
     $count=$db->numRows($res);
         if($count>4){
-            echo '<label class="alert alert-danger">Only Allowed 4 Users!</label>';
+            echo '<label class="alert alert-danger">Only Allowed 4 Sub Admins!</label>';
             return false;
         }
 
@@ -1019,8 +1022,8 @@ if(isset($_POST['add_system_user']) && $_POST['add_system_user']==1){
     $permissions['faqs']=array("create"=>$fn->xss_clean($_POST['is-create-faq']), "read"=>$fn->xss_clean($_POST['is-read-faq']), "update"=>$fn->xss_clean($_POST['is-update-faq']),"delete"=>$fn->xss_clean($_POST['is-delete-faq']));
 
     $encoded_permissions = json_encode($permissions);
-    $sql = "INSERT INTO admin (username,mobile,email,password,role,permissions,created_by)
-                        VALUES('$username','$mobile', '$email', '$password', '$role','$encoded_permissions','$id')";
+    $sql = "INSERT INTO admin (username,mobile,email,password,role,permissions,created_by,applicable_for)
+                        VALUES('$username','$mobile', '$email', '$password', '$role','$encoded_permissions','$id','web')";
                         // echo $sql;
     if($db->sql($sql)){
         echo '<label class="alert alert-success">'.$role.' Added Successfully!</label>';
@@ -1031,6 +1034,10 @@ if(isset($_POST['add_system_user']) && $_POST['add_system_user']==1){
 
 }
 if(isset($_GET['delete_system_user']) && $_GET['delete_system_user']==1){
+    if($_SESSION['role'] != 'super admin'){
+        echo 2;
+        return false;
+    }
     $id=$db->escapeString($fn->xss_clean($_GET['id']));
     $sql = "DELETE FROM `admin` WHERE id=".$id;
     if($db->sql($sql)){
@@ -1041,8 +1048,8 @@ if(isset($_GET['delete_system_user']) && $_GET['delete_system_user']==1){
 
 }
 if(isset($_POST['update_system_user']) && $_POST['update_system_user']==1){
-    if(!checkadmin($auth_username)){
-        echo "<label class='alert alert-danger'>Access denied - You are not authorized to access this page.</label>";
+    if($_SESSION['role'] != 'super admin'){
+        echo "<label class='alert alert-danger'>Access denied - Only Super Admin can update sub admins.</label>";
         return false;
     }
     $id = $db->escapeString($fn->xss_clean($_POST['system_user_id']));
