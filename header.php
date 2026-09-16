@@ -66,6 +66,7 @@ session_start();
     $currency = $fn->get_settings('currency');
     $settings['currency'] = $currency;
     $role = $fn->get_role($_SESSION['id']);
+    $is_sub_admin = (isset($_SESSION['role']) && $_SESSION['role'] == 'sub admin');
     
     $sql_logo="select value from `settings` where variable='Logo' OR variable='logo'";
     $db->sql($sql_logo);
@@ -250,9 +251,11 @@ session_start();
 					<a class="waves-effect" href="home.php"><i class="menu-icon ti-dashboard"></i><span>Dashboard</span></a>
 				</li>
 
+				<?php if(!$is_sub_admin || !empty($permissions['orders']['read'])): ?>
 				<li <?php if($page=="Orders"){?> class="current" <?php } ?>>		
 					<a class="waves-effect" href="orders.php"><i class="menu-icon ti-shopping-cart"></i><span>Order</span><span class="notice notice-blue"><?php if($res11[0]['active_orders_count'] == ''){echo '0';}else{ echo $res11[0]['active_orders_count']; }?></span></a>
 				</li>
+			<?php endif; ?>
 				<!-- Seller links -->
 	<?php if($_SESSION['role'] =='seller'){ ?>
 				<li <?php if($page=="Incomplete Orders"){?> class="current" <?php } ?>>
@@ -282,6 +285,7 @@ session_start();
 
 	<?php }else{ ?>
 
+				<?php if(!$is_sub_admin || !empty($permissions['categories']['read'])): ?>
 				<li <?php if($page=="Main Categories Order" || $page=="Main Category" || $page=="Add Main Category" || $page=="Edit Main Category"){?> class="active" <?php } ?>>
 					<a class="waves-effect parent-item js__control" href="#"><i class="menu-icon ti-view-list-alt"></i><span>Main Categories</span><span class="menu-arrow fa fa-angle-down"></span></a>
 					<ul class="sub-menu js__content" <?php if($page=="Main Categories Order" || $page=="Main Category" || $page=="Add Main Category"  || $page=="Edit Main Category"){?> style="display: block;" <?php } ?>>				
@@ -293,8 +297,10 @@ session_start();
 							<a class="waves-effect" href="maincategoriesorder.php"><i class="menu-icon ti-direction"></i><span>Main Categories Order</span></a>
 						</li>
 					</ul>
+				</li>
+				<?php endif; ?>
 
-				
+				<?php if(!$is_sub_admin || !empty($permissions['categories']['read'])): ?>
 				<li <?php if($page=="Categories" || $page=="Categories Order"){?>class="active" <?php } ?>>
 					<a class="waves-effect parent-item js__control" href="#"><i class="menu-icon ti-view-list-alt"></i><span>Categories</span><span class="menu-arrow fa fa-angle-down"></span></a>
 					<ul class="sub-menu js__content"  <?php if($page=="Categories" || $page=="Categories Order"){?>style="display: block;"<?php } ?>>					
@@ -304,16 +310,23 @@ session_start();
 						<li <?php if($page=="Categories Order"){?>class="current" <?php } ?>>
 							<a class="waves-effect" href="categoriesorder.php"><i class="menu-icon ti-direction"></i><span>Categories Order</span></a>
 						</li>
-					</ul>	
+					</ul>
+				</li>
+				<?php endif; ?>
 
+				<?php if(!$is_sub_admin || !empty($permissions['categories']['read'])): ?>
 					<li <?php if($page=="Brands"){?> class="current" <?php } ?>>     			
 						<a class="waves-effect" href="brands.php"><i class="menu-icon ti-apple"></i><span>Brands</span></a>
-					</li>				
+					</li>
+				<?php endif; ?>
 				
+				<?php if(!$is_sub_admin || !empty($permissions['settings']['read'])): ?>
 				<li <?php if($page=="Delivery Method"){?>class="current" <?php } ?>>    			
 					<a class="waves-effect" href="delivery_method.php"><i class="menu-icon ti-truck"></i><span>Delivery Method</span></a>
 				</li>
+				<?php endif; ?>
 
+				<?php if(!$is_sub_admin || !empty($permissions['customers']['read'])): ?>
 				<li <?php if($page=="Customers" || $page=="Manage Customer Wallet" || $page=="Customer Referral Report" || $page=="Loyalty Points"){?>class="active"<?php } ?>>
 					<a class="waves-effect parent-item js__control" href="#"><i class="menu-icon ti-user"></i><span>Customers</span><span class="menu-arrow fa fa-angle-down"></span></a>
 					<ul class="sub-menu js__content" <?php if($page=="Customers" || $page=="Manage Customer Wallet" || $page=="Customer Referral Report"  || $page=="Loyalty Points"){?>style="display: block;"<?php } ?>>				
@@ -331,10 +344,13 @@ session_start();
 						</li>
 					</ul>
 				</li>
+				<?php endif; ?>
 
+				<?php if(!$is_sub_admin || !empty($permissions['products']['read'])): ?>
 				<li <?php if($page=="Products Unlisted"){?> class="current" <?php } ?>>     			
 						<a class="waves-effect" href="products_unlisted.php"><i class="menu-icon ti-view-list-alt"></i><span>Unlisted Products</span></a>
-					</li>	
+					</li>
+				<?php endif; ?>
 				
 	<?php }?>
 			</ul>
@@ -343,13 +359,17 @@ session_start();
 			<h5 class="title">User Interface</h5>
 			<ul class="menu js__accordion">
 				
+				<?php if(!$is_sub_admin || !empty($permissions['home_sliders']['read'])): ?>
 				<li <?php if($page=="Main Slider Images"){?>class="current" <?php } ?>>			
 					<a class="waves-effect" href="main-slider.php"><i class="menu-icon ti-image"></i><span>Home Slider Images</span></a>
-				</li>				
+				</li>
+			<?php endif; ?>
+			<?php if(!$is_sub_admin || !empty($permissions['promo_codes']['read'])): ?>
 				<li <?php if($page=="Promo Code"){?>class="current" <?php } ?>>
 					<a class="waves-effect" href="promo-code.php"><i class="menu-icon ti-wand"></i><span>Promo code</span></a>
-				</li>				
-					
+				</li>
+			<?php endif; ?>				
+			<?php if(!$is_sub_admin || !empty($permissions['delivery_boys']['read'])): ?>
 				<li <?php if($page=="Sellers" || $page=="Edit Seller" || $page=="Seller Order"){?> class="active" <?php } ?>>
 					<a class="waves-effect parent-item js__control" href="#"><i class="menu-icon ti-user"></i><span>Sellers</span><span class="menu-arrow fa fa-angle-down"></span></a>
 					<ul class="sub-menu js__content" <?php if($page=="Sellers" || $page=="Edit Seller" || $page=="Seller Order"){?> style="display: block;" <?php } ?>>
@@ -360,7 +380,9 @@ session_start();
 						<a class="waves-effect" <?php if($page=="Seller Order"){?> class="active" <?php } ?> href="seller-order.php"><i class="menu-icon ti-bar-chart-alt"></i><span>Seller Order</span></a>
 					</li>
 				</ul>
+				<?php endif; ?>
 				
+				<?php if(!$is_sub_admin || !empty($permissions['delivery_boys']['read'])): ?>
 				<li <?php if($page=="Delivery Boys" || $page=="Fund Transfer"){?> class="active"<?php } ?>>
 					<a class="waves-effect parent-item js__control" href="#"><i class="menu-icon ti-user"></i><span>Delivery Boys</span><span class="menu-arrow fa fa-angle-down"></span></a>
 					<ul class="sub-menu js__content" <?php if($page=="Delivery Boys" || $page=="Fund Transfer"){?>style="display: block;"<?php } ?>>
@@ -368,7 +390,9 @@ session_start();
 						<li <?php if($page=="Fund Transfer"){?>class="current"<?php } ?>><a  <?php if($page=="Fund Transfer"){?>class="active"<?php } ?> href="fund-transfers.php">Fund Transfers</a></li>
 					</ul>
 				</li>
+				<?php endif; ?>
 
+				<?php if(!$is_sub_admin || !empty($permissions['delivery_boys']['read'])): ?>
 				<li <?php if($page=="Parcel Pickup" || $page=="Add Parcel Item Type" || $page=="Edit Parcel Item Type" || $page=="Parcel Requests" || $page=="Delete Parcel Request" || $page=="Parcel Settings" || $page=="Edit Parcel Settings" || $page=="Parcel Transactions"){?> class="active"<?php } ?>>
 					<a class="waves-effect parent-item js__control" href="#"><i class="menu-icon ti-package"></i><span>Parcel Pickup</span><span class="menu-arrow fa fa-angle-down"></span></a>
 					<ul class="sub-menu js__content" <?php if($page=="Parcel Pickup" || $page=="Add Parcel Item Type" || $page=="Edit Parcel Item Type" || $page=="Parcel Requests" || $page=="Delete Parcel Request" || $page=="Parcel Settings" || $page=="Edit Parcel Settings" || $page=="Parcel Transactions"){?>style="display: block;"<?php } ?>>
@@ -378,17 +402,23 @@ session_start();
 						<li <?php if($page=="Parcel Settings" || $page=="Edit Parcel Settings"){?>class="current"<?php } ?>><a <?php if($page=="Parcel Settings" || $page=="Edit Parcel Settings"){?>class="active"<?php } ?> href="parcel-settings.php">Settings</a></li>
 					</ul>
 				</li>
+				<?php endif; ?>
 				
+				<?php if(!$is_sub_admin || !empty($permissions['notifications']['read'])): ?>
 				<li <?php if($page=="Fire Base Notifications"){?>class="current"<?php } ?>>
 					<a class="waves-effect" href="notification.php"><i class="menu-icon ti-bell"></i><span>Send notification</span></a>
-				</li>				
+				</li>
+			<?php endif; ?>
+			<?php if(!$is_sub_admin || !empty($permissions['transactions']['read'])): ?>
 				<li <?php if($page=="Transactions"){?>class="current"<?php } ?>>
 					<a class="waves-effect" href="transaction.php"><i class="menu-icon ti-list"></i><span>Transaction</span></a>
-				</li>				
+				</li>
 				<li <?php if($page=="Wallet Transactions"){?>class="current"<?php } ?>>
 					<a class="waves-effect" href="wallet-transactions.php"><i class="menu-icon ti-gift"></i><span>Wallet Transactions</span></a>
-				</li>				
+				</li>
+			<?php endif; ?>				
 				
+				<?php if(!$is_sub_admin || !empty($permissions['settings']['read'])): ?>
 				<li <?php if($page=="Store Settings" || $page=="Payment Methods Settings" || $page=="Time Slots" || $page=="Notification Settings" || $page=="Contact Us" || $page=="Privacy Policy" || $page=="About US"){?>class="active"<?php } ?>>
 					<a class="waves-effect parent-item js__control" href="#"><i class="menu-icon ti-settings"></i><span>System</span><span class="menu-arrow fa fa-angle-down"></span></a>
 					<ul class="sub-menu js__content" <?php if($page=="Store Settings" || $page=="Payment Methods Settings" || $page=="Time Slots" || $page=="Notification Settings" || $page=="Contact Us" || $page=="Privacy Policy" || $page=="About US"){?>style="display: block;"<?php } ?>>
@@ -401,7 +431,9 @@ session_start();
 						<li <?php if($page=="About US"){?>class="current"<?php } ?>><a <?php if($page=="About US"){?>class="active"<?php } ?> href="about-us.php">About Us</a></li>
 					</ul>
 				</li>
+				<?php endif; ?>
 				
+				<?php if(!$is_sub_admin || !empty($permissions['locations']['read'])): ?>
 				<li <?php if($page=="Cities" || $page=="Areas" || $page=="State" || $page=="Routes"){?>class="active"<?php } ?>>
 					<a class="waves-effect parent-item js__control" href="#"><i class="menu-icon ti-location-pin"></i><span>Location</span><span class="menu-arrow fa fa-angle-down"></span></a>
 					<ul class="sub-menu js__content" <?php if($page=="Cities" || $page=="Areas" || $page=="State" || $page=="Routes"){?>style="display: block;"<?php } ?>>
@@ -410,7 +442,9 @@ session_start();
 					    <li <?php if($page=="Areas"){?>class="current"<?php } ?>><a <?php if($page=="Areas"){?>class="active"<?php } ?> href="areas.php">Area</a></li>
 					</ul>
 				</li>
+				<?php endif; ?>
 				
+				<?php if(!$is_sub_admin || !empty($permissions['reports']['read'])): ?>
 				<li <?php if($page=="Sales Report" || $page=="Delivery Boy Report"){?>class="active"<?php } ?>>
 					<a class="waves-effect parent-item js__control" href="#"><i class="menu-icon ti-agenda"></i><span>Reports</span><span class="menu-arrow fa fa-angle-down"></span></a>
 					<ul class="sub-menu js__content" <?php if($page=="Sales Report" || $page=="Invoice Reports" || $page=="High Buying Customers Report" || $page=="Highest Selling Products Report" || $page=="Month wise Product Sales Report"){?>style="display: block;"<?php } ?>>
@@ -418,10 +452,12 @@ session_start();
 						<li <?php if($page=="Delivery Boy Report"){?>class="current"<?php }?>><a <?php if($page=="Delivery Boy Report"){?>class="active"<?php }?> href="delivery-boy-report.php">Delivery Boy Report</a></li>
 					</ul>
 				</li>
+				<?php endif; ?>
 				
-				<li <?php if($page=="Frequently Asked Questions"){?>class="current" <?php } ?>>
-					<a class="waves-effect" href="faq.php"><i class="menu-icon ti-info"></i><span>FAQs</span>
-					<?php 
+			<?php if(!$is_sub_admin || !empty($permissions['faqs']['read'])): ?>
+			<li <?php if($page=="Frequently Asked Questions"){?>class="current" <?php } ?>>
+				<a class="waves-effect" href="faq.php"><i class="menu-icon ti-info"></i><span>FAQs</span>
+				<?php 
                             $query="select * from faq where status=1 ";
                             $db->sql($query);
                             $result=$db->getResult();
@@ -431,6 +467,15 @@ session_start();
                         <span class="notice notice-blue"><?php echo $count; ?></span>
                         <?php	} ?>
 						</a>
+			</li>
+			<?php endif; ?>
+		</ul>
+	<?php } ?>
+	<?php if($_SESSION['role'] == 'super admin'){ ?>
+			<h5 class="title">Admin Management</h5>
+			<ul class="menu js__accordion">
+				<li <?php if($page=="Admin Management"){?>class="current" <?php } ?>>
+					<a class="waves-effect" href="users.php"><i class="menu-icon ti-user"></i><span>Manage Sub Admins</span></a>
 				</li>
 			</ul>
 	<?php } ?>

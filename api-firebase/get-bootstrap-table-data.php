@@ -2322,17 +2322,17 @@
 		}
 		if($_SESSION['role']!='super admin'){
 			if(empty($where)){
-				$condition .= ' where created_by='.$_SESSION['id'].'AND role="editor"';
+				$condition .= ' where created_by='.$_SESSION['id'].'AND role IN ("sub admin","editor")';
 
 			}else{
-				$condition .= ' and created_by='.$_SESSION['id'].'AND role="editor"';
+				$condition .= ' and created_by='.$_SESSION['id'].'AND role IN ("sub admin","editor")';
 			}
 		}else{
 		    if(empty($where)){
-				$condition .= ' where role="editor"';
+				$condition .= ' where role IN ("sub admin","editor")';
 
 			}else{
-				$condition .= ' AND role="editor"';
+				$condition .= ' AND role IN ("sub admin","editor")';
 			}
 		}
 		
@@ -2352,6 +2352,7 @@
 		$tempRow = array();
 		$i=1;
 		foreach($res as $row){
+			$created_by = '';
 			if($row['created_by']!=0){
 				$sql = "SELECT username FROM admin WHERE id=".$row['created_by'];
 				$db->sql($sql);
@@ -2362,8 +2363,7 @@
 			
 			
 			if($row['role'] != 'super admin'){
-			//	$operate = "<a class='btn btn-xs btn-primary edit-system-user' data-id='".$row['id']."' data-name='".$row['username']."' data-email='".$row['email']."' data-mobile='".$row['mobile']."' title='Edit'><i class='fa fa-pencil-square-o'></i></a>";
-				$operate = " <a class='btn btn-xs btn-danger delete-system-user' data-id='".$row['id']."' title='Delete'><i class='fa fa-trash-o'></i></a>";
+				$operate = " <a class='btn btn-xs btn-primary edit-system-user1' data-id='".$row['id']."' data-name='".$row['username']."' title='Edit'><i class='fa fa-pencil-square-o'></i></a> <a class='btn btn-xs btn-danger delete-system-user' data-id='".$row['id']."' title='Delete'><i class='fa fa-trash-o'></i></a>";
 			}else{
 				$operate='';
 			}
@@ -2376,14 +2376,18 @@
 			if($row['role']=='editor'){
 				$role = '<span class="label label-warning">Editor</span>';
 			}
+			if($row['role']=='sub admin'){
+				$role = '<span class="label label-primary">Sub Admin</span>';
+			}
 			$tempRow['id'] = $i;
+			$tempRow['system_user_id'] = $row['id'];
 			$tempRow['username'] = $row['username'];
 			$tempRow['email'] = $row['email'];
 			$tempRow['mobile'] = $row['mobile'];
 			$tempRow['permissions'] = $row['permissions'];
 			$tempRow['role'] = $role;
 			$tempRow['created_by_id'] = $row['created_by']!=0?$row['created_by']:'-';
-			$tempRow['created_by'] = $row['created_by']!=0?$created_by[0]['username']:'-';
+			$tempRow['created_by'] = ($row['created_by']!=0 && !empty($created_by[0]['username']))?$created_by[0]['username']:'-';
 			$tempRow['date_created'] = date('d-m-Y h:i:sa',strtotime($row['date_created']));
 			$tempRow['operate'] = $operate;
 	

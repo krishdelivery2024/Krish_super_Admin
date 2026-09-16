@@ -457,6 +457,174 @@
             </div>
 <?php } ?>
 
+<?php if($page=="Admin Management"){ ?>
+	<div class="modal fade" id='editSystemUserModal' tabindex="-1" role="dialog" aria-labelledby="myLargeModalLabel">
+                <div class="modal-dialog modal-lg" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                            <h4 class="modal-title" id="myModalLabel">Edit Sub Admin Permissions</h4>
+                        </div>
+                        <div class="modal-body">
+                            <form id="update_system_user_form" method="POST" action ="public/db-operation.php" data-parsley-validate class="form-horizontal form-label-left">
+                                <input type="hidden" name="update_system_user" value="1"/>
+                                <input type="hidden" name="system_user_id" id="system_user_id" value=""/>
+                                <input type="hidden" name="system_user_name" id="system_user_name" value=""/>
+                                <input type="hidden" name="system_user_email" id="system_user_email" value=""/>
+                                <input type="hidden" name="system_user_mobile" id="system_user_mobile" value=""/>
+                                <div class="box-body">
+                                    <table class="table table-bordered">
+                                        <tr><th>Module/Permissions</th><th>Create</th><th>Read</th><th>Update</th><th>Delete</th></tr>
+                                        <tr>
+                                            <td>Orders</td>
+                                            <td><input type="checkbox" id="permission-create-order-button" class="permission-checkbox" data-hidden="permission-is-create-order"><input type="hidden" name="permission-is-create-order" id="permission-is-create-order" value="1"></td>
+                                            <td><input type="checkbox" id="permission-read-order-button" class="permission-checkbox" data-hidden="permission-is-read-order"><input type="hidden" name="permission-is-read-order" id="permission-is-read-order" value="1"></td>
+                                            <td><input type="checkbox" id="permission-update-order-button" class="permission-checkbox" data-hidden="permission-is-update-order"><input type="hidden" name="permission-is-update-order" id="permission-is-update-order" value="1"></td>
+                                            <td><input type="checkbox" id="permission-delete-order-button" class="permission-checkbox" data-hidden="permission-is-delete-order"><input type="hidden" name="permission-is-delete-order" id="permission-is-delete-order" value="1"></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Categories</td>
+                                            <td><input type="checkbox" id="permission-create-category-button" class="permission-checkbox" data-hidden="permission-is-create-category"><input type="hidden" name="permission-is-create-category" id="permission-is-create-category" value="1"></td>
+                                            <td><input type="checkbox" id="permission-read-category-button" class="permission-checkbox" data-hidden="permission-is-read-category"><input type="hidden" name="permission-is-read-category" id="permission-is-read-category" value="1"></td>
+                                            <td><input type="checkbox" id="permission-update-category-button" class="permission-checkbox" data-hidden="permission-is-update-category"><input type="hidden" name="permission-is-update-category" id="permission-is-update-category" value="1"></td>
+                                            <td><input type="checkbox" id="permission-delete-category-button" class="permission-checkbox" data-hidden="permission-is-delete-category"><input type="hidden" name="permission-is-delete-category" id="permission-is-delete-category" value="1"></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Subcategories</td>
+                                            <td><input type="checkbox" id="permission-create-subcategory-button" class="permission-checkbox" data-hidden="permission-is-create-subcategory"><input type="hidden" name="permission-is-create-subcategory" id="permission-is-create-subcategory" value="1"></td>
+                                            <td><input type="checkbox" id="permission-read-subcategory-button" class="permission-checkbox" data-hidden="permission-is-read-subcategory"><input type="hidden" name="permission-is-read-subcategory" id="permission-is-read-subcategory" value="1"></td>
+                                            <td><input type="checkbox" id="permission-update-subcategory-button" class="permission-checkbox" data-hidden="permission-is-update-subcategory"><input type="hidden" name="permission-is-update-subcategory" id="permission-is-update-subcategory" value="1"></td>
+                                            <td><input type="checkbox" id="permission-delete-subcategory-button" class="permission-checkbox" data-hidden="permission-is-delete-subcategory"><input type="hidden" name="permission-is-delete-subcategory" id="permission-is-delete-subcategory" value="1"></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Products</td>
+                                            <td><input type="checkbox" id="permission-create-product-button" class="permission-checkbox" data-hidden="permission-is-create-product"><input type="hidden" name="permission-is-create-product" id="permission-is-create-product" value="1"></td>
+                                            <td><input type="checkbox" id="permission-read-product-button" class="permission-checkbox" data-hidden="permission-is-read-product"><input type="hidden" name="permission-is-read-product" id="permission-is-read-product" value="1"></td>
+                                            <td><input type="checkbox" id="permission-update-product-button" class="permission-checkbox" data-hidden="permission-is-update-product"><input type="hidden" name="permission-is-update-product" id="permission-is-update-product" value="1"></td>
+                                            <td><input type="checkbox" id="permission-delete-product-button" class="permission-checkbox" data-hidden="permission-is-delete-product"><input type="hidden" name="permission-is-delete-product" id="permission-is-delete-product" value="1"></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Products Order</td>
+                                            <td>-</td>
+                                            <td><input type="checkbox" id="permission-read-products-order-button" class="permission-checkbox" data-hidden="permission-is-read-products-order"><input type="hidden" name="permission-is-read-products-order" id="permission-is-read-products-order" value="1"></td>
+                                            <td><input type="checkbox" id="permission-update-products-order-button" class="permission-checkbox" data-hidden="permission-is-update-products-order"><input type="hidden" name="permission-is-update-products-order" id="permission-is-update-products-order" value="1"></td>
+                                            <td>-</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Home Slider Images</td>
+                                            <td><input type="checkbox" id="permission-create-home-slider-button" class="permission-checkbox" data-hidden="permission-is-create-home-slider"><input type="hidden" name="permission-is-create-home-slider" id="permission-is-create-home-slider" value="1"></td>
+                                            <td><input type="checkbox" id="permission-read-home-slider-button" class="permission-checkbox" data-hidden="permission-is-read-home-slider"><input type="hidden" name="permission-is-read-home-slider" id="permission-is-read-home-slider" value="1"></td>
+                                            <td>-</td>
+                                            <td><input type="checkbox" id="permission-delete-home-slider-button" class="permission-checkbox" data-hidden="permission-is-delete-home-slider"><input type="hidden" name="permission-is-delete-home-slider" id="permission-is-delete-home-slider" value="1"></td>
+                                        </tr>
+                                        <tr>
+                                            <td>New Offer Images</td>
+                                            <td><input type="checkbox" id="permission-create-new-offer-button" class="permission-checkbox" data-hidden="permission-is-create-new-offer"><input type="hidden" name="permission-is-create-new-offer" id="permission-is-create-new-offer" value="1"></td>
+                                            <td><input type="checkbox" id="permission-read-new-offer-button" class="permission-checkbox" data-hidden="permission-is-read-new-offer"><input type="hidden" name="permission-is-read-new-offer" id="permission-is-read-new-offer" value="1"></td>
+                                            <td>-</td>
+                                            <td><input type="checkbox" id="permission-delete-new-offer-button" class="permission-checkbox" data-hidden="permission-is-delete-new-offer"><input type="hidden" name="permission-is-delete-new-offer" id="permission-is-delete-new-offer" value="1"></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Promo Codes</td>
+                                            <td><input type="checkbox" id="permission-create-promo-button" class="permission-checkbox" data-hidden="permission-is-create-promo"><input type="hidden" name="permission-is-create-promo" id="permission-is-create-promo" value="1"></td>
+                                            <td><input type="checkbox" id="permission-read-promo-button" class="permission-checkbox" data-hidden="permission-is-read-promo"><input type="hidden" name="permission-is-read-promo" id="permission-is-read-promo" value="1"></td>
+                                            <td><input type="checkbox" id="permission-update-promo-button" class="permission-checkbox" data-hidden="permission-is-update-promo"><input type="hidden" name="permission-is-update-promo" id="permission-is-update-promo" value="1"></td>
+                                            <td><input type="checkbox" id="permission-delete-promo-button" class="permission-checkbox" data-hidden="permission-is-delete-promo"><input type="hidden" name="permission-is-delete-promo" id="permission-is-delete-promo" value="1"></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Featured Section</td>
+                                            <td><input type="checkbox" id="permission-create-featured-button" class="permission-checkbox" data-hidden="permission-is-create-featured"><input type="hidden" name="permission-is-create-featured" id="permission-is-create-featured" value="1"></td>
+                                            <td><input type="checkbox" id="permission-read-featured-button" class="permission-checkbox" data-hidden="permission-is-read-featured"><input type="hidden" name="permission-is-read-featured" id="permission-is-read-featured" value="1"></td>
+                                            <td><input type="checkbox" id="permission-update-featured-button" class="permission-checkbox" data-hidden="permission-is-update-featured"><input type="hidden" name="permission-is-update-featured" id="permission-is-update-featured" value="1"></td>
+                                            <td><input type="checkbox" id="permission-delete-featured-button" class="permission-checkbox" data-hidden="permission-is-delete-featured"><input type="hidden" name="permission-is-delete-featured" id="permission-is-delete-featured" value="1"></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Customers</td>
+                                            <td>-</td>
+                                            <td><input type="checkbox" id="permission-read-customers-button" class="permission-checkbox" data-hidden="permission-is-read-customers"><input type="hidden" name="permission-is-read-customers" id="permission-is-read-customers" value="1"></td>
+                                            <td>-</td>
+                                            <td>-</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Payment Requests</td>
+                                            <td>-</td>
+                                            <td><input type="checkbox" id="permission-read-payment-button" class="permission-checkbox" data-hidden="permission-is-read-payment"><input type="hidden" name="permission-is-read-payment" id="permission-is-read-payment" value="1"></td>
+                                            <td><input type="checkbox" id="permission-update-payment-button" class="permission-checkbox" data-hidden="permission-is-update-payment"><input type="hidden" name="permission-is-update-payment" id="permission-is-update-payment" value="1"></td>
+                                            <td>-</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Return Requests</td>
+                                            <td>-</td>
+                                            <td><input type="checkbox" id="permission-read-return-button" class="permission-checkbox" data-hidden="permission-is-read-return"><input type="hidden" name="permission-is-read-return" id="permission-is-read-return" value="1"></td>
+                                            <td><input type="checkbox" id="permission-update-return-button" class="permission-checkbox" data-hidden="permission-is-update-return"><input type="hidden" name="permission-is-update-return" id="permission-is-update-return" value="1"></td>
+                                            <td><input type="checkbox" id="permission-delete-return-button" class="permission-checkbox" data-hidden="permission-is-delete-return"><input type="hidden" name="permission-is-delete-return" id="permission-is-delete-return" value="1"></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Delivery Boys</td>
+                                            <td><input type="checkbox" id="permission-create-delivery-button" class="permission-checkbox" data-hidden="permission-is-create-delivery"><input type="hidden" name="permission-is-create-delivery" id="permission-is-create-delivery" value="1"></td>
+                                            <td><input type="checkbox" id="permission-read-delivery-button" class="permission-checkbox" data-hidden="permission-is-read-delivery"><input type="hidden" name="permission-is-read-delivery" id="permission-is-read-delivery" value="1"></td>
+                                            <td><input type="checkbox" id="permission-update-delivery-button" class="permission-checkbox" data-hidden="permission-is-update-delivery"><input type="hidden" name="permission-is-update-delivery" id="permission-is-update-delivery" value="1"></td>
+                                            <td><input type="checkbox" id="permission-delete-delivery-button" class="permission-checkbox" data-hidden="permission-is-delete-delivery"><input type="hidden" name="permission-is-delete-delivery" id="permission-is-delete-delivery" value="1"></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Notifications</td>
+                                            <td><input type="checkbox" id="permission-create-notification-button" class="permission-checkbox" data-hidden="permission-is-create-notification"><input type="hidden" name="permission-is-create-notification" id="permission-is-create-notification" value="1"></td>
+                                            <td><input type="checkbox" id="permission-read-notification-button" class="permission-checkbox" data-hidden="permission-is-read-notification"><input type="hidden" name="permission-is-read-notification" id="permission-is-read-notification" value="1"></td>
+                                            <td>-</td>
+                                            <td><input type="checkbox" id="permission-delete-notification-button" class="permission-checkbox" data-hidden="permission-is-delete-notification"><input type="hidden" name="permission-is-delete-notification" id="permission-is-delete-notification" value="1"></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Transactions</td>
+                                            <td>-</td>
+                                            <td><input type="checkbox" id="permission-read-transaction-button" class="permission-checkbox" data-hidden="permission-is-read-transaction"><input type="hidden" name="permission-is-read-transaction" id="permission-is-read-transaction" value="1"></td>
+                                            <td>-</td>
+                                            <td>-</td>
+                                        </tr>
+                                        <tr>
+                                            <td>System settings</td>
+                                            <td>-</td>
+                                            <td><input type="checkbox" id="permission-read-settings-button" class="permission-checkbox" data-hidden="permission-is-read-settings"><input type="hidden" name="permission-is-read-settings" id="permission-is-read-settings" value="1"></td>
+                                            <td><input type="checkbox" id="permission-update-settings-button" class="permission-checkbox" data-hidden="permission-is-update-settings"><input type="hidden" name="permission-is-update-settings" id="permission-is-update-settings" value="1"></td>
+                                            <td>-</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Locations</td>
+                                            <td><input type="checkbox" id="permission-create-location-button" class="permission-checkbox" data-hidden="permission-is-create-location"><input type="hidden" name="permission-is-create-location" id="permission-is-create-location" value="1"></td>
+                                            <td><input type="checkbox" id="permission-read-location-button" class="permission-checkbox" data-hidden="permission-is-read-location"><input type="hidden" name="permission-is-read-location" id="permission-is-read-location" value="1"></td>
+                                            <td><input type="checkbox" id="permission-update-location-button" class="permission-checkbox" data-hidden="permission-is-update-location"><input type="hidden" name="permission-is-update-location" id="permission-is-update-location" value="1"></td>
+                                            <td><input type="checkbox" id="permission-delete-location-button" class="permission-checkbox" data-hidden="permission-is-delete-location"><input type="hidden" name="permission-is-delete-location" id="permission-is-delete-location" value="1"></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Reports</td>
+                                            <td><input type="checkbox" id="permission-create-report-button" class="permission-checkbox" data-hidden="permission-is-create-report"><input type="hidden" name="permission-is-create-report" id="permission-is-create-report" value="1"></td>
+                                            <td><input type="checkbox" id="permission-read-report-button" class="permission-checkbox" data-hidden="permission-is-read-report"><input type="hidden" name="permission-is-read-report" id="permission-is-read-report" value="1"></td>
+                                            <td>-</td>
+                                            <td>-</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Faqs</td>
+                                            <td><input type="checkbox" id="permission-create-faq-button" class="permission-checkbox" data-hidden="permission-is-create-faq"><input type="hidden" name="permission-is-create-faq" id="permission-is-create-faq" value="1"></td>
+                                            <td><input type="checkbox" id="permission-read-faq-button" class="permission-checkbox" data-hidden="permission-is-read-faq"><input type="hidden" name="permission-is-read-faq" id="permission-is-read-faq" value="1"></td>
+                                            <td><input type="checkbox" id="permission-update-faq-button" class="permission-checkbox" data-hidden="permission-is-update-faq"><input type="hidden" name="permission-is-update-faq" id="permission-is-update-faq" value="1"></td>
+                                            <td><input type="checkbox" id="permission-delete-faq-button" class="permission-checkbox" data-hidden="permission-is-delete-faq"><input type="hidden" name="permission-is-delete-faq" id="permission-is-delete-faq" value="1"></td>
+                                        </tr>
+                                    </table>
+                                </div>
+                                <div class="ln_solid"></div>
+                                <div class="box-footer">
+                                    <button type="submit" class="btn btn-primary" id="update_btn" name="btn_update">Update Permissions</button>
+                                    <button type="button" class="btn btn-default pull-right" data-dismiss="modal">Close</button>
+                                </div>
+                                <div class="form-group">
+                                    <div id="update_result" style="display: none;"></div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+<?php } ?>
+
 <?php if($page=="Products"){ ?>
 	<div class="modal fade" id='count_print_barcode' tabindex="-1" role="dialog" aria-labelledby="myLargeModalLabel">
                 <div class="modal-dialog" role="document">
@@ -538,7 +706,7 @@
 	<script src="dist/plugin/daterangepicker/daterangepicker.js"></script>
 	<script src="dist/scripts/main.min.js"></script>
 	
-<?php if($page=="Create or Edit Users"){ ?>
+<?php if($page=="Admin Management"){ ?>
 	         
 <script>
   $('#add_form').validate({
@@ -615,6 +783,34 @@
         });
           }
     }); 
+</script>
+
+<script>
+    $('#editSystemUserModal .permission-checkbox').change(function () {
+        $('#' + $(this).data('hidden')).val($(this).is(':checked') ? 1 : 0);
+    });
+    $('#update_system_user_form').on('submit', function(e){
+        e.preventDefault();
+        var formData = new FormData(this);
+        if(confirm('Are you sure? Want to update permissions.')){
+            $.ajax({
+                type:'POST',
+                url: $(this).attr('action'),
+                data:formData,
+                beforeSend:function(){$('#update_btn').html('Please wait..');},
+                cache:false,
+                contentType: false,
+                processData: false,
+                success:function(result){
+                    $('#update_result').html(result);
+                    $('#update_result').show().delay(4000).fadeOut();
+                    $('#update_btn').html('Update Permissions');
+                    $('#system-users').bootstrapTable('refresh');
+                    setTimeout(function() {$('#editSystemUserModal').modal('hide');}, 2500);
+                }
+            });
+        }
+    });
 </script>
 
 <script>
@@ -1262,7 +1458,7 @@
   // var changeCheckbox = document.querySelector('#permission-create-order-button');
   // var init = new Switchery(changeCheckbox);
   // $('.switchery').trigger('click');
-  // $('#permission-create-order-button').attr('checked', true);
+  // $('#permission-create-order-button').prop('checked', true);
 </script>
 <!-- removed  code goes here -->
 
@@ -1271,7 +1467,7 @@
 window.actionEvents = {
     'click .edit-system-user2': function (e, value, row, index) {
         $("#update_form").trigger( "reset" );
-        $('#system_user_id').val(row.id);
+        $('#system_user_id').val(row.system_user_id);
         $('#system_user_name').val(row.name);
         $('#system_user_email').val(row.email);
         $('#system_user_mobile').val(row.mobile);
@@ -1285,452 +1481,455 @@ window.actionEvents = {
       $("#update_form").trigger( "reset" );
 
 
-      $('#system_user_id').val(row.id);
+      $('#system_user_id').val(row.system_user_id);
 
       if(permissions.orders.create==1){
-        // $('#permission-create-order-button').attr('checked', true);
+        // $('#permission-create-order-button').prop('checked', true);
         $('#permission-create-order-button').prop('checked', true);
         $('#permission-is-create-order').val(1);
       }else{
-        $('#permission-create-order-button').attr('checked', false);
+        $('#permission-create-order-button').prop('checked', false);
         $('#permission-is-create-order').val(0);
       }
       if(permissions.orders.read==1){
-        $('#permission-read-order-button').attr('checked', true);
+        $('#permission-read-order-button').prop('checked', true);
         $('#permission-is-read-order').val(1);
       }else{
-        $('#permission-read-order-button').attr('checked', false);
+        $('#permission-read-order-button').prop('checked', false);
         $('#permission-is-read-order').val(0);
       }
       if(permissions.orders.update==1){
-        $('#permission-update-order-button').attr('checked', true);
+        $('#permission-update-order-button').prop('checked', true);
         $('#permission-is-update-order').val(1);
       }else{
-        $('#permission-update-order-button').attr('checked', false);
+        $('#permission-update-order-button').prop('checked', false);
         $('#permission-is-update-order').val(0);
       }
       if(permissions.orders.delete==1){
-        $('#permission-delete-order-button').attr('checked', true);
+        $('#permission-delete-order-button').prop('checked', true);
         $('#permission-is-delete-order').val(1);
       }else{
-        $('#permission-delete-order-button').attr('checked', false);
+        $('#permission-delete-order-button').prop('checked', false);
         $('#permission-is-delete-order').val(0);
       }
 
       if(permissions.categories.create==1){
-        $('#permission-create-category-button').attr('checked', true);
+        $('#permission-create-category-button').prop('checked', true);
         $('#permission-is-create-category').val(1);
       }else{
-        $('#permission-create-category-button').attr('checked', false);
+        $('#permission-create-category-button').prop('checked', false);
         $('#permission-is-create-category').val(0);
       }
       if(permissions.categories.read==1){
-        $('#permission-read-category-button').attr('checked', true);
+        $('#permission-read-category-button').prop('checked', true);
         $('#permission-is-read-category').val(1);
       }else{
-        $('#permission-read-category-button').attr('checked', false);
+        $('#permission-read-category-button').prop('checked', false);
         $('#permission-is-read-category').val(0);
       }
       if(permissions.categories.update==1){
-        $('#permission-update-category-button').attr('checked', true);
+        $('#permission-update-category-button').prop('checked', true);
         $('#permission-is-update-category').val(1);
       }else{
-        $('#permission-update-category-button').attr('checked', false);
+        $('#permission-update-category-button').prop('checked', false);
         $('#permission-is-update-category').val(0);
       }
       if(permissions.categories.delete==1){
-        $('#permission-delete-category-button').attr('checked', true);
+        $('#permission-delete-category-button').prop('checked', true);
         $('#permission-is-delete-category').val(1);
       }else{
-        $('#permission-delete-category-button').attr('checked', false);
+        $('#permission-delete-category-button').prop('checked', false);
         $('#permission-is-delete-category').val(0);
       }
 
 
       if(permissions.subcategories.create==1){
-        $('#permission-create-subcategory-button').attr('checked', true);
+        $('#permission-create-subcategory-button').prop('checked', true);
         $('#permission-is-create-subcategory').val(1);
       }else{
-        $('#permission-create-subcategory-button').attr('checked', false);
+        $('#permission-create-subcategory-button').prop('checked', false);
         $('#permission-is-create-subcategory').val(0);
       }
       if(permissions.subcategories.read==1){
-        $('#permission-read-subcategory-button').attr('checked', true);
+        $('#permission-read-subcategory-button').prop('checked', true);
         $('#permission-is-read-subcategory').val(1);
       }else{
-        $('#permission-read-subcategory-button').attr('checked', false);
+        $('#permission-read-subcategory-button').prop('checked', false);
         $('#permission-is-read-subcategory').val(0);
       }
       if(permissions.subcategories.update==1){
-        $('#permission-update-subcategory-button').attr('checked', true);
+        $('#permission-update-subcategory-button').prop('checked', true);
         $('#permission-is-update-subcategory').val(1);
       }else{
-        $('#permission-update-subcategory-button').attr('checked', false);
+        $('#permission-update-subcategory-button').prop('checked', false);
         $('#permission-is-update-subcategory').val(0);
       }
       if(permissions.subcategories.delete==1){
-        $('#permission-delete-subcategory-button').attr('checked', true);
+        $('#permission-delete-subcategory-button').prop('checked', true);
         $('#permission-is-delete-subcategory').val(1);
       }else{
-        $('#permission-delete-subcategory-button').attr('checked', false);
+        $('#permission-delete-subcategory-button').prop('checked', false);
         $('#permission-is-delete-subcategory').val(0);
       }
 
 
       if(permissions.products.create==1){
-        $('#permission-create-product-button').attr('checked', true);
+        $('#permission-create-product-button').prop('checked', true);
         $('#permission-is-create-product').val(1);
       }else{
-        $('#permission-create-product-button').attr('checked', false);
+        $('#permission-create-product-button').prop('checked', false);
         $('#permission-is-create-product').val(0);
       }
       if(permissions.products.read==1){
-        $('#permission-read-product-button').attr('checked', true);
+        $('#permission-read-product-button').prop('checked', true);
         $('#permission-is-read-product').val(1);
       }else{
-         $('#permission-read-product-button').attr('checked', false);
+         $('#permission-read-product-button').prop('checked', false);
         $('#permission-is-read-product').val(0);
       }
       if(permissions.products.update==1){
-        $('#permission-update-product-button').attr('checked', true);
+        $('#permission-update-product-button').prop('checked', true);
         $('#permission-is-update-product').val(1);
       }else{
-        $('#permission-update-product-button').attr('checked', false);
+        $('#permission-update-product-button').prop('checked', false);
         $('#permission-is-update-product').val(0);
       }
       if(permissions.products.delete==1){
-        $('#permission-delete-product-button').attr('checked', true);
+        $('#permission-delete-product-button').prop('checked', true);
         $('#permission-is-delete-product').val(1);
       }else{
-        $('#permission-delete-product-button').attr('checked', false);
+        $('#permission-delete-product-button').prop('checked', false);
         $('#permission-is-delete-product').val(0);
       }
 
 
       if(permissions.products_order.read==1){
-        $('#permission-read-products-order-button').attr('checked', true);
+        $('#permission-read-products-order-button').prop('checked', true);
         $('#permission-is-read-products-order').val(1);
       }else{
-        $('#permission-read-products-order-button').attr('checked', false);
+        $('#permission-read-products-order-button').prop('checked', false);
         $('#permission-is-read-products-order').val(0);
       }
       if(permissions.products_order.update==1){
-        $('#permission-update-products-order-button').attr('checked', true);
+        $('#permission-update-products-order-button').prop('checked', true);
         $('#permission-is-update-products-order').val(1);
       }else{
-        $('#permission-update-products-order-button').attr('checked', false);
+        $('#permission-update-products-order-button').prop('checked', false);
         $('#permission-is-update-products-order').val(0);
       }
 
 
       if(permissions.home_sliders.create==1){
-        $('#permission-create-home-slider-button').attr('checked', true);
+        $('#permission-create-home-slider-button').prop('checked', true);
         $('#permission-is-create-home-slider').val(1);
       }else{
-        $('#permission-create-home-slider-button').attr('checked', false);
+        $('#permission-create-home-slider-button').prop('checked', false);
         $('#permission-is-create-home-slider').val(0);
       }
       if(permissions.home_sliders.read==1){
-        $('#permission-read-home-slider-button').attr('checked', true);
+        $('#permission-read-home-slider-button').prop('checked', true);
         $('#permission-is-read-home-slider').val(1);
       }else{
-        $('#permission-read-home-slider-button').attr('checked', false);
+        $('#permission-read-home-slider-button').prop('checked', false);
         $('#permission-is-read-home-slider').val(0);
       }
       if(permissions.home_sliders.delete==1){
-        $('#permission-delete-home-slider-button').attr('checked', true);
+        $('#permission-delete-home-slider-button').prop('checked', true);
         $('#permission-is-delete-home-slider').val(1);
       }else{
-        $('#permission-delete-home-slider-button').attr('checked', false);
+        $('#permission-delete-home-slider-button').prop('checked', false);
         $('#permission-is-delete-home-slider').val(0);
       }
 
 
       if(permissions.new_offers.create==1){
-        $('#permission-create-new-offer-button').attr('checked', true);
+        $('#permission-create-new-offer-button').prop('checked', true);
         $('#permission-is-create-new-offer').val(1);
       }else{
-        $('#permission-create-new-offer-button').attr('checked', false);
+        $('#permission-create-new-offer-button').prop('checked', false);
         $('#permission-is-create-new-offer').val(0);
       }
       if(permissions.new_offers.read==1){
-        $('#permission-read-new-offer-button').attr('checked', true);
+        $('#permission-read-new-offer-button').prop('checked', true);
         $('#permission-is-read-new-offer').val(1);
       }else{
-        $('#permission-read-new-offer-button').attr('checked', false);
+        $('#permission-read-new-offer-button').prop('checked', false);
         $('#permission-is-read-new-offer').val(0);
       }
       if(permissions.new_offers.delete==1){
-        $('#permission-delete-new-offer-button').attr('checked', true);
+        $('#permission-delete-new-offer-button').prop('checked', true);
         $('#permission-is-delete-new-offer').val(1);
       }else{
-        $('#permission-delete-new-offer-button').attr('checked', false);
+        $('#permission-delete-new-offer-button').prop('checked', false);
         $('#permission-is-delete-new-offer').val(0);
       }
 
 
       if(permissions.promo_codes.create==1){
-        $('#permission-create-promo-button').attr('checked', true);
+        $('#permission-create-promo-button').prop('checked', true);
         $('#permission-is-create-promo').val(1);
       }else{
-        $('#permission-create-promo-button').attr('checked', false);
+        $('#permission-create-promo-button').prop('checked', false);
         $('#permission-is-create-promo').val(0);
       }
       if(permissions.promo_codes.read==1){
-        $('#permission-read-promo-button').attr('checked', true);
+        $('#permission-read-promo-button').prop('checked', true);
         $('#permission-is-read-promo').val(1);
       }else{
-        $('#permission-read-promo-button').attr('checked', false);
+        $('#permission-read-promo-button').prop('checked', false);
         $('#permission-is-read-promo').val(0);
       }
       if(permissions.promo_codes.update==1){
-        $('#permission-update-promo-button').attr('checked', true);
+        $('#permission-update-promo-button').prop('checked', true);
         $('#permission-is-update-promo').val(1);
       }else{
-        $('#permission-update-promo-button').attr('checked', false);
+        $('#permission-update-promo-button').prop('checked', false);
         $('#permission-is-update-promo').val(0);
       }
       if(permissions.promo_codes.delete==1){
-        $('#permission-delete-promo-button').attr('checked', true);
+        $('#permission-delete-promo-button').prop('checked', true);
         $('#permission-is-delete-promo').val(1);
       }else{
-        $('#permission-delete-promo-button').attr('checked', false);
+        $('#permission-delete-promo-button').prop('checked', false);
         $('#permission-is-delete-promo').val(0);
       }
 
       if(permissions.featured.create==1){
-        $('#permission-create-featured-button').attr('checked', true);
+        $('#permission-create-featured-button').prop('checked', true);
         $('#permission-is-create-featured').val(1);
       }else{
-        $('#permission-create-featured-button').attr('checked', false);
+        $('#permission-create-featured-button').prop('checked', false);
         $('#permission-is-create-featured').val(0);
       }
       if(permissions.featured.read==1){
-        $('#permission-read-featured-button').attr('checked', true);
+        $('#permission-read-featured-button').prop('checked', true);
         $('#permission-is-read-featured').val(1);
       }else{
-        $('#permission-read-featured-button').attr('checked', false);
+        $('#permission-read-featured-button').prop('checked', false);
         $('#permission-is-read-featured').val(0);
       }
       if(permissions.featured.update==1){
-        $('#permission-update-featured-button').attr('checked', true);
+        $('#permission-update-featured-button').prop('checked', true);
         $('#permission-is-update-featured').val(1);
       }else{
-        $('#permission-update-featured-button').attr('checked', false);
+        $('#permission-update-featured-button').prop('checked', false);
         $('#permission-is-update-featured').val(0);
       }
       if(permissions.featured.delete==1){
-        $('#permission-delete-featured-button').attr('checked', true);
+        $('#permission-delete-featured-button').prop('checked', true);
         $('#permission-is-delete-featured').val(1);
       }else{
-        $('#permission-delete-featured-button').attr('checked', false);
+        $('#permission-delete-featured-button').prop('checked', false);
         $('#permission-is-delete-featured').val(0);
       }
 
 
       if(permissions.customers.read==1){
-        $('#permission-read-customers-button').attr('checked', true);
+        $('#permission-read-customers-button').prop('checked', true);
         $('#permission-is-read-customers').val(1);
       }else{
-        $('#permission-read-customers-button').attr('checked', false);
+        $('#permission-read-customers-button').prop('checked', false);
         $('#permission-is-read-customers').val(0);
       }
 
       if(permissions.payment.read==1){
-        $('#permission-read-payment-button').attr('checked', true);
+        $('#permission-read-payment-button').prop('checked', true);
         $('#permission-is-read-payment').val(1);
       }else{
-        $('#permission-read-payment-button').attr('checked', false);
+        $('#permission-read-payment-button').prop('checked', false);
         $('#permission-is-read-payment').val(0);
       }
       if(permissions.payment.update==1){
-        $('#permission-update-payment-button').attr('checked', true);
+        $('#permission-update-payment-button').prop('checked', true);
         $('#permission-is-update-payment').val(1);
       }else{
-        $('#permission-update-payment-button').attr('checked', false);
+        $('#permission-update-payment-button').prop('checked', false);
         $('#permission-is-update-payment').val(0);
       }
 
 
       if(permissions.delivery_boys.create==1){
-        $('#permission-create-delivery-button').attr('checked', true);
+        $('#permission-create-delivery-button').prop('checked', true);
         $('#permission-is-create-delivery').val(1);
       }else{
-        $('#permission-create-delivery-button').attr('checked', false);
+        $('#permission-create-delivery-button').prop('checked', false);
         $('#permission-is-create-delivery').val(0);
       }
       if(permissions.delivery_boys.read==1){
-        $('#permission-read-delivery-button').attr('checked', true);
+        $('#permission-read-delivery-button').prop('checked', true);
         $('#permission-is-read-delivery').val(1);
       }else{
-        $('#permission-read-delivery-button').attr('checked', false);
+        $('#permission-read-delivery-button').prop('checked', false);
         $('#permission-is-read-delivery').val(0);
       }
       if(permissions.delivery_boys.update==1){
-        $('#permission-update-delivery-button').attr('checked', true);
+        $('#permission-update-delivery-button').prop('checked', true);
         $('#permission-is-update-delivery').val(1);
       }else{
-        $('#permission-update-delivery-button').attr('checked', false);
+        $('#permission-update-delivery-button').prop('checked', false);
         $('#permission-is-update-delivery').val(0);
       }
       if(permissions.delivery_boys.delete==1){
-        $('#permission-delete-delivery-button').attr('checked', true);
+        $('#permission-delete-delivery-button').prop('checked', true);
         $('#permission-is-delete-delivery').val(1);
       }else{
-        $('#permission-delete-delivery-button').attr('checked', false);
+        $('#permission-delete-delivery-button').prop('checked', false);
         $('#permission-is-delete-delivery').val(0);
       }
 
 
       if(permissions.return_requests.read==1){
-        $('#permission-read-return-button').attr('checked', true);
+        $('#permission-read-return-button').prop('checked', true);
         $('#permission-is-read-return').val(1);
       }else{
-        $('#permission-read-return-button').attr('checked', false);
+        $('#permission-read-return-button').prop('checked', false);
         $('#permission-is-read-return').val(0);
       }
       if(permissions.return_requests.update==1){
-        $('#permission-update-return-button').attr('checked', true);
+        $('#permission-update-return-button').prop('checked', true);
         $('#permission-is-update-return').val(1);
       }else{
-        $('#permission-update-return-button').attr('checked', false);
+        $('#permission-update-return-button').prop('checked', false);
         $('#permission-is-update-return').val(0);
       }
       if(permissions.return_requests.delete==1){
-        $('#permission-delete-return-button').attr('checked', true);
+        $('#permission-delete-return-button').prop('checked', true);
         $('#permission-is-delete-return').val(1);
       }else{
-        $('#permission-delete-return-button').attr('checked', false);
+        $('#permission-delete-return-button').prop('checked', false);
         $('#permission-is-delete-return').val(0);
       }
 
       if(permissions.notifications.create==1){
-        $('#permission-create-notification-button').attr('checked', true);
+        $('#permission-create-notification-button').prop('checked', true);
         $('#permission-is-create-notification').val(1);
       }else{
-        $('#permission-create-notification-button').attr('checked', false);
+        $('#permission-create-notification-button').prop('checked', false);
         $('#permission-is-create-notification').val(0);
       }
       if(permissions.notifications.read==1){
-        $('#permission-read-notification-button').attr('checked', true);
+        $('#permission-read-notification-button').prop('checked', true);
         $('#permission-is-read-notification').val(1);
       }else{
-        $('#permission-read-notification-button').attr('checked', false);
+        $('#permission-read-notification-button').prop('checked', false);
         $('#permission-is-read-notification').val(0);
       }
       if(permissions.notifications.delete==1){
-        $('#permission-delete-notification-button').attr('checked', true);
+        $('#permission-delete-notification-button').prop('checked', true);
         $('#permission-is-delete-notification').val(1);
       }else{
-        $('#permission-delete-notification-button').attr('checked', false);
+        $('#permission-delete-notification-button').prop('checked', false);
         $('#permission-is-delete-notification').val(0);
       }
 
       if(permissions.transactions.read==1){
-        $('#permission-read-transaction-button').attr('checked', true);
+        $('#permission-read-transaction-button').prop('checked', true);
         $('#permission-is-read-transaction').val(1);
       }else{
-        $('#permission-read-transaction-button').attr('checked', false);
+        $('#permission-read-transaction-button').prop('checked', false);
         $('#permission-is-read-transaction').val(0);
       }
 
 
       if(permissions.settings.read==1){
-        $('#permission-read-settings-button').attr('checked', true);
+        $('#permission-read-settings-button').prop('checked', true);
         $('#permission-is-read-settings').val(1);
       }else{
-        $('#permission-read-settings-button').attr('checked', false);
+        $('#permission-read-settings-button').prop('checked', false);
         $('#permission-is-read-settings').val(0);
       }
 
       if(permissions.settings.update==1){
-        $('#permission-update-settings-button').attr('checked', true);
+        $('#permission-update-settings-button').prop('checked', true);
         $('#permission-is-update-settings').val(1);
       }else{
-        $('#permission-update-settings-button').attr('checked', false);
+        $('#permission-update-settings-button').prop('checked', false);
         $('#permission-is-update-settings').val(0);
       }
 
       if(permissions.locations.create==1){
-        $('#permission-create-location-button').attr('checked', true);
+        $('#permission-create-location-button').prop('checked', true);
         $('#permission-is-create-location').val(1);
       }else{
-        $('#permission-create-location-button').attr('checked', false);
+        $('#permission-create-location-button').prop('checked', false);
         $('#permission-is-create-location').val(0);
       }
 
       if(permissions.locations.read==1){
-        $('#permission-read-location-button').attr('checked', true);
+        $('#permission-read-location-button').prop('checked', true);
         $('#permission-is-read-location').val(1);
       }else{
-        $('#permission-read-location-button').attr('checked', false);
+        $('#permission-read-location-button').prop('checked', false);
         $('#permission-is-read-location').val(0);
       }
       if(permissions.locations.update==1){
-        $('#permission-update-location-button').attr('checked', true);
+        $('#permission-update-location-button').prop('checked', true);
         $('#permission-is-update-location').val(1);
       }else{
-        $('#permission-update-location-button').attr('checked', false);
+        $('#permission-update-location-button').prop('checked', false);
         $('#permission-is-update-location').val(0);
       }
 
       if(permissions.locations.delete==1){
-        $('#permission-delete-location-button').attr('checked', true);
+        $('#permission-delete-location-button').prop('checked', true);
         $('#permission-is-delete-location').val(1);
       }else{
-        $('#permission-delete-location-button').attr('checked', false);
+        $('#permission-delete-location-button').prop('checked', false);
         $('#permission-is-delete-location').val(0);
       }
 
       if(permissions.reports.create==1){
-        $('#permission-create-report-button').attr('checked', true);
+        $('#permission-create-report-button').prop('checked', true);
         $('#permission-is-create-report').val(1);
       }else{
-        $('#permission-create-report-button').attr('checked', false);
+        $('#permission-create-report-button').prop('checked', false);
         $('#permission-is-create-report').val(0);
       }
 
       if(permissions.reports.read==1){
-        $('#permission-read-report-button').attr('checked', true);
+        $('#permission-read-report-button').prop('checked', true);
         $('#permission-is-read-report').val(1);
       }else{
-        $('#permission-read-report-button').attr('checked', false);
+        $('#permission-read-report-button').prop('checked', false);
         $('#permission-is-read-report').val(0);
       }
 
 
       if(permissions.faqs.create==1){
         
-        $('#permission-create-faq-button').attr('checked', true);
+        $('#permission-create-faq-button').prop('checked', true);
         $('#permission-is-create-faq').val(1);
       }else{
-        $('#permission-create-faq-button').attr('checked', false);
+        $('#permission-create-faq-button').prop('checked', false);
         $('#permission-is-create-faq').val(0);
       }
 
       if(permissions.faqs.read==1){
-        $('#permission-read-faq-button').attr('checked', true);
+        $('#permission-read-faq-button').prop('checked', true);
         $('#permission-is-read-faq').val(1);
       }else{
-        $('#permission-read-faq-button').attr('checked', false);
+        $('#permission-read-faq-button').prop('checked', false);
         $('#permission-is-read-faq').val(0);
       }
 
       if(permissions.faqs.update==1){
-        $('#permission-update-faq-button').attr('checked', true);
+        $('#permission-update-faq-button').prop('checked', true);
         $('#permission-is-update-faq').val(1);
       }else{
-        $('#permission-update-faq-button').attr('checked', false);
+        $('#permission-update-faq-button').prop('checked', false);
         $('#permission-is-update-faq').val(0);
       }
 
       if(permissions.faqs.delete==1){
-        $('#permission-delete-faq-button').attr('checked', true);
+        $('#permission-delete-faq-button').prop('checked', true);
         $('#permission-is-delete-faq').val(1);
       }else{
-        $('#permission-delete-faq-button').attr('checked', false);
+        $('#permission-delete-faq-button').prop('checked', false);
         $('#permission-is-delete-faq').val(0);
       }
+
+      $('#system_user_id').val(row.system_user_id);
+      $('#editSystemUserModal').modal('show');
     }
 }
     //   var changeCheckbox = document.querySelector('#permission-create-order-button');
