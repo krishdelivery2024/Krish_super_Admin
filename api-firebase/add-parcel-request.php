@@ -10,6 +10,17 @@ $db->connect();
 
 $response = array();
 
+// Check pickup service availability before accepting any request
+$sql_check = "SELECT is_service_available FROM parcel_settings ORDER BY id ASC LIMIT 1";
+$db->sql($sql_check);
+$check_res = $db->getResult();
+if(!empty($check_res) && $check_res[0]['is_service_available'] == '0'){
+	$response['error'] = true;
+	$response['message'] = "Service not available now. Please try again later.";
+	print_r(json_encode($response));
+	return false;
+}
+
 if(isset($_POST['accesskey'])){
 	$accesskey = $db->escapeString($fn->xss_clean($_POST['accesskey']));
 }else{
