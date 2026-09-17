@@ -76,14 +76,17 @@ $db->sql($sql_settings);
 $settings_res = $db->getResult();
 $platform_fee_value = 0;
 $tax_value = 0;
+$convenience_fee_value = 0;
 if (!empty($settings_res)) {
 	$sys_settings = json_decode($settings_res[0]['value'], true);
 	$platform_fee_value = isset($sys_settings['platform_fee']) ? floatval($sys_settings['platform_fee']) : 0;
 	$tax_value = isset($sys_settings['tax']) ? floatval($sys_settings['tax']) : 0;
+	$convenience_fee_value = isset($sys_settings['convenience_fee']) ? floatval($sys_settings['convenience_fee']) : 0;
 }
 $platform_fee = round($platform_fee_value, 2);
-$gst = round((floatval($total_price) + $platform_fee) * $tax_value / 100, 2);
-$grand_total = round(floatval($total_price) + $platform_fee + $gst, 2);
+$convenience_fee = round((floatval($total_price) * $convenience_fee_value) / 100, 2);
+$gst = round((floatval($total_price) + $convenience_fee + $platform_fee) * $tax_value / 100, 2);
+$grand_total = round(floatval($total_price) + $convenience_fee + $platform_fee + $gst, 2);
 
 $data = array(
 	'user_id' 		=> $user_id,
@@ -96,6 +99,7 @@ $data = array(
 	'base_price' 	=> $base_price,
 	'total_price' 	=> $total_price,
 	'platform_fee' 	=> $platform_fee,
+	'convenience_fee' => $convenience_fee,
 	'gst' 			=> $gst,
 	'grand_total' 	=> $grand_total,
 	'payment_status'=> $payment_status,

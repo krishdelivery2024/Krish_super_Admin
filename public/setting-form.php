@@ -182,6 +182,10 @@
                             <label for="platform_fee">Platform Fee (<?=$settings['currency']?>)</label>
                             <input type="number" class="form-control" name="platform_fee" value="<?=$data['platform_fee']?>" placeholder='Platform Fee on Shopping' min='0'/>
                         </div>
+                        <div class="form-group">
+                            <label for="convenience_fee">Convenience Fee ( in percentage % )</label>
+                            <input type="number" class="form-control" name="convenience_fee" value="<?=(isset($data['convenience_fee']))?$data['convenience_fee']:0;?>" placeholder='Convenience Fee in % of item total' min='0'/>
+                        </div>
                         
                         <div class="form-group">
                             <label for="delivery_time_per_km">Delivery Time Per Km (Minutes)</label>
