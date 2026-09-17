@@ -34,16 +34,19 @@ if(isset($_POST['accesskey'])) {
 			$settings_res = $db->getResult();
 			$platform_fee = 0;
 			$tax = 0;
+			$convenience_fee = 0;
 			if (!empty($settings_res)) {
 				$sys_settings = json_decode($settings_res[0]['value'], true);
 				$platform_fee = isset($sys_settings['platform_fee']) ? floatval($sys_settings['platform_fee']) : 0;
 				$tax = isset($sys_settings['tax']) ? floatval($sys_settings['tax']) : 0;
+				$convenience_fee = isset($sys_settings['convenience_fee']) ? floatval($sys_settings['convenience_fee']) : 0;
 			}
 			$response['error'] = "false";
 			$response['message'] = "Parcel settings retrieved successfully";
 			$response['data'] = $res[0];
 			$response['data']['platform_fee'] = $platform_fee;
 			$response['data']['tax'] = $tax;
+			$response['data']['convenience_fee'] = $convenience_fee;
 		}else{
 			$response['error'] = "true";
 			$response['message'] = "No data found!";
