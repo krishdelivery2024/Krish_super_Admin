@@ -37,7 +37,7 @@
 				// Step 2: Get category details
 				$sql = "SELECT id, main_cat, row_order, name, subtitle, image, status, cat_priority 
 						FROM category 
-						WHERE id IN ($category_ids_str) ORDER BY cat_priority ASC";
+						WHERE id IN ($category_ids_str) AND main_cat IN (SELECT id FROM main_category WHERE status = '1') ORDER BY cat_priority ASC";
 				$db->sql($sql);
 				$categories = $db->getResult();
                 for ($i = 0; $i < count($categories); $i++) {

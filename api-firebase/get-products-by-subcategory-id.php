@@ -53,21 +53,21 @@
             
 
             if(!empty($subcategory_id)){ 
-                $sql = "SELECT count(id) as total FROM products WHERE status='1' and subcategory_id=".$subcategory_id.(!empty($meal_filter)?' AND '.$meal_filter:'');
+                $sql = "SELECT count(id) as total FROM products WHERE status='1' and subcategory_id=".$subcategory_id." AND (seller_id = '' OR seller_id = '0' OR seller_id IN (SELECT s2.id FROM seller s2 INNER JOIN main_category m2 ON m2.id = s2.main_cat_id AND m2.status = '1'))".(!empty($meal_filter)?' AND '.$meal_filter:'');
                 $db->sql($sql);
                 $res = $db->getResult();
                 foreach($res as $row){
     		        $total = $row['total'];
     	        }
-                $sql="SELECT *,(SELECT ".$price." FROM product_variant pv WHERE pv.product_id=p.id) as price,(SELECT count(id) FROM product_variant pv WHERE pv.product_id=p.id AND pv.stock!=0 AND pv.serve_for='Available') as stock_check,(SELECT b.name FROM brand b WHERE p.brand_id=b.id) as brand_name FROM products p WHERE status='1' and  subcategory_id='".$subcategory_id."'".(!empty($meal_filter)?' AND '.$meal_filter:'')." $sort LIMIT $offset, $limit";
+                $sql="SELECT *,(SELECT ".$price." FROM product_variant pv WHERE pv.product_id=p.id) as price,(SELECT count(id) FROM product_variant pv WHERE pv.product_id=p.id AND pv.stock!=0 AND pv.serve_for='Available') as stock_check,(SELECT b.name FROM brand b WHERE p.brand_id=b.id) as brand_name FROM products p WHERE status='1' and  subcategory_id='".$subcategory_id."' AND (p.seller_id = '' OR p.seller_id = '0' OR p.seller_id IN (SELECT s2.id FROM seller s2 INNER JOIN main_category m2 ON m2.id = s2.main_cat_id AND m2.status = '1'))".(!empty($meal_filter)?' AND '.$meal_filter:'')." $sort LIMIT $offset, $limit";
             }else{
-                $sql = "SELECT count(id) as total FROM products WHERE status='1'".(!empty($meal_filter)?' AND '.$meal_filter:'');
+                $sql = "SELECT count(id) as total FROM products WHERE status='1' AND (seller_id = '' OR seller_id = '0' OR seller_id IN (SELECT s2.id FROM seller s2 INNER JOIN main_category m2 ON m2.id = s2.main_cat_id AND m2.status = '1'))".(!empty($meal_filter)?' AND '.$meal_filter:'');
                 $db->sql($sql);
                 $res = $db->getResult();
                 foreach($res as $row){
     		        $total = $row['total'];
     	        }
-                $sql="SELECT *,(SELECT ".$price." FROM product_variant pv WHERE pv.product_id=p.id) as price,(SELECT count(id) FROM product_variant pv WHERE pv.product_id=p.id AND pv.stock!=0 AND pv.serve_for='Available') as stock_check,(SELECT b.name FROM brand b WHERE p.brand_id=b.id) as brand_name FROM products p  WHERE status='1'".(!empty($meal_filter)?' AND '.$meal_filter:'')." $sort LIMIT $offset, $limit";
+                $sql="SELECT *,(SELECT ".$price." FROM product_variant pv WHERE pv.product_id=p.id) as price,(SELECT count(id) FROM product_variant pv WHERE pv.product_id=p.id AND pv.stock!=0 AND pv.serve_for='Available') as stock_check,(SELECT b.name FROM brand b WHERE p.brand_id=b.id) as brand_name FROM products p  WHERE status='1' AND (p.seller_id = '' OR p.seller_id = '0' OR p.seller_id IN (SELECT s2.id FROM seller s2 INNER JOIN main_category m2 ON m2.id = s2.main_cat_id AND m2.status = '1'))".(!empty($meal_filter)?' AND '.$meal_filter:'')." $sort LIMIT $offset, $limit";
             }
            //  echo $sql;
             

@@ -25,10 +25,18 @@ if(isset($_POST['accesskey'])) {
 	$user_id = (isset($_POST['user_id']))?$db->escapeString($fn->xss_clean($_POST['user_id'])):"";
 	if($access_key_received == $access_key){
 		// get all category data from category table
-		$sql_query = "SELECT * 
-			FROM seller 
-            WHERE main_cat_id ='$main_cat' AND id ='$seller_id' AND status='1'
-			ORDER BY id ASC ";
+		if($main_cat != '' && $main_cat != '0'){
+			$sql_query = "SELECT * 
+				FROM seller 
+	            WHERE main_cat_id ='$main_cat' AND id ='$seller_id' AND status='1' AND main_cat_id IN (SELECT id FROM main_category WHERE status = '1')
+				ORDER BY id ASC ";
+		}else{
+			// main_cat_id is optional; fetch seller by id alone
+			$sql_query = "SELECT * 
+				FROM seller 
+	            WHERE id ='$seller_id' AND status='1' AND main_cat_id IN (SELECT id FROM main_category WHERE status = '1')
+				ORDER BY id ASC ";
+		}
 		$db->sql($sql_query);
 		$res=$db->getResult();
 		if (!empty($res)) {

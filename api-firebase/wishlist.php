@@ -107,7 +107,7 @@
 				// Step 2: Get category details
 				$sql = "SELECT *
 						FROM seller 
-						WHERE id IN ($seller_ids_str) AND status ='1' ORDER BY id ASC";
+						WHERE id IN ($seller_ids_str) AND status ='1' AND main_cat_id IN (SELECT id FROM main_category WHERE status = '1') ORDER BY id ASC";
 				$db->sql($sql);
 				$sellers = $db->getResult();
                 for ($i = 0; $i < count($sellers); $i++) {

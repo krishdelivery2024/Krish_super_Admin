@@ -24,7 +24,7 @@ if(isset($_POST['accesskey'])) {
 		// get all category data from category table
 		$sql_query = "SELECT * 
 			FROM seller 
-            WHERE main_cat_id ='1' AND status='1'
+            WHERE main_cat_id ='1' AND status='1' AND main_cat_id IN (SELECT id FROM main_category WHERE status = '1')
 			ORDER BY sel_priority ASC ";
 		$db->sql($sql_query);
 		$res=$db->getResult();

@@ -48,7 +48,7 @@ if(isset($_POST['type']) && $_POST['type'] == 'products-search'){
 	$main_cat_id = (isset($_POST['main_cat_id']))?$db->escapeString($fn->xss_clean($_POST['main_cat_id'])):"";
 	if(isset($main_cat_id) && !empty($main_cat_id)){
 
-		$sql1="SELECT * FROM seller WHERE main_cat_id = '$main_cat_id' AND status='1'";  
+		$sql1="SELECT * FROM seller WHERE main_cat_id = '$main_cat_id' AND status='1' AND main_cat_id IN (SELECT id FROM main_category WHERE status = '1')";  
 		$db->sql($sql1);
 		$res1 = $db->getResult();
 		$seller_ids = array_column($res1, 'id');  

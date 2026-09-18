@@ -7,8 +7,15 @@ include '../includes/variables.php';
 include_once('verify-token.php');
 $db=new Database();
 $db->connect();
-
 $response = array();
+
+// Set system timezone so pickup time is validated in the correct timezone
+$config = $fn->get_configurations();
+if(isset($config['system_timezone']) && isset($config['system_timezone_gmt'])){
+	date_default_timezone_set($config['system_timezone']);
+}else{
+	date_default_timezone_set('Asia/Kolkata');
+}
 
 // Check pickup service availability before accepting any request
 $sql_check = "SELECT is_service_available FROM parcel_settings ORDER BY id ASC LIMIT 1";
@@ -66,6 +73,20 @@ if(empty($pickup_location) || empty($drop_location)){
 	$response['message'] = "Pickup and drop location are required.";
 	print_r(json_encode($response));
 	return false;
+}
+
+if(!empty($pickup_time)){
+	$pickup_ts = strtotime($pickup_time);
+	if($pickup_ts !== false){
+		$pickup_min = (int)date('G', $pickup_ts) * 60 + (int)date('i', $pickup_ts);
+		$now_min = (int)date('G') * 60 + (int)date('i');
+		if($pickup_min <= $now_min){
+			$response['error'] = true;
+			$response['message'] = "Please select a future pickup time. Past times are not allowed.";
+			print_r(json_encode($response));
+			return false;
+		}
+	}
 }
 
 $otp = str_pad((string)mt_rand(0, 9999), 4, '0', STR_PAD_LEFT);
