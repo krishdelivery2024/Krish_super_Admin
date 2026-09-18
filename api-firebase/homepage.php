@@ -24,7 +24,7 @@ if(isset($_POST['accesskey'])) {
 	$access_key_received = $db->escapeString($fn->xss_clean($_POST['accesskey']));		
 	if($access_key_received == $access_key){
 		// get all category data from category table
-		$sql_query = "SELECT * FROM category ORDER BY cat_priority ASC ";
+		$sql_query = "SELECT c.* FROM category c INNER JOIN main_category m ON m.id = c.main_cat AND m.status = '1' ORDER BY c.cat_priority ASC ";
 		$db->sql($sql_query);
 		$res=$db->getResult();
 		for($i=0;$i<count($res);$i++){
@@ -58,9 +58,12 @@ if(isset($_POST['accesskey'])) {
     	foreach($result as $row){
     		$name = "";
     		if($row['type'] == 'main_category'){
-    		    $sql = 'select `name` from main_category where id = '.$row['type_id'].' order by id desc';
+    		    $sql = 'select `name`, `status` from main_category where id = '.$row['type_id'].' order by id desc';
     		    $db->sql($sql);
     		    $result1 = $db->getResult();
+    		    if(!empty($result1[0]) && isset($result1[0]['status']) && $result1[0]['status'] != 1){
+    		        continue;
+    		    }
     		    $name = (!empty($result1[0]['name']))?$result1[0]['name']:"";
     		}
     // 		if($row['type'] == 'product'){
@@ -105,7 +108,7 @@ if(isset($_POST['accesskey'])) {
     	}
     	$data['slider_section_two'] = $temp1;
 
-		$sql = 'select * from main_category order by cat_priority asc';
+		$sql = 'select * from main_category where status = 1 order by cat_priority asc';
     	$db->sql($sql);
     	$result =$db->getResult();
     	$temp = $temp1 = array();
@@ -137,7 +140,7 @@ if(isset($_POST['accesskey'])) {
 		$product_ids = implode(',', $product_ids);
 		
 		// $sql = 'SELECT * FROM `products` where id in ('.$row['product_ids'].') ORDER BY FIELD(id, '.$row['product_ids'].')';
-		$sql = 'SELECT *,(SELECT b.name FROM brand b WHERE p.brand_id=b.id) as brand_name FROM products p WHERE status="1" and id IN ('.$product_ids.')'.(!empty($meal_filter)?' AND '.$meal_filter:'');
+		$sql = 'SELECT *,(SELECT b.name FROM brand b WHERE p.brand_id=b.id) as brand_name FROM products p WHERE status="1" and id IN ('.$product_ids.') AND (p.seller_id = "" OR p.seller_id = "0" OR p.seller_id IN (SELECT s2.id FROM seller s2 INNER JOIN main_category m2 ON m2.id = s2.main_cat_id AND m2.status = "1"))'.(!empty($meal_filter)?' AND '.$meal_filter:'');
 		// echo $sql;
 		$db->sql($sql);
 		$result1 = $db->getResult();

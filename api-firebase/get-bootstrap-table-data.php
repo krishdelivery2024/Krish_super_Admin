@@ -474,6 +474,11 @@
 			
 			$tempRow['id'] = $row['id'];
 			$tempRow['name'] = $row['name'];
+			if($row['status'] == 1){
+				$tempRow['status'] = "<label class='label label-success'>Active</label> <a class='btn btn-xs btn-danger' href='update-main-category-status.php?id=".$row['id']."&status=0' title='Disable'><i class='fa fa-ban'></i>Disable</a>";
+			}else{
+				$tempRow['status'] = "<label class='label label-danger'>Disabled</label> <a class='btn btn-xs btn-success' href='update-main-category-status.php?id=".$row['id']."&status=1' title='Enable'><i class='fa fa-check'></i>Enable</a>";
+			}
 			$tempRow['image'] = "<a data-lightbox='category' href='".$row['image']."' data-caption='".$row['name']."'><img src='".$row['image']."' title='".$row['name']."' style='height:50px !important' /></a>";
 			$tempRow['operate'] = $operate;
 			$rows[] = $tempRow;

@@ -42,7 +42,7 @@ if (isset($_POST['type']) && $_POST['type'] == 'all-search') {
     $search = isset($_POST['search']) ? $db->escapeString($fn->xss_clean($_POST['search'])) : '';
     $main_cat_id = isset($_POST['main_cat_id']) ? $db->escapeString($fn->xss_clean($_POST['main_cat_id'])) : '';
     $user_id = (isset($_POST['user_id']))?$db->escapeString($fn->xss_clean($_POST['user_id'])):"";
-    $where = "WHERE s.status = 1 AND p.status = 1 AND c.status = 1";
+    $where = "WHERE s.status = 1 AND p.status = 1 AND c.status = 1 AND s.main_cat_id IN (SELECT id FROM main_category WHERE status = '1')";
 
     // Filter by main_cat_id if present
     if (!empty($main_cat_id)) {

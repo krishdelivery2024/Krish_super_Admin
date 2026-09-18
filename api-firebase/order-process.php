@@ -171,6 +171,66 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 	    }
 	}
 	
+	// Store status & payment restrictions check for order placement
+	if(!empty($seller_id)){
+	    $sql_seller_status = "SELECT store_status, opening_time, closing_time, main_cat_id FROM seller WHERE id='$seller_id'";
+	    $db->sql($sql_seller_status);
+	    $seller_rows = $db->getResult();
+	    $is_shop_closed = false;
+	    if(!empty($seller_rows)){
+	        $shop = $seller_rows[0];
+	        $main_cat_id = isset($shop['main_cat_id']) ? $shop['main_cat_id'] : '';
+	        if(!empty($main_cat_id)){
+	            $sql_mcat = "SELECT status FROM main_category WHERE id='$main_cat_id'";
+	            $db->sql($sql_mcat);
+	            $mcat_res = $db->getResult();
+	            if(!empty($mcat_res) && isset($mcat_res[0]['status']) && $mcat_res[0]['status'] != 1){
+	                $response['error'] = true;
+	                $response['message'] = "This category is currently disabled. Orders cannot be placed for this store.";
+	                log_order_debug("Order rejected, seller main category disabled. Seller: " . $seller_id);
+	                print_r(json_encode($response));
+	                return false;
+	            }
+	        }
+	        if(isset($shop['store_status']) && $shop['store_status'] == 'false'){
+	            $is_shop_closed = true;
+	        }
+	        $open_time = isset($shop['opening_time']) ? $shop['opening_time'] : '';
+	        $close_time = isset($shop['closing_time']) ? $shop['closing_time'] : '';
+	        if(!empty($open_time) && !empty($close_time)){
+	            $parts_o = explode(':', $open_time);
+	            $open_min = ((isset($parts_o[0]) ? (int)$parts_o[0] : 0) * 60) + (isset($parts_o[1]) ? (int)$parts_o[1] : 0);
+	            $parts_c = explode(':', $close_time);
+	            $close_min = ((isset($parts_c[0]) ? (int)$parts_c[0] : 0) * 60) + (isset($parts_c[1]) ? (int)$parts_c[1] : 0);
+	            $now_min = ((int)date('G') * 60) + (int)date('i');
+	            if($now_min >= $close_min || $now_min < $open_min){
+	                $is_shop_closed = true;
+	            }
+	        }
+	    }
+	    if($is_shop_closed){
+	        $delivery_time_check = (isset($_POST['delivery_time'])) ? $_POST['delivery_time'] : '';
+	        if(strpos($delivery_time_check, 'Book for later') !== 0){
+	            $response['error'] = true;
+	            $response['message'] = "This store is currently closed. Please book this order for a later time.";
+	            log_order_debug("Order rejected, store closed for seller: " . $seller_id);
+	            print_r(json_encode($response));
+	            return false;
+	        }
+	    }
+	    // Store pickup orders cannot be paid via Cash on Delivery
+	    if($delivery_method == 'storepickup'){
+	        $pay_method_lower = strtolower((string)$payment_method);
+	        if($pay_method_lower == 'cod' || strpos($pay_method_lower, 'cash on delivery') !== false || strpos($pay_method_lower, 'cashondelivery') !== false){
+	            $response['error'] = true;
+	            $response['message'] = "Store pickup orders cannot be paid via Cash on Delivery. Please choose an online payment option.";
+	            log_order_debug("Order rejected, COD not allowed for store pickup. Seller: " . $seller_id);
+	            print_r(json_encode($response));
+	            return false;
+	        }
+	    }
+	}
+	
 	if($delivery_charge == 'Free'){
 	    $delivery_charge=0;
 	}

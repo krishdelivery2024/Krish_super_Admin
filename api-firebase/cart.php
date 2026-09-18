@@ -42,6 +42,16 @@
                 $db->disconnect();
                 die;
         }
+        $sql_mcat = "SELECT s.main_cat_id, mc.status AS main_category_status FROM seller s LEFT JOIN main_category mc ON mc.id = s.main_cat_id WHERE s.id='$seller_id'";
+            $db->sql($sql_mcat);
+            $mcat_result = $db->getResult();
+            if(!empty($mcat_result) && isset($mcat_result[0]['main_category_status']) && $mcat_result[0]['main_category_status'] != 1){
+                $output = json_encode(array('error' => true,
+                    'message' => 'This category is currently disabled. You cannot add items from this store.'));
+                echo $output;
+                $db->disconnect();
+                die;
+            }
             // One selller validation
         $sql="SELECT * FROM `carts` WHERE user_id='$user_id'";  
         $db->sql($sql);
