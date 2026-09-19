@@ -826,6 +826,7 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 		$tempRow['payment_method'] = $row['payment_method'];
 		$tempRow['payment_request'] = $row['payment_request'];
 		$tempRow['address'] = $row['address'];
+		$tempRow['notes'] = (isset($row['notes'])) ? $row['notes'] : '';
 
 		$tempRow['seller_latitude'] = $seller_latitude;
 		$tempRow['seller_longitude'] = $seller_longitude;
