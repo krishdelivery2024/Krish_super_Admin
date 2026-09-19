@@ -153,9 +153,20 @@ if(isset($_POST['id'])) {
 	}
 	
 
-	$sql="select user_id,payment_method,payment_status, wallet_balance,total,delivery_charge,tax_amount,status,active_status,delivery_boy_id from orders where id=".$id;
+	$sql="select user_id,payment_method,payment_status, wallet_balance,total,delivery_charge,tax_amount,status,active_status,delivery_boy_id,delivery_method,delivery_time from orders where id=".$id;
 	$db->sql($sql); // Table name, Column Names, JOIN, WHERE conditions, ORDER BY conditions
 	$res = $db->getResult();
+	$is_store_pickup = (strtolower(trim(isset($res[0]['delivery_method']) ? $res[0]['delivery_method'] : '')) == 'storepickup');
+	$order_delivery_time = isset($res[0]['delivery_time']) ? trim($res[0]['delivery_time']) : '';
+	$is_book_for_later = (stripos($order_delivery_time, 'Book for later') === 0);
+	$booked_delivery_dt = null;
+	if ($is_book_for_later) {
+		$part = trim(substr($order_delivery_time, strlen('Book for later - ')));
+		$parsed = DateTime::createFromFormat('F j Y, g:i a', $part);
+		if ($parsed) {
+			$booked_delivery_dt = $parsed;
+		}
+	}
 	if($res[0]['active_status']!='delivered' && $postStatus=='returned'){
 	    $response['error'] = true;
 		$response['message'] = 'Cannot return order unless it is delivered!';
@@ -336,6 +347,7 @@ if ($total == 0) {
     );
     // print_r($data);
     $db->insert('invoice',$data);
+    $db->getResult();
     $subject = "Order Delivered Successfully. Your invoice is here";
     
     $sql_invoice = "SELECT * FROM invoice WHERE order_id =" . $id;
@@ -591,6 +603,22 @@ if ($total == 0) {
     	        }
     	    } 
     	}
+    	if($postStatus=='ready'){
+    	    if($is_store_pickup){
+        	    $data = array('order_ready' => '1');
+        	    $db->update('orders',$data,'id='.$id);
+        	    $db->getResult();
+        	    $sql = "select name,email,mobile,country_code from `users` where id=".$user_id;
+        		$db->sql($sql);
+        		$res_user = $db->getResult();
+        		$message_ready = "Hello, Dear ".ucwords($res_user[0]['name']).", Your order ID : #".$id." is now ready. Please visit the store to collect your order.";
+        		$function->send_order_update_notification($user_id,"Your order is ready for pickup!",$message_ready,'order');
+            	$response['error'] = false;
+            	$response['message'] = "Order marked as ready for pickup!";
+            	print_r(json_encode($response));
+            	return false;
+    	    }
+    	}
     	$i = sizeof($status);
         $currentStatus = $status[$i-1][0];
         $final_status = array(
@@ -622,6 +650,7 @@ if ($total == 0) {
     		$message .= "Thank you for using our services! Contact us for more information";
     		// sendSm  // Notify delivery boy about status update if assigned
 			
+            if (!$is_store_pickup) {
             if ($res[0]['delivery_boy_id'] != 0 && (!isset($_POST['delivery_boy_id']) || empty($_POST['delivery_boy_id']))) {
                 $sql_dboy = "select name from delivery_boys where id='".$res[0]['delivery_boy_id']."'";
                 $db->sql($sql_dboy);
@@ -633,8 +662,31 @@ if ($total == 0) {
                 }
             } else if ($res[0]['delivery_boy_id'] == 0 && $postStatus == 'processed') {
                 $message_delivery_boy = "Hello, A new order (ID : #".$id.") is ready for delivery. Please check your app to accept it.";
-                $function->send_notification_to_delivery_boy(0,"New Order Ready for Delivery",$message_delivery_boy,'delivery_boys',$id);
-                $function->store_delivery_boy_notification(0,$id,"New Order Ready for Delivery",$message_delivery_boy,'order_status');
+                $deferred = false;
+                if ($is_book_for_later && $booked_delivery_dt instanceof DateTime) {
+                    $notify_at = clone $booked_delivery_dt;
+                    $notify_at->modify('-30 minutes');
+                    if ($notify_at > new DateTime()) {
+                        $sched = array(
+                            'order_id'=>$id,
+                            'delivery_boy_id'=>'0',
+                            'title'=>'New Order Ready for Delivery',
+                            'message'=>$message_delivery_boy,
+                            'type'=>'order_status',
+                            'order_type'=>'food',
+                            'scheduled_for'=>$notify_at->format('Y-m-d H:i:s'),
+                            'status'=>'pending'
+                        );
+                        $db->insert('scheduled_delivery_boy_notifications',$sched);
+                        $db->getResult();
+                        $deferred = true;
+                    }
+                }
+                if (!$deferred) {
+                    $function->send_notification_to_delivery_boy(0,"New Order Ready for Delivery",$message_delivery_boy,'delivery_boys',$id);
+                    $function->store_delivery_boy_notification(0,$id,"New Order Ready for Delivery",$message_delivery_boy,'order_status');
+                }
+            }
             }
 // sendSms($mobile,$message,$country_code);
 
