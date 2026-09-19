@@ -622,6 +622,49 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 		$db->sql($sql_delivery_charge);
 		$delivery_charge_result = $db->getResult();
 		$today_delivery_charge = (!empty($delivery_charge_result)) ? $delivery_charge_result[0]['total_delivery_charge'] : 0;
+
+		// ── TODAY ORDERS + EARNINGS BY SERVICE (food in-person delivery vs pickup) ──
+		$sql_food_pickup = "
+            SELECT
+                COUNT(id) AS cnt,
+                IFNULL(SUM(CASE WHEN payment_method = 'Cash on Delivery' THEN final_total ELSE 0 END),0) AS cod,
+                IFNULL(SUM(CASE WHEN payment_method != 'Cash on Delivery' THEN final_total ELSE 0 END),0) AS online,
+                IFNULL(SUM(delivery_charge),0) AS dc
+            FROM orders
+            WHERE delivery_boy_id = '$id'
+            AND active_status = 'delivered'
+            AND LOWER(TRIM(delivery_method)) != 'storepickup'
+            AND DATE(date_added) = '$today_date'
+        ";
+
+		$db->sql($sql_food_pickup);
+		$food_result = $db->getResult();
+
+		$sql_pickup = "
+            SELECT
+                COUNT(id) AS cnt,
+                IFNULL(SUM(CASE WHEN payment_method = 'Cash on Delivery' THEN final_total ELSE 0 END),0) AS cod,
+                IFNULL(SUM(CASE WHEN payment_method != 'Cash on Delivery' THEN final_total ELSE 0 END),0) AS online,
+                IFNULL(SUM(delivery_charge),0) AS dc
+            FROM orders
+            WHERE delivery_boy_id = '$id'
+            AND active_status = 'delivered'
+            AND LOWER(TRIM(delivery_method)) = 'storepickup'
+            AND DATE(date_added) = '$today_date'
+        ";
+
+		$db->sql($sql_pickup);
+		$pickup_result = $db->getResult();
+
+		$today_food_orders = (!empty($food_result)) ? $food_result[0]['cnt'] : 0;
+		$today_food_cod = (!empty($food_result)) ? $food_result[0]['cod'] : 0;
+		$today_food_online = (!empty($food_result)) ? $food_result[0]['online'] : 0;
+		$today_food_delivery_charge = (!empty($food_result)) ? $food_result[0]['dc'] : 0;
+
+		$today_pickup_orders = (!empty($pickup_result)) ? $pickup_result[0]['cnt'] : 0;
+		$today_pickup_cod = (!empty($pickup_result)) ? $pickup_result[0]['cod'] : 0;
+		$today_pickup_online = (!empty($pickup_result)) ? $pickup_result[0]['online'] : 0;
+		$today_pickup_delivery_charge = (!empty($pickup_result)) ? $pickup_result[0]['dc'] : 0;
 	}
 
 	// response
@@ -683,6 +726,16 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 	$response_data['today_earn_cod'] = (string) $today_earn_cod;
 	$response_data['today_earn_online'] = (string) $today_earn_online;
 	$response_data['today_delivery_charge'] = (string) ($today_delivery_charge ?? 0);
+
+	$response_data['today_food_orders'] = (string) ($today_food_orders ?? 0);
+	$response_data['today_food_cod'] = (string) ($today_food_cod ?? 0);
+	$response_data['today_food_online'] = (string) ($today_food_online ?? 0);
+	$response_data['today_food_delivery_charge'] = (string) ($today_food_delivery_charge ?? 0);
+
+	$response_data['today_pickup_orders'] = (string) ($today_pickup_orders ?? 0);
+	$response_data['today_pickup_cod'] = (string) ($today_pickup_cod ?? 0);
+	$response_data['today_pickup_online'] = (string) ($today_pickup_online ?? 0);
+	$response_data['today_pickup_delivery_charge'] = (string) ($today_pickup_delivery_charge ?? 0);
 	
 	$response_data['sub_amount'] = number_format($sub_amount, 2, '.', '');
     $response_data['total_cod_amount'] = number_format($total_cod_amount, 2, '.', '');
@@ -1133,6 +1186,14 @@ if (isset($_POST['get_parcel_orders'])) {
 	$response_data['today_earn_cod'] = '0';
 	$response_data['today_earn_online'] = '0';
 	$response_data['today_delivery_charge'] = '0';
+	$response_data['today_food_orders'] = '0';
+	$response_data['today_food_cod'] = '0';
+	$response_data['today_food_online'] = '0';
+	$response_data['today_food_delivery_charge'] = '0';
+	$response_data['today_pickup_orders'] = '0';
+	$response_data['today_pickup_cod'] = '0';
+	$response_data['today_pickup_online'] = '0';
+	$response_data['today_pickup_delivery_charge'] = '0';
 	print_r(json_encode($response_data));
 	die;
 }
