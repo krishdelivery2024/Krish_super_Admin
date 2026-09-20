@@ -49,6 +49,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $company_legal_name = $db->escapeString($_POST['company_legal_name'] ?? '');
     $personal_address = $db->escapeString($_POST['personal_address'] ?? '');
     $company_address = $db->escapeString($_POST['company_address'] ?? '');
+    $store_address = $db->escapeString($_POST['store_address'] ?? '');
+    $latitude = $db->escapeString($_POST['latitude'] ?? '');
+    $longitude = $db->escapeString($_POST['longitude'] ?? '');
     $state_id = $db->escapeString($_POST['state_id'] ?? '');
     $city_id = $db->escapeString($_POST['city_id'] ?? '');
     $area_id = $db->escapeString($_POST['area_id'] ?? '');
@@ -61,9 +64,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $preparation_time = $db->escapeString($_POST['preparation_time'] ?? '20');
     $status = 0;
     $date_created = date('Y-m-d H:i:s');
+    $zone_id = $fn->get_zone_id_from_latlng($latitude, $longitude);
 
     // Validate required fields
-    if (empty($name) || empty($mobile) || empty($email) || empty($main_cat_id) || empty($company_name) || empty($company_legal_name) || empty($personal_address) || empty($city_id) || empty($area_id)) {
+    if (empty($name) || empty($mobile) || empty($email) || empty($main_cat_id) || empty($company_name) || empty($company_legal_name) || empty($personal_address) || empty($store_address) || empty($latitude) || empty($longitude) ) {
         $response['message'] = "Please fill in all required fields.";
          ob_clean();
         echo json_encode($response);
@@ -114,6 +118,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'company_legal_name' => $company_legal_name,
         'personal_address' => $personal_address,
         'company_address' => $company_address,
+        'store_address' => $store_address,
+        'latitude' => $latitude,
+        'longitude' => $longitude,
         'state_id' => $state_id ? $state_id : 0,
         'city_id' => $city_id,
         'area_id' => $area_id,
@@ -127,6 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'status' => $status,
         'image' => $image_name,
         'banner' => $banner_name,
+        'zone_id' => $zone_id !== null ? $zone_id : 0,
         'date_created' => $date_created
     ];
 
@@ -238,26 +246,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <input type="text" name="pan_no" placeholder="PAN Number" class="frm-inp">
                 </div>
 
-                <!-- City Dropdown -->
-                <div class="frm-input col-md-3">
-                    <label>City <span class="required">*</span></label>
-                    <select name="city_id" class="frm-inp" required>
-                        <option value="">Select City</option>
+                <!-- City dropdown (hidden — auto-filled from map, posts numeric city_id) -->
+                <div class="frm-input col-md-3" style="display:none;">
+                    <label>City</label>
+                    <select name="city_id" class="frm-inp">
+                        <option value="" data-selected-done>Select City (auto-filled)</option>
                         <?php foreach ($res_city as $row): ?>
                             <option value="<?= $row['id'] ?>"><?= htmlspecialchars($row['name']) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
 
-                <!-- Area Dropdown -->
-                <div class="frm-input col-md-3">
-                    <label>Area <span class="required">*</span></label>
-                    <select name="area_id" class="frm-inp" required>
+                <!-- Area dropdown (hidden — auto-filled from map, posts numeric area_id) -->
+                <div class="frm-input col-md-3" style="display:none;">
+                    <label>Area</label>
+                    <select name="area_id" class="frm-inp">
                         <option value="">Select Area</option>
                         <?php foreach ($res_area_whole as $row): ?>
                             <option value="<?= $row['id'] ?>"><?= htmlspecialchars($row['name']) ?></option>
                         <?php endforeach; ?>
                     </select>
+                </div>
+
+                <!-- Store Address (visible, read-only — auto-filled from map) -->
+                <div class="frm-input col-md-6">
+                    <label>Store Address <span class="required">*</span></label>
+                    <input type="text" id="store_address" name="store_address" class="frm-inp" readonly
+                           placeholder="Auto-filled from map — drag pin or use Get My Current Location" required>
                 </div>
 
                 <div class="frm-input col-md-3">
@@ -283,6 +298,98 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <label>Preparation Time (mins) <span class="required">*</span></label>
                     <input type="number" name="preparation_time" class="frm-inp" value="20" required>
                 </div>             
+
+                <div class="frm-input col-md-12">
+                    <label>Store Location <span class="required">*</span></label>
+                    <div id="seller-reg-map" style="width:100%;height:320px;border:1px solid #d2d6de;border-radius:4px;"></div>
+                    <button type="button" id="seller-reg-locate" class="btn btn-info btn-sm" style="margin-top:8px;">
+                        <i class="fa fa-location-arrow"></i> Get Current Location
+                    </button>
+                    <span id="seller-reg-msg" class="help-block"></span>
+                    <input type="hidden" id="latitude" name="latitude" value="">
+                    <input type="hidden" id="longitude" name="longitude" value="">
+                </div>
+
+                <script>
+                (function () {
+                    var gg = document.createElement('script');
+                    gg.src = 'https://maps.googleapis.com/maps/api/js?key=AIzaSyDYXBYj5sA6nxiNvUsSrQKWSvytDzVRM7I&callback=initSellerRegMap';
+                    gg.async = true;
+                    gg.defer = true;
+                    document.head.appendChild(gg);
+
+                    window.initSellerRegMap = function () {
+                        var defaultLoc = { lat: 20.5937, lng: 78.9629 };
+                        var map = new google.maps.Map(document.getElementById('seller-reg-map'), {
+                            center: defaultLoc,
+                            zoom: 5
+                        });
+                        var marker = new google.maps.Marker({ map: map, position: defaultLoc, draggable: true });
+
+                        google.maps.event.addListener(map, 'click', function (e) {
+                            setPin(e.latLng.lat(), e.latLng.lng());
+                            fillCityArea(e.latLng.lat(), e.latLng.lng());
+                        });
+
+                        function setPin(lat, lng) {
+                            var loc = { lat: lat, lng: lng };
+                            marker.setPosition(loc);
+                            map.setCenter(loc);
+                            map.setZoom(15);
+                            document.getElementById('latitude').value = lat;
+                            document.getElementById('longitude').value = lng;
+                        }
+
+                        function fillCityArea(geocodeLat, geocodeLng) {
+                            var geocoder = new google.maps.Geocoder();
+                            geocoder.geocode({ location: { lat: geocodeLat, lng: geocodeLng } }, function (results, status) {
+                                if (status === 'OK' && results && results.length) {
+                                    var cityTxt = '', areaTxt = '';
+                                    results[0].address_components.forEach(function (c) {
+                                        if (c.types.indexOf('locality') !== -1) cityTxt = c.long_name;
+                                        if (c.types.indexOf('sublocality_level_1') !== -1) areaTxt = c.long_name;
+                                    });
+                                    [['city_id', cityTxt], ['area_id', areaTxt]].forEach(function (pair) {
+                                        var sel = document.querySelector('select[name="' + pair[0] + '"]');
+                                        if (sel && pair[1]) {
+                                            for (var i = 0; i < sel.options.length; i++) {
+                                                if (sel.options[i].text.trim() === pair[1].trim()) {
+                                                    sel.selectedIndex = i;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    });
+                                    var sa = document.getElementById('store_address');
+                                    if (sa) sa.value = results[0].formatted_address;
+                                }
+                            });
+                        }
+
+                        google.maps.event.addListener(marker, 'dragend', function () {
+                            var p = marker.getPosition();
+                            setPin(p.lat(), p.lng());
+                            fillCityArea(p.lat(), p.lng());
+                        });
+
+                        document.getElementById('seller-reg-locate').addEventListener('click', function () {
+                            if (!navigator.geolocation) {
+                                document.getElementById('seller-reg-msg').textContent = 'Geolocation not supported in this browser.';
+                                return;
+                            }
+                            document.getElementById('seller-reg-msg').textContent = 'Locating…';
+                            navigator.geolocation.getCurrentPosition(function (pos) {
+                                var lat = pos.coords.latitude, lng = pos.coords.longitude;
+                                setPin(lat, lng);
+                                fillCityArea(lat, lng);
+                                document.getElementById('seller-reg-msg').textContent = 'Location set. City & Area filled from map.';
+                            }, function () {
+                                document.getElementById('seller-reg-msg').textContent = 'Could not get your current location. Drag the pin instead.';
+                            }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+                        });
+                    };
+                })();
+                </script>
 
             </div>
 

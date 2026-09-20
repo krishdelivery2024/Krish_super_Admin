@@ -10,6 +10,10 @@
     
     $fn = new custom_functions;
     $config = $fn->get_configurations();
+    
+    $sql = "SELECT id, name FROM zone WHERE status=1 ORDER BY id DESC";
+    $db->sql($sql);
+    $zones = $db->getResult();
     ?>
     <!-- Main row -->
     <div class="row">
@@ -59,6 +63,15 @@
                         <option value="both">Both (Food &amp; Parcel)</option>
                         <option value="food">Food Only</option>
                         <option value="parcel">Parcel Only</option>
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label for="">Zone</label>
+                      <select class="form-control" name="zone_id" id="zone_id">
+                          <option value="">Select Zone (Leave empty for All Zones)</option>
+                          <?php foreach($zones as $zone){ ?>
+                              <option value="<?=$zone['id']?>"><?=$zone['name']?></option>
+                          <?php } ?>
                       </select>
                     </div>
                     <div class="form-group">

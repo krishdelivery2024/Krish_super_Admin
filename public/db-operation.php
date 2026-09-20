@@ -383,6 +383,68 @@ if(isset($_POST['system_configurations'])){
 
 echo "<p class='alert alert-success'>Settings Saved!</p>";
 }
+if(isset($_POST['add_zone']) && $_POST['add_zone']==1){
+    if(!checkadmin($auth_username)){
+        echo "<label class='alert alert-danger'>Access denied - You are not authorized to access this page.</label>";
+        return false;
+    }
+    $name = $db->escapeString($fn->xss_clean($_POST['name']));
+    $raw_poly = !empty($_POST['polygon']) ? $_POST['polygon'] : '[]';
+    $status = (!empty($_POST['status']) && $_POST['status']==1) ? 1 : 0;
+    if (empty($name)) {
+        echo '<label class="alert alert-danger">Zone name is required!</label>';
+        return false;
+    }
+    $decoded_poly = @json_decode($raw_poly, true);
+    if (!is_array($decoded_poly) || count($decoded_poly) < 3) {
+        echo '<label class="alert alert-danger">Zone boundary must be a valid polygon with at least 3 points (JSON array of [lat,lng] pairs).</label>';
+        return false;
+    }
+    $poly = $db->escapeString(json_encode($decoded_poly));
+    
+    $sql = "INSERT INTO zone (name,polygon,status) VALUES('$name','$poly','$status')";
+    if($db->sql($sql)){
+        echo '<label class="alert alert-success">Zone Added Successfully!</label>';
+    }else{
+        echo '<label class="alert alert-danger">Some Error Occurred! Please try again.</label>';
+    }
+}
+if(isset($_POST['update_zone']) && $_POST['update_zone']==1){
+    if(!checkadmin($auth_username)){
+        echo "<label class='alert alert-danger'>Access denied - You are not authorized to access this page.</label>";
+        return false;
+    }
+    $id = $db->escapeString($fn->xss_clean($_POST['zone_id']));
+    $name = $db->escapeString($fn->xss_clean($_POST['name']));
+    $raw_poly = !empty($_POST['polygon']) ? $_POST['polygon'] : '[]';
+    $status = (!empty($_POST['status']) && $_POST['status']==1) ? 1 : 0;
+    if (empty($name)) {
+        echo '<label class="alert alert-danger">Zone name is required!</label>';
+        return false;
+    }
+    $decoded_poly = @json_decode($raw_poly, true);
+    if (!is_array($decoded_poly) || count($decoded_poly) < 3) {
+        echo '<label class="alert alert-danger">Zone boundary is not a valid polygon (min 3 points).</label>';
+        return false;
+    }
+    $polygon = $db->escapeString(json_encode($decoded_poly));
+
+    $sql = "UPDATE zone SET name='$name', polygon='$polygon', status='$status' WHERE id=".$id;
+    if($db->sql($sql)){
+        echo '<label class="alert alert-success">Zone Updated Successfully!</label>';
+    }else{
+        echo '<label class="alert alert-danger">Some Error Occurred! Please try again.</label>';
+    }
+}
+if(isset($_GET['delete_zone']) && $_GET['delete_zone']==1){
+    $id = $db->escapeString($fn->xss_clean($_GET['id']));
+    $sql = "DELETE FROM zone WHERE id=".$id;
+    if($db->sql($sql)){
+        echo 0;
+    }else{
+        echo 1;
+    }
+}
 if(isset($_POST['add_delivery_boy']) && $_POST['add_delivery_boy']==1){
     if(!checkadmin($auth_username)){
         echo "<label class='alert alert-danger'>Access denied - You are not authorized to access this page.</label>";
@@ -396,6 +458,7 @@ if(isset($_POST['add_delivery_boy']) && $_POST['add_delivery_boy']==1){
     $mobile = $db->escapeString($fn->xss_clean($_POST['mobile']));
     $address = $db->escapeString($fn->xss_clean($_POST['address']));
     $bonus = $db->escapeString($fn->xss_clean($_POST['bonus']));
+    $zone_id = $db->escapeString($fn->xss_clean(!empty($_POST['zone_id']) ? $_POST['zone_id'] : '0'));
     $service_type = (!empty($_POST['service_type']) && in_array($_POST['service_type'], array('food','parcel','both'))) ? $_POST['service_type'] : 'both';
     $aadhaar = $db->escapeString($fn->xss_clean(!empty($_POST['aadhaar']) ? $_POST['aadhaar'] : ''));
     $driving_license = $db->escapeString($fn->xss_clean(!empty($_POST['driving_license']) ? $_POST['driving_license'] : ''));
@@ -428,8 +491,8 @@ if(isset($_POST['add_delivery_boy']) && $_POST['add_delivery_boy']==1){
             echo '<label class="alert alert-danger">Mobile Number Already Exists!</label>';
             return false;
         }
-    $sql = "INSERT INTO delivery_boys (name,mobile,password,address,bonus,service_type,aadhaar,driving_license,profile,aadhaar_image,driving_license_image)
-                        VALUES('$name', '$mobile', '$password', '$address','$bonus','$service_type','$aadhaar','$driving_license','$profile','$aadhaar_image','$driving_license_image')";
+    $sql = "INSERT INTO delivery_boys (name,mobile,password,address,bonus,service_type,aadhaar,driving_license,profile,aadhaar_image,driving_license_image,zone_id)
+                        VALUES('$name', '$mobile', '$password', '$address','$bonus','$service_type','$aadhaar','$driving_license','$profile','$aadhaar_image','$driving_license_image','$zone_id')";
     if($db->sql($sql)){
         echo '<label class="alert alert-success">Delivery Boy Added Successfully!</label>';
     }else{
@@ -457,6 +520,7 @@ if(isset($_POST['update_delivery_boy']) && $_POST['update_delivery_boy']==1){
     $store_id = !empty($_POST['store_id1']) ? $db->escapeString($fn->xss_clean($_POST['store_id1'])) : '0';
     $address = $db->escapeString($fn->xss_clean($_POST['update_address']));
     $bonus = $db->escapeString($fn->xss_clean($_POST['update_bonus']));
+    $update_zone_id = $db->escapeString($fn->xss_clean(!empty($_POST['update_zone_id']) ? $_POST['update_zone_id'] : '0'));
     $service_type = (!empty($_POST['update_service_type']) && in_array($_POST['update_service_type'], array('food','parcel','both'))) ? $_POST['update_service_type'] : 'both';
     $aadhaar = $db->escapeString($fn->xss_clean(!empty($_POST['update_aadhaar']) ? $_POST['update_aadhaar'] : ''));
     $driving_license = $db->escapeString($fn->xss_clean(!empty($_POST['update_driving_license']) ? $_POST['update_driving_license'] : ''));
@@ -489,9 +553,9 @@ if(isset($_POST['update_delivery_boy']) && $_POST['update_delivery_boy']==1){
     $status = $db->escapeString($fn->xss_clean($_POST['status']));
     $password = !empty($password)?md5($password):'';
     if(!empty($password)){
-        $sql = "Update delivery_boys set `name`='".$name."',password='".$password."',`address`='".$address."',`bonus`='".$bonus."',`service_type`='".$service_type."',`aadhaar`='".$aadhaar."',`driving_license`='".$driving_license."',`status`='".$status."'".$profile_update.$aadhaar_image_update.$dl_image_update." where `id`=".$id;
+        $sql = "Update delivery_boys set `name`='".$name."',password='".$password."',`address`='".$address."',`bonus`='".$bonus."',`zone_id`='".$update_zone_id."',`service_type`='".$service_type."',`aadhaar`='".$aadhaar."',`driving_license`='".$driving_license."',`status`='".$status."'".$profile_update.$aadhaar_image_update.$dl_image_update." where `id`=".$id;
     }else{
-        $sql = "Update delivery_boys set `name`='".$name."',`address`='".$address."',`bonus`='".$bonus."',`service_type`='".$service_type."',`aadhaar`='".$aadhaar."',`driving_license`='".$driving_license."',`status`='".$status."'".$profile_update.$aadhaar_image_update.$dl_image_update." where `id`=".$id;
+        $sql = "Update delivery_boys set `name`='".$name."',`address`='".$address."',`bonus`='".$bonus."',`zone_id`='".$update_zone_id."',`service_type`='".$service_type."',`aadhaar`='".$aadhaar."',`driving_license`='".$driving_license."',`status`='".$status."'".$profile_update.$aadhaar_image_update.$dl_image_update." where `id`=".$id;
     }
     if($db->sql($sql)){
         echo "<label class='alert alert-success'>Information Updated Successfully.</label>";

@@ -29,9 +29,7 @@ if($access_key != $accesskey){
 if ((isset($_POST['type'])) && ($_POST['type'] == 'list_address')) {
     $user_id = $db->escapeString($_POST['user_id']);
     
-    $sql = "select u.*, (SELECT name FROM area a WHERE a.id=u.area) as area_name,(SELECT name FROM city c WHERE c.id=u.city) as city_name from user_address u where u.user_id ='$user_id' order by u.is_default desc" ;
-    
-   // $sql = 'select u.*, (SELECT name FROM city c WHERE c.id=u.city) AS city_name, IFNULL((SELECT name FROM area a WHERE a.id=u.area) , "")  AS area_name from user_address u where user_id ='.$user_id;
+    $sql = "select u.*, u.area as area_name, u.city as city_name from user_address u where u.user_id ='$user_id' order by u.is_default desc" ;
     
     $db->sql($sql);
     $res = $db->getResult();
@@ -53,9 +51,9 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'add_address')) {
 	$address_type 		= (isset($_POST['address_type']))?$db->escapeString($_POST['address_type']):"";
     $name 		= (isset($_POST['name']))?$db->escapeString($_POST['name']):"";
     $mobile 		= (isset($_POST['mobile']))?$db->escapeString($_POST['mobile']):"";
-    $state 		= (isset($_POST['state_id']))?$db->escapeString($_POST['state_id']):"";
-    $city 		= (isset($_POST['city_id']))?$db->escapeString($_POST['city_id']):"";
-    $area 		= (isset($_POST['area_id']))?$db->escapeString($_POST['area_id']):"";
+    $state 		= (isset($_POST['state_id']))?$db->escapeString($_POST['state_id']):((isset($_POST['state']))?$db->escapeString($_POST['state']):"");
+    $city 		= (isset($_POST['city_id']))?$db->escapeString($_POST['city_id']):((isset($_POST['city']))?$db->escapeString($_POST['city']):"");
+    $area 		= (isset($_POST['area_id']))?$db->escapeString($_POST['area_id']):((isset($_POST['area']))?$db->escapeString($_POST['area']):"");
     $landmark 		= (isset($_POST['landmark']))?$db->escapeString($_POST['landmark']):"";
     $flat_no 		= (isset($_POST['flat_no']))?$db->escapeString($_POST['flat_no']):"";
 	$street 	= (isset($_POST['street']))?$db->escapeString($_POST['street']):"";
@@ -88,7 +86,6 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'add_address')) {
 
 	if($num_rows == 0){
     	$data1 = array(
-			'address_type' => $address_type,
     	    'name' => $name,
     	    'email' => $email,
     	    'state' => $state,
@@ -134,7 +131,7 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'add_address')) {
 if ((isset($_POST['type'])) && ($_POST['type'] == 'edit_address')) {
     $user_id = $db->escapeString($_POST['user_id']);
     $id = $db->escapeString($_POST['id']);
-    $sql = 'select u.*,(SELECT name FROM city c WHERE c.id=u.city) AS city_name, (SELECT name FROM area a WHERE a.id=u.area) AS area_name from user_address u where u.user_id ='.$user_id.' AND u.id='.$id;
+    $sql = 'select u.*, u.city AS city_name, u.area AS area_name from user_address u where u.user_id ='.$user_id.' AND u.id='.$id;
     $db->sql($sql);
     $res = $db->getResult();
 	if($res){
@@ -153,9 +150,9 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'update_address')) {
     $name 		= (isset($_POST['name']))?$db->escapeString($_POST['name']):"";
     $mobile 		= (isset($_POST['mobile']))?$db->escapeString($_POST['mobile']):"";
     $email 		= (isset($_POST['email']))?$db->escapeString($_POST['email']):"";
-    $state 		= (isset($_POST['state_id']))?$db->escapeString($_POST['state_id']):"";
-    $city 		= (isset($_POST['city_id']))?$db->escapeString($_POST['city_id']):"";
-    $area 		= (isset($_POST['area_id']))?$db->escapeString($_POST['area_id']):"";
+    $state 		= (isset($_POST['state_id']))?$db->escapeString($_POST['state_id']):((isset($_POST['state']))?$db->escapeString($_POST['state']):"");
+    $city 		= (isset($_POST['city_id']))?$db->escapeString($_POST['city_id']):((isset($_POST['city']))?$db->escapeString($_POST['city']):"");
+    $area 		= (isset($_POST['area_id']))?$db->escapeString($_POST['area_id']):((isset($_POST['area']))?$db->escapeString($_POST['area']):"");
     $landmark 		= (isset($_POST['landmark']))?$db->escapeString($_POST['landmark']):"";
     $flat_no 		= (isset($_POST['flat_no']))?$db->escapeString($_POST['flat_no']):"";
 	$street 	= (isset($_POST['street']))?$db->escapeString($_POST['street']):"";

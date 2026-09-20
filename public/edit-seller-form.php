@@ -66,31 +66,27 @@ $res_main_category = $db->getResult();
         renderInput("Date Created", "date_created", $seller['date_created'], "text", false, true);
         ?>
 
+        <?php $seller_lat = $seller['latitude'] ?? ''; $seller_lng = $seller['longitude'] ?? ''; ?>
+        <input type="hidden" id="latitude" name="latitude" value="<?= $seller_lat ?>">
+        <input type="hidden" id="longitude" name="longitude" value="<?= $seller_lng ?>">
+
         <div class="form-group">
-            <label class="col-md-2">City</label>
+            <label class="col-md-2">Store Address</label>
             <div class="col-md-8">
-                <select name="city_id" class="form-control" required>
-                    <option value="">Select City</option>
-                    <?php foreach ($res_city as $row): ?>
-                        <option value="<?= $row['id'] ?>" <?= ($row['id'] == $seller['city_id']) ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($row['name']) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
+                <input type="text" name="store_address" class="form-control" value="<?= htmlspecialchars($seller['store_address'] ?? '') ?>">
             </div>
         </div>
 
-        <div class="form-group">
-            <label class="col-md-2">Area</label>
+        <div class="form-group" style="display:none;">
             <div class="col-md-8">
-                <select name="area_id" class="form-control" required>
-                    <option value="">Select Area</option>
-                    <?php foreach ($res_area_whole as $row): ?>
-                        <option value="<?= $row['id'] ?>" <?= ($row['id'] == $seller['area_id']) ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($row['name']) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
+                <input type="hidden" name="city_id" value="<?= $seller['city_id'] ?>">
+                <input type="hidden" name="state_id" value="<?= $seller['state_id'] ?? 0 ?>">
+            </div>
+        </div>
+
+        <div class="form-group" style="display:none;">
+            <div class="col-md-8">
+                <input type="hidden" name="area_id" value="<?= $seller['area_id'] ?>">
             </div>
         </div>
 

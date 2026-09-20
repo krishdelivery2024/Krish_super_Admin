@@ -440,6 +440,7 @@ session_start();
 						<li <?php if($page=="State"){?>class="current"<?php } ?>><a <?php if($page=="State"){?>class="active"<?php } ?> href="state.php">States</a></li>				
 						<li <?php if($page=="Cities"){?>class="current"<?php } ?>><a <?php if($page=="Cities"){?>class="active"<?php } ?> href="city.php">Cities</a></li>
 					    <li <?php if($page=="Areas"){?>class="current"<?php } ?>><a <?php if($page=="Areas"){?>class="active"<?php } ?> href="areas.php">Area</a></li>
+					    <li <?php if($page=="Zones"){?>class="current"<?php } ?>><a <?php if($page=="Zones"){?>class="active"<?php } ?> href="zones.php">Zones</a></li>
 					</ul>
 				</li>
 				<?php endif; ?>
