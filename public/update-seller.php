@@ -6,6 +6,9 @@ include_once('../includes/crud.php');
 $db = new Database();
 $db->connect();
 
+require_once('../includes/custom-functions.php');
+$fn = new custom_functions();
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
      if (ob_get_length()) ob_clean();
     echo json_encode(['error' => true, 'message' => 'Invalid request method']);
@@ -33,6 +36,7 @@ $company_name    = $db->escapeString($_POST['company_name']);
 $company_legal_name = isset($_POST['company_legal_name']) ? $db->escapeString($_POST['company_legal_name']) : '';
 $personal_addr   = $db->escapeString($_POST['personal_address']);
 $company_addr    = $db->escapeString($_POST['company_address']);
+$store_address   = isset($_POST['store_address']) ? $db->escapeString($_POST['store_address']) : '';
 
 $latitude        = isset($_POST['latitude']) ? $db->escapeString($_POST['latitude']) : '';
 $longitude       = isset($_POST['longitude']) ? $db->escapeString($_POST['longitude']) : '';
@@ -50,6 +54,9 @@ $main_cat_id     = $db->escapeString($_POST['main_cat_id']);
 $status          = $db->escapeString($_POST['status']);
 $store_status    = $db->escapeString($_POST['store_status']);
 
+$zone_id = $fn->get_zone_id_from_latlng($latitude, $longitude);
+$zone_id_sql = ($zone_id !== null) ? $zone_id : 'NULL';
+
 // Update query
 $sql = "UPDATE seller SET 
     name = '$name',
@@ -59,6 +66,7 @@ $sql = "UPDATE seller SET
      company_legal_name = '$company_legal_name',
     personal_address = '$personal_addr',
     company_address = '$company_addr',
+    store_address = '$store_address',
 
     latitude = '$latitude',
     longitude = '$longitude',
@@ -75,6 +83,7 @@ $sql = "UPDATE seller SET
     main_cat_id = '$main_cat_id',
     store_status = '$store_status',
     status = '$status',
+    zone_id = $zone_id_sql,
     last_updated = NOW()
     WHERE id = '$id'";
 

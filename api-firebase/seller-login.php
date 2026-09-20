@@ -86,7 +86,7 @@ if((isset($_POST['type'])) && ($_POST['type'] == 'login-user')) {
 			print_r(json_encode($response));exit;
         }
         // get data from user table
-        $sql_query = "SELECT *,(SELECT name FROM area a WHERE a.id=u.area_id) as area_name,(SELECT name FROM city c WHERE c.id=u.city_id) as city_name,(SELECT name FROM state s WHERE s.id=u.state_id) as state_name FROM `seller` u WHERE `mobile` = '".$mobile."'";
+        $sql_query = "SELECT *,COALESCE((SELECT name FROM area a WHERE a.id=u.area_id), u.area) as area_name,COALESCE((SELECT name FROM city c WHERE c.id=u.city_id), u.city) as city_name,COALESCE((SELECT name FROM state s WHERE s.id=u.state_id), u.state) as state_name FROM `seller` u WHERE `mobile` = '".$mobile."'";
         $db->sql($sql_query);
         $result=$db->getResult();
        

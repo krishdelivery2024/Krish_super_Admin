@@ -152,6 +152,10 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 	$quantity_arr=json_decode($function->xss_clean($_POST['quantity']),1);
 	$notes 	= (isset($_POST['notes']))?$db->escapeString($_POST['notes']):"";
 	
+	// Zone validation is handled by get_order_delivery_charge (called on address selection).
+	// Removing the duplicate check here prevents a double error popup on the frontend.
+
+
 	$item_details=$function->get_product_by_variant_id($items);
 	
 	// Meal-time availability check for every ordered item
@@ -258,6 +262,7 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 	    $wallet_used = false;
 	}
 	
+	$order_zone_id = $function->get_zone_id_from_latlng($latitude, $longitude);
 	
 	$data = array(
 		'user_id'=>$user_id,
@@ -279,6 +284,7 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 		'delivery_city'=>$delivery_city,
         'delivery_state'=>$delivery_state,
         'delivery_zone'=>$delivery_zone,
+        'zone_id' => $order_zone_id,
 		'gst_no'=>$gst_no,
 		'delivery_time'=>$delivery_time,
 		'status' => $db->escapeString(json_encode($status)),
@@ -1757,25 +1763,26 @@ if(isset($_POST['get_settings'])) {
             $response['settings']['refer-earn-bonus'] = empty($response['settings']['refer-earn-bonus'])?"0":$response['settings']['refer-earn-bonus'];
             $response['settings']['current_version'] = empty($response['settings']['current_version'])?"0":$response['settings']['current_version'];
             $response['settings']['minimum_version_required'] = empty($response['settings']['minimum_version_required'])?"0":$response['settings']['minimum_version_required'];
+            $state_name = $city_name = $zone_name = '';
         
         if(!empty($response['settings']['store_state'])){
             $sql = "SELECT * FROM state WHERE id='".$response['settings']['store_state']."'";
             $db->sql($sql);
             $res1 = $db->getResult();  
-            $state_name = $res1[0]['name'];
+            $state_name = (!empty($res1[0]['name'])) ? $res1[0]['name'] : '';
         }
         
         if(!empty($response['settings']['store_city'])){
             $sql = "SELECT * FROM city WHERE id='".$response['settings']['store_city']."'";
             $db->sql($sql);
             $res = $db->getResult(); 
-            $city_name = $res[0]['name'];
+            $city_name = (!empty($res[0]['name'])) ? $res[0]['name'] : '';
         }
         if(!empty($response['settings']['store_zone'])){
             $sql = "SELECT * FROM zone WHERE id='".$response['settings']['store_zone']."'";
             $db->sql($sql);
             $res = $db->getResult(); 
-            $zone_name = $res[0]['name'];
+            $zone_name = (!empty($res[0]['name'])) ? $res[0]['name'] : '';
         }
         
         $res_zone = array(
@@ -1918,25 +1925,16 @@ if(isset($_POST['update_payment'])){
 
 if(isset($_POST['order_enabled']) && isset($_POST['address_id'])){
     $address_id=$_POST['address_id'];
-    $sql1 = "select value from `settings` where variable= 'system_timezone'";
-    $db->sql($sql1);
-    $res1 = $db->getResult(); 
-    
-    $settings =  json_decode($res1[0]['value'],true);
-    $store_city = $settings['store_city']; 
-    
+
     $sql = "SELECT * FROM delivery_method WHERE id=1";
     $db->sql($sql);
     $res = $db->getResult(); 
-    $Delivery_by_courier = $res[0]['Delivery_by_courier'];
-   
+    $storepickup = isset($res[0]['storepickup'])?$res[0]['storepickup']:0;
+    $in_persion_delivery = isset($res[0]['in_persion_delivery'])?$res[0]['in_persion_delivery']:0;
+    $Delivery_by_courier = isset($res[0]['Delivery_by_courier'])?$res[0]['Delivery_by_courier']:0;
+    $dunzo = isset($res[0]['dunzo'])?$res[0]['dunzo']:0;
 
-    $sql = "select * from `user_address` where id=".$address_id;
-    $db->sql($sql);
-    $res_add = $db->getResult(); 
-    $user_city = $res_add[0]['city'];
-    
-    if($user_city==$store_city || $Delivery_by_courier==1){
+    if($storepickup=='1' || $in_persion_delivery=='1' || $Delivery_by_courier=='1' || $dunzo=='1'){
         $response['error'] = false;
     	$response['status'] = 1;
     	$response['message'] = "Order Enabled for this Location";
@@ -1957,18 +1955,15 @@ if(isset($_POST['get_order_delivery_charge']) && !empty($_POST['user_id']) && is
     
     $delivery_method=!empty($_POST['delivery_method'])?$_POST['delivery_method']:'';
     
-    
     $sql2 = "select value from `settings` where variable= 'system_timezone'";
     $db->sql($sql2);
     $res2 = $db->getResult(); 
     
     $settings =  json_decode($res2[0]['value'],true);
     
-    $store_zone = $settings['store_zone'];
-    // $store_lat = (float)$settings['store_lattitude'];
-    // $store_long = (float)$settings['store_longitude'];
-    // $store_state = $settings['store_state'];
-    // $store_city = $settings['store_city']; 
+    $store_zone = isset($settings['store_zone'])?$settings['store_zone']:0;
+    $default_store_lat = isset($settings['store_lattitude'])?(float)$settings['store_lattitude']:0;
+    $default_store_long = isset($settings['store_longitude'])?(float)$settings['store_longitude']:0;
     
     $sql1 = "select * from `seller` where id = '".$seller_id."' limit 1";
     $db->sql($sql1);
@@ -1983,8 +1978,8 @@ if(isset($_POST['get_order_delivery_charge']) && !empty($_POST['user_id']) && is
 
     $store_lat   = (float)$seller['latitude'];
     $store_long  = (float)$seller['longitude'];
-    $store_state = $seller['state_id'];
-    $store_city  = $seller['city_id'];
+    if($store_lat == 0){$store_lat = $default_store_lat;}
+    if($store_long == 0){$store_long = $default_store_long;}
     
     $sql = "SELECT * FROM delivery_method WHERE id=1";
     $db->sql($sql);
@@ -1999,10 +1994,27 @@ if(isset($_POST['get_order_delivery_charge']) && !empty($_POST['user_id']) && is
     $db->sql($sql);
     $res = $db->getResult(); 
     
+    if(empty($res)){
+        $response['error'] = true;
+        $response['message'] = "Address not found";
+        echo json_encode($response);
+        exit;
+    }
+    
     $user_latitude = (float)trim($res[0]['latitude']);
     $user_longitude = (float)trim($res[0]['longitude']);
-    $user_city = $res[0]['city'];
-    $user_state = $res[0]['state'];
+
+    // Zone-wise service: delivery is only possible when the delivery address
+    // falls inside one of the active zones. Store pickup is always allowed.
+    if(empty($delivery_method) || $delivery_method != 'storepickup'){
+        $addr_zone = $function->get_zone_id_from_latlng($user_latitude, $user_longitude);
+        if($addr_zone === null){
+            $response['error'] = true;
+            $response['message'] = "Delivery is not available to this address. This location is outside our service zones.";
+            echo json_encode($response);
+            exit;
+        }
+    }
 
     if(!empty($delivery_method) && $delivery_method=='storepickup'){
 
@@ -2011,29 +2023,25 @@ if(isset($_POST['get_order_delivery_charge']) && !empty($_POST['user_id']) && is
             $response['message'] = "Delivery charge";
             echo json_encode($response);exit;
 
-    // 	}elseif($in_persion_delivery == '1' && $user_city==$store_city){ 
-	}elseif($in_persion_delivery == '1'){ 
-	    if($dunzo_enable == '1'){  //echo 'test2';die();
+    }elseif($dunzo_enable == '1'){  //echo 'test2';die();
 	       $payload = [
              "pickup_details" => [
-            		[
-            			"lat" => $store_lat,
-            			"lng" => $store_long,
-            			"reference_id" => "pickup-ref"
-            		]
-            	],
-            	"optimised_route" => true,
-            	"drop_details" => [
-            		[
-            			"lat" => $user_latitude,
-            			"lng" => $user_longitude,
-            			"reference_id" => "drop-ref1"
-            		]
-            	]
+             		[
+             			"lat" => $store_lat,
+             			"lng" => $store_long,
+             			"reference_id" => "pickup-ref"
+             		]
+             ],
+             "optimised_route" => true,
+             "drop_details" => [
+             		[
+             			"lat" => $user_latitude,
+             			"lng" => $user_longitude,
+             			"reference_id" => "drop-ref1"
+             		]
+             ]
              ];
-             //var_dump($payload);die;
              $result_delivery_charge = $function->get_dunzo_delivery_charge($payload);
-             //var_dump($result_delivery_charge);die();
              if(!empty($result_delivery_charge->estimated_price_breakup)){
              	$delivery_charge = $result_delivery_charge->estimated_price_breakup->delivery_charge_breakup->base_delivery_charge;
              	if(!empty($delivery_charge)){
@@ -2052,93 +2060,47 @@ if(isset($_POST['get_order_delivery_charge']) && !empty($_POST['user_id']) && is
                 echo json_encode($response);exit;
             }
             
-	   }else{
-            if(!empty($in_persion_data)){
-                $persion_data = json_decode($in_persion_data);
-                
-                $initial_distance=$persion_data->first_km;
-                $amt=$persion_data->first_km_amount;
-                $additional_amt=$persion_data->rest_km_amount;
+    }else{
+        // Purely distance-based delivery charge (in-person and courier both use
+        // the in-person per-km tariff between the store and the selected location).
+        if(!empty($in_persion_data)){
+            $persion_data = json_decode($in_persion_data);
             
-            	$distance = $function->GetDeliveryDistance($store_lat , $user_latitude , $store_long , $user_longitude);
-                //$distance = $function->GetDistanceHaversine($store_lat , $store_long, $user_latitude, $user_longitude);
-
-            	$distance =ceil($distance);
-            	
-            	if($distance > $initial_distance){
-            	   
-             	  $additional_dist =   $distance - $initial_distance;
-             	  $delivery_charge =  	$additional_amt *  $additional_dist;
-            	  
-             	  $total_delivery = 	$amt +  $delivery_charge;
-            	  $total_delivery =sprintf('%0.2f', $total_delivery); 
-            
-                 $delivery_charge =   $total_delivery;
-            	}else{
-            	    $delivery_charge = $amt;
-            	} 
-            	
-                $response['error'] = false;
-                $response['delivery_charge'] = $delivery_charge;
-                $response['distance'] = $distance.'Km';
-                $response['message'] = "Delivery charge";
-                echo json_encode($response);exit;
-            }else{
+            $initial_distance=isset($persion_data->first_km)?$persion_data->first_km:2;
+            $amt=isset($persion_data->first_km_amount)?$persion_data->first_km_amount:0;
+            $additional_amt=isset($persion_data->rest_km_amount)?$persion_data->rest_km_amount:0;
+        
+            if($user_latitude==0 || $user_longitude==0 || $store_lat==0 || $store_long==0){
                 $response['error'] = true;
-                $response['message'] = "Enable Delivery charge in delivery method";
+                $response['message'] = "Unable to get delivery charge. Store or delivery location is missing.";
                 echo json_encode($response);exit;
             }
-	    }
-	
-    }elseif($Delivery_by_courier == '1'){
-		if(isset($_POST['ajaxCall']) && !empty($_POST['ajaxCall'])){
-			$items =$_POST['product_variant_id']; 
-			$quantity_arr=json_decode($function->xss_clean($_POST['quantity']),1);
-		}else{
-			$items = $db->escapeString(stripslashes($function->xss_clean($_POST['product_variant_id']))); 
-			$quantity_arr=json_decode($function->xss_clean($_POST['quantity']),1);
-		}
-       
-        $user_zone = $db->escapeString(stripslashes($function->xss_clean($_POST['zone'])));
-        $item_details=$function->get_product_by_variant_id($items);
-		
-        if(!empty($courier_data)){
-            $zine = json_decode($courier_data);
-            $zone1=$zine->zone1;
-            $zone2=$zine->zone2;
-            $zone3=$zine->zone3;
-            $zone4=$zine->zone4;
-            
-            //var_dump($zine);die();
-            $delivery_charges=0;
-            $total_weight=0;
-            
-            for($i=0;$i<count($item_details);$i++){ 
-            	$product_id = $item_details[$i]['product_id'];
-            	$measurement = $item_details[$i]['measurement'];
-            	$measurement_unit_id = $item_details[$i]['measurement_unit_id'];
-            	$measurement_unit_name=$item_details[$i]['measurement_unit_name'];
-            	$quantity = $quantity_arr[$i];
-            	$weight = $item_details[$i]['weight'];
-            	$total_weight=$total_weight+($weight*$quantity);
-            }
-            
-            if($user_city == $store_city){
-                $dchanrge = $zone1;
-            }elseif($user_state == $store_state){
-                $dchanrge = $zone2;
-            }elseif($user_zone == $store_zone){
-                $dchanrge = $zone3;
-            }else{
-                $dchanrge = $zone4;
-            }
-           
-            $delivery_charges=$total_weight*$dchanrge;
+        	$distance = $function->GetDeliveryDistance($store_lat , $user_latitude , $store_long , $user_longitude);
+
+        	$distance =ceil($distance);
+        	
+        	if($distance > $initial_distance){
+        	   
+         	  $additional_dist =   $distance - $initial_distance;
+         	  $delivery_charge =  	$additional_amt *  $additional_dist;
+        	  
+         	  $total_delivery = 	$amt +  $delivery_charge;
+         	  $total_delivery =sprintf('%0.2f', $total_delivery); 
+    
+             $delivery_charge =   $total_delivery;
+        	}else{
+        	    $delivery_charge = $amt;
+        	} 
+        	
             $response['error'] = false;
-            $response['delivery_charge'] = round($delivery_charges,2);
-            $response['package_weight'] = $total_weight;
+            $response['delivery_charge'] = $delivery_charge;
+            $response['distance'] = $distance.'Km';
             $response['message'] = "Delivery charge";
-            echo json_encode($response);
+            echo json_encode($response);exit;
+        }else{
+            $response['error'] = true;
+            $response['message'] = "Enable Delivery charge in delivery method";
+            echo json_encode($response);exit;
         }
     }
 	

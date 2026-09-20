@@ -47,6 +47,9 @@ if(isset($_POST['accesskey'])) {
 			$response['data']['platform_fee'] = $platform_fee;
 			$response['data']['tax'] = $tax;
 			$response['data']['convenience_fee'] = $convenience_fee;
+			// Max parcel drop distance from zone boundary (admin-configurable, default 5 km)
+			$parcel_zone_drop_max_km = isset($sys_settings['parcel_zone_drop_max_km']) ? floatval($sys_settings['parcel_zone_drop_max_km']) : 5.0;
+			$response['data']['parcel_zone_drop_max_km'] = $parcel_zone_drop_max_km;
 		}else{
 			$response['error'] = "true";
 			$response['message'] = "No data found!";

@@ -1,7 +1,7 @@
 <?php
 	session_start();
     // Seller Details
-	if($_SESSION['role'] == 'seller'){
+	if(isset($_SESSION['role']) && $_SESSION['role'] == 'seller'){
 	$main_cat_id = $_SESSION['main_cat_id'];
 	$seller_id = $_SESSION['id'];
 	}else{
@@ -19,8 +19,8 @@
     }
     
     // if current time is more than session timeout back to login page
-    if ($currentTime > $_SESSION['timeout']) {
-			if($_SESSION['role'] == 'seller'){
+    if (isset($_SESSION['timeout']) && $currentTime > $_SESSION['timeout']) {
+			if(isset($_SESSION['role']) && $_SESSION['role'] == 'seller'){
 			$redirect ='seller-login.php';
 			}else{
 			$redirect ='index.php';
@@ -1592,6 +1592,7 @@
 			$tempRow['store_id'] = $row['store_id'];
 			$tempRow['store'] = (!empty($res1))?$res1[0]['sname']:'';
 			$tempRow['address'] = $row['address'];
+			$tempRow['zone_id'] = $row['zone_id'];
 			$tempRow['bonus'] = $row['bonus'];
 			$tempRow['balance'] = $row['balance'];
 			$tempRow['aadhaar'] = $row['aadhaar'];
@@ -4055,6 +4056,62 @@ FROM
 		
 		$bulkData['rows'] = $rows;
 		
+		print_r(json_encode($bulkData));
+	}
+	
+	if(isset($_GET['table']) && $_GET['table'] == 'zone'){
+		$offset = 0; $limit = 10;
+		$sort = 'id'; $order = 'DESC';
+		$where = '';
+		if(isset($_GET['offset']))
+			$offset = $_GET['offset'];
+		if(isset($_GET['limit']))
+			$limit = $_GET['limit'];
+		
+		if(isset($_GET['sort']))
+			$sort = $_GET['sort'];
+		if(isset($_GET['order']))
+			$order = $_GET['order'];
+		
+		if(isset($_GET['search'])){
+			$search = $_GET['search'];
+			$where = " Where `id` like '%".$search."%' OR `name` like '%".$search."%'";
+		}
+		
+		$sql = "SELECT COUNT(*) as total FROM `zone` ".$where;
+		$db->sql($sql);
+		$res = $db->getResult();
+		$total = (isset($res) && count($res)>0) ? $res[0]['total'] : 0;
+		
+		$sql = "SELECT * FROM `zone` ".$where." ORDER BY ".$sort." ".$order." LIMIT ".$offset.", ".$limit;
+		$db->sql($sql);
+		$res = $db->getResult();
+		
+		$bulkData = array();
+		$bulkData['total'] = $total;
+		$rows = array();
+		$tempRow = array();
+		
+		if (is_array($res)) {
+			foreach($res as $row){
+				$operate = ' <a href="edit-zone.php?id='.$row['id'].'"><i class="fa fa-edit"></i>Edit</a>';
+				$operate .= ' <a class="btn-xs btn-danger" href="javascript:void(0)" onclick="if(confirm(\'Are you sure you want to delete this zone?\')){ $.get(\'public/db-operation.php?delete_zone=1&id='.$row['id'].'\', function(data){ if(data==0){ $(\'#zones\').bootstrapTable(\'refresh\'); } else { alert(\'Failed to delete zone\'); } }); }"><i class="fa fa-trash-o"></i>Delete</a>';
+				
+				$tempRow['id'] = $row['id'];
+				$tempRow['name'] = $row['name'];
+				$poly = @json_decode($row['polygon'], true);
+				$tempRow['no_of_points'] = is_array($poly) ? count($poly) : 0;
+				
+				if($row['status']==1){
+					$tempRow['status'] = '<span class="label label-success">Enabled</span>';
+				}else{
+					$tempRow['status'] = '<span class="label label-danger">Disabled</span>';
+				}
+				$tempRow['operate'] = $operate;
+				$rows[] = $tempRow;
+			}
+		}
+		$bulkData['rows'] = $rows;
 		print_r(json_encode($bulkData));
 	}
 	

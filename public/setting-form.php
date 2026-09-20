@@ -240,8 +240,14 @@
                             <input type="number" class="form-control" name="max-product-return-days" value="<?=(isset($data['max-product-return-days']))?$data['max-product-return-days']:'';?>" placeholder='Max days to return item' />
                         </div>
                         <div class="form-group">
-                            <label for="">Delivery Boy Bonus (%)</label>
+                            <label for="delivery-boy-bonus-percentage">Delivery Boy Bonus (%)</label>
                             <input type="number" class="form-control" name="delivery-boy-bonus-percentage" value="<?=$data['delivery-boy-bonus-percentage']?>" placeholder='Delivery Boy Bonus' />
+                        </div>
+
+                        <div class="form-group">
+                            <label for="parcel_zone_drop_max_km">Max Parcel Drop Distance from Zone Boundary (km)</label>
+                            <input type="number" class="form-control" name="parcel_zone_drop_max_km" value="<?=(isset($data['parcel_zone_drop_max_km']) && $data['parcel_zone_drop_max_km'] !== '') ? $data['parcel_zone_drop_max_km'] : 5; ?>" placeholder='5' min='0' step='0.5'/>
+                            <small class="text-muted">Parcel drop/delivery location is allowed up to this many km outside the nearest zone boundary. Set to 0 to require drop inside a zone.</small>
                         </div>
                         
                         <h4>Mail Settings</h4><hr>

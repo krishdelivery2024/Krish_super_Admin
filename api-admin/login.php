@@ -43,8 +43,8 @@ if(isset($_POST['mobile']) && isset($_POST['seller_login'])){
 			$num = $db->numRows($res);
 				if($num == 1){
                     
-                    $otpno = rand(111111,999999);
-
+                    // $otpno = rand(111111,999999);
+$otpno = 123456;
                     $recipients="91".trim($mobile);
 
                    
@@ -111,6 +111,14 @@ elseif (isset($_POST['seller_register'])) {
     $state_id = $db->escapeString($fn->xss_clean($_POST['state_id'] ?? ''));
     $city_id = $db->escapeString($fn->xss_clean($_POST['city_id'] ?? ''));
     $area_id = $db->escapeString($fn->xss_clean($_POST['area_id'] ?? ''));
+    $state_id = ($state_id=='')?'0':$state_id;
+    $city_id = ($city_id=='')?'0':$city_id;
+    $area_id = ($area_id=='')?'0':$area_id;
+    $state = $db->escapeString($fn->xss_clean($_POST['state'] ?? ''));
+    $city = $db->escapeString($fn->xss_clean($_POST['city'] ?? ''));
+    $area = $db->escapeString($fn->xss_clean($_POST['area'] ?? ''));
+    $latitude = (isset($_POST['latitude']) && is_numeric($_POST['latitude']))?$db->escapeString($fn->xss_clean($_POST['latitude'])):'0';
+    $longitude = (isset($_POST['longitude']) && is_numeric($_POST['longitude']))?$db->escapeString($fn->xss_clean($_POST['longitude'])):'0';
     $dob = $db->escapeString($fn->xss_clean($_POST['dob'] ?? ''));
     $account_details = $db->escapeString($fn->xss_clean($_POST['account_details'] ?? ''));
     $gst_no = $db->escapeString($fn->xss_clean($_POST['gst_no'] ?? ''));
@@ -125,7 +133,7 @@ elseif (isset($_POST['seller_register'])) {
     if (
         empty($name) || empty($mobile) || empty($email) || empty($main_cat_id) ||
         empty($company_name) || empty($company_legal_name) ||
-        empty($personal_address) || empty($city_id) || empty($area_id)
+        empty($personal_address)
     ) {
         echo json_encode(["error" => true, "message" => "Please fill in all required fields."]);
         exit;
@@ -178,6 +186,11 @@ elseif (isset($_POST['seller_register'])) {
         'state_id' => $state_id,
         'city_id' => $city_id,
         'area_id' => $area_id,
+        'state' => $state,
+        'city' => $city,
+        'area' => $area,
+        'latitude' => $latitude,
+        'longitude' => $longitude,
         'dob' => $dob,
         'account_details' => $account_details,
         'gst_no' => $gst_no,

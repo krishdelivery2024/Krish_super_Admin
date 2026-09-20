@@ -764,7 +764,22 @@ class custom_functions{
             
             //getting the token from database object
                 if ($delivery_boy_id == 0) {
+                $order_zone_id = 0;
+                if ($order_type == 'parcel') {
+                    $this->db->sql("SELECT zone_id FROM parcel_requests WHERE id = '$order_id'");
+                } else {
+                    $this->db->sql("SELECT zone_id FROM orders WHERE id = '$order_id'");
+                }
+                $res_zone = $this->db->getResult();
+                if (!empty($res_zone) && isset($res_zone[0]['zone_id'])) {
+                    $order_zone_id = (int)$res_zone[0]['zone_id'];
+                }
+
                 $sql="SELECT fcm_id FROM delivery_boys WHERE active_status = 'true'";
+                if ($order_zone_id > 0) {
+                    $sql .= " AND (zone_id = 0 OR zone_id IS NULL OR zone_id = '$order_zone_id')";
+                }
+                
                 // Broadcast only to delivery boys whose assigned service covers this order type
                 if ($this->delivery_boy_has_service_type()) {
                     $order_type = in_array($order_type, array('food','parcel')) ? $order_type : 'food';
@@ -934,7 +949,26 @@ class custom_functions{
     
     public function store_delivery_boy_notification($delivery_boy_id,$order_id,$title,$message,$type){
               if ($delivery_boy_id == 0) {
+                $order_zone_id = 0;
+                if ($type == 'parcel') {
+                    $this->db->sql("SELECT zone_id FROM parcel_requests WHERE id = '$order_id'");
+                } else {
+                    $this->db->sql("SELECT zone_id FROM orders WHERE id = '$order_id'");
+                }
+                $res_zone = $this->db->getResult();
+                if (!empty($res_zone) && isset($res_zone[0]['zone_id'])) {
+                    $order_zone_id = (int)$res_zone[0]['zone_id'];
+                }
+
             $sql = "SELECT id FROM delivery_boys WHERE active_status = 'true'";
+            if ($order_zone_id > 0) {
+                $sql .= " AND (zone_id = 0 OR zone_id IS NULL OR zone_id = '$order_zone_id')";
+            }
+            if ($this->delivery_boy_has_service_type()) {
+                $order_type_val = in_array($type, array('food','parcel')) ? $type : 'food';
+                $sql .= " AND (service_type = 'both' OR service_type = '".$order_type_val."')";
+            }
+            
             $this->db->sql($sql);
             $res = $this->db->getResult();
             foreach ($res as $row) {
@@ -1099,8 +1133,136 @@ class custom_functions{
         // print_r($tokens); // Debugging output
         return $tokens; 
     }
-    
-   
+
+    public function get_zone_id_from_latlng($latitude, $longitude){
+        if (empty($latitude) || empty($longitude) || !is_numeric($latitude) || !is_numeric($longitude)) {
+            return null;
+        }
+        $lat = (float)$latitude;
+        $lng = (float)$longitude;
+        $this->db->sql("SELECT id, polygon FROM zone WHERE status = 1");
+        $zones = $this->db->getResult();
+        if (empty($zones)) {
+            return null;
+        }
+        foreach ($zones as $zone) {
+            $polygon = json_decode($zone['polygon'], true);
+            if (!is_array($polygon) || count($polygon) < 3) {
+                continue;
+            }
+            $vertices = [];
+            foreach ($polygon as $point) {
+                $vertices[] = array(
+                    'lat' => (float)$point['lat'],
+                    'lng' => (float)$point['lng']
+                );
+            }
+            $inside = false;
+            $j = count($vertices) - 1;
+            for ($i = 0; $i < count($vertices); $i++) {
+                $xi = $vertices[$i]['lng'];
+                $yi = $vertices[$i]['lat'];
+                $xj = $vertices[$j]['lng'];
+                $yj = $vertices[$j]['lat'];
+                $intersect = (($yi > $lat) != ($yj > $lat)) &&
+                             ($lng < ($xj - $xi) * ($lat - $yi) / ($yj - $yi) + $xi);
+                if ($intersect) {
+                    $inside = !$inside;
+                }
+                $j = $i;
+            }
+            if ($inside) {
+                return (int)$zone['id'];
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Returns the shortest great-circle distance (in km) from point P to the
+     * line segment A-B (Haversine approximation via projected coordinates).
+     */
+    private function point_to_segment_distance($plat, $plng, $alat, $alng, $blat, $blng) {
+        $plat_r = deg2rad($plat); $plng_r = deg2rad($plng);
+        $alat_r = deg2rad($alat); $alng_r = deg2rad($alng);
+        $blat_r = deg2rad($blat); $blng_r = deg2rad($blng);
+        $dx = $blat_r - $alat_r;
+        $dy = $blng_r - $alng_r;
+        $len2 = $dx * $dx + $dy * $dy;
+        if ($len2 == 0) {
+            $t = 0;
+        } else {
+            $t = (($plat_r - $alat_r) * $dx + ($plng_r - $alng_r) * $dy) / $len2;
+            $t = max(0.0, min(1.0, $t));
+        }
+        $nlat = $alat_r + $t * $dx;
+        $nlng = $alng_r + $t * $dy;
+        $dlat = $plat_r - $nlat;
+        $dlng = $plng_r - $nlng;
+        $a = sin($dlat / 2) * sin($dlat / 2)
+           + cos($plat_r) * cos($nlat) * sin($dlng / 2) * sin($dlng / 2);
+        $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+        return 6371 * $c;
+    }
+
+    /**
+     * Returns the minimum straight-line distance in km from a lat/lng point
+     * to the nearest boundary of any active zone.
+     * Returns 0.0   if the point is already inside a zone.
+     * Returns 999999 if there are no active zones configured.
+     */
+    public function get_nearest_zone_distance($latitude, $longitude) {
+        if (empty($latitude) || empty($longitude) || !is_numeric($latitude) || !is_numeric($longitude)) {
+            return 999999;
+        }
+        $lat = (float)$latitude;
+        $lng = (float)$longitude;
+        $this->db->sql("SELECT id, polygon FROM zone WHERE status = 1");
+        $zones = $this->db->getResult();
+        if (empty($zones)) {
+            return 999999;
+        }
+        $min_dist = 999999;
+        foreach ($zones as $zone) {
+            $polygon = json_decode($zone['polygon'], true);
+            if (!is_array($polygon) || count($polygon) < 3) {
+                continue;
+            }
+            $vertices = array();
+            foreach ($polygon as $point) {
+                $vertices[] = array((float)$point['lat'], (float)$point['lng']);
+            }
+            // Ray-casting: is the point inside this zone?
+            $inside = false;
+            $n = count($vertices);
+            $j = $n - 1;
+            for ($i = 0; $i < $n; $i++) {
+                $xi = $vertices[$i][1]; $yi = $vertices[$i][0];
+                $xj = $vertices[$j][1]; $yj = $vertices[$j][0];
+                if ((($yi > $lat) != ($yj > $lat)) &&
+                    ($lng < ($xj - $xi) * ($lat - $yi) / ($yj - $yi) + $xi)) {
+                    $inside = !$inside;
+                }
+                $j = $i;
+            }
+            if ($inside) {
+                return 0.0; // Inside a zone: zero distance to boundary
+            }
+            // Measure shortest distance to each edge
+            for ($i = 0; $i < $n; $i++) {
+                $j2 = ($i + 1) % $n;
+                $d = $this->point_to_segment_distance(
+                    $lat, $lng,
+                    $vertices[$i][0], $vertices[$i][1],
+                    $vertices[$j2][0], $vertices[$j2][1]
+                );
+                if ($d < $min_dist) {
+                    $min_dist = $d;
+                }
+            }
+        }
+        return $min_dist;
+    }
 }
 
 ?>

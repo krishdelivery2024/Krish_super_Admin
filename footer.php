@@ -164,6 +164,19 @@
                                                     </select>
                                                 </div>
                                                 <div class="form-group">
+                                                    <label for="">Zone</label>
+                                                    <?php
+                                                    $db->sql("SELECT id, name FROM zone WHERE status=1 ORDER BY id DESC");
+                                                    $active_zones = $db->getResult();
+                                                    ?>
+                                                    <select class="form-control" name="update_zone_id" id="update_zone_id">
+                                                        <option value="">Select Zone (Leave empty for All Zones)</option>
+                                                        <?php foreach($active_zones as $zone){ ?>
+                                                            <option value="<?=$zone['id']?>"><?=$zone['name']?></option>
+                                                        <?php } ?>
+                                                    </select>
+                                                </div>
+                                                <div class="form-group">
                                                     <label for="">Aadhaar Number <span style="color:red;">*</span></label>
                                                     <input type="text" name="update_aadhaar" id="update_aadhaar" class="form-control col-md-7 col-xs-12" maxlength="12" placeholder="12-digit Aadhaar number">
                                                 </div>
@@ -3847,6 +3860,10 @@ $(document).on('change','#loose',function(){
                 $('#update_service_type').val(row.service_type_value);
             else
                 $('#update_service_type').val('both');
+            if (row.zone_id !== undefined && row.zone_id != null && row.zone_id != '')
+                $('#update_zone_id').val(row.zone_id);
+            else
+                $('#update_zone_id').val('');
             $('#update_aadhaar').val(row.aadhaar);
             $('#update_driving_license').val(row.driving_license);
         }

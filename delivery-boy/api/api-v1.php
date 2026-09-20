@@ -509,12 +509,16 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 			if (!empty($caller_id)) {
 				$where .= " AND (rejected_by IS NULL OR rejected_by = '' OR NOT FIND_IN_SET('$caller_id', rejected_by)) ";
 				// Parcel-only delivery boys should not see food orders
-				$sql_boy = "SELECT service_type FROM delivery_boys WHERE id = '$caller_id'";
+				$sql_boy = "SELECT service_type, zone_id FROM delivery_boys WHERE id = '$caller_id'";
 				$db->sql($sql_boy);
 				$res_boy = $db->getResult();
 				$boy_service = (!empty($res_boy) && isset($res_boy[0]['service_type'])) ? $res_boy[0]['service_type'] : 'both';
+				$boy_zone_id = (!empty($res_boy) && isset($res_boy[0]['zone_id'])) ? $res_boy[0]['zone_id'] : 0;
 				if ($boy_service == 'parcel') {
 					$where .= " AND 1 = 0 ";
+				}
+				if (!empty($boy_zone_id) && $boy_zone_id > 0) {
+				    $where .= " AND o.zone_id = " . $boy_zone_id;
 				}
 			}
 		}
@@ -1072,12 +1076,16 @@ if (isset($_POST['get_parcel_orders'])) {
 		if (!empty($boy_id)) {
 			$where .= " AND (p.rejected_by IS NULL OR p.rejected_by = '' OR NOT FIND_IN_SET('$boy_id', p.rejected_by)) ";
 			// Food-only delivery boys should not see parcel orders
-			$sql_boy = "SELECT service_type FROM delivery_boys WHERE id = '$boy_id'";
+			$sql_boy = "SELECT service_type, zone_id FROM delivery_boys WHERE id = '$boy_id'";
 			$db->sql($sql_boy);
 			$res_boy = $db->getResult();
 			$boy_service = (!empty($res_boy) && isset($res_boy[0]['service_type'])) ? $res_boy[0]['service_type'] : 'both';
+			$boy_zone_id = (!empty($res_boy) && isset($res_boy[0]['zone_id'])) ? $res_boy[0]['zone_id'] : 0;
 			if ($boy_service == 'food') {
 				$where .= " AND 1 = 0 ";
+			}
+			if (!empty($boy_zone_id) && $boy_zone_id > 0) {
+			    $where .= " AND p.zone_id = " . $boy_zone_id;
 			}
 		}
 	} else if ($status == 'active') {
