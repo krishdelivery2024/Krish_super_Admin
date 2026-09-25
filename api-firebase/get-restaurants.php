@@ -20,12 +20,31 @@ if(!verify_token()){
 if(isset($_POST['accesskey'])) {
 	$access_key_received = $db->escapeString($fn->xss_clean($_POST['accesskey']));	
 	$user_id = (isset($_POST['user_id']))?$db->escapeString($fn->xss_clean($_POST['user_id'])):"";	
+	// Optional user location for zone-based Best Seller
+	$latitude  = (isset($_POST['latitude']))?$db->escapeString($fn->xss_clean($_POST['latitude'])):"";
+	$longitude = (isset($_POST['longitude']))?$db->escapeString($fn->xss_clean($_POST['longitude'])):"";
 	if($access_key_received == $access_key){
-		// get all category data from category table
-		$sql_query = "SELECT * 
+		// Show all sellers of the user's zone (all main categories), nearest to the user's location first.
+		$zone_filter = "";
+		$distance_selector = "";
+		$distance_order = "`sel_priority` ASC, `id` ASC";
+		if($latitude != '' && $longitude != '' && is_numeric($latitude) && is_numeric($longitude)){
+		    $user_zone_id = $fn->get_zone_id_from_latlng($latitude, $longitude);
+		    if($user_zone_id > 0){
+		        // Strict: only sellers belonging to the user's zone
+		        $zone_filter = " AND `zone_id`='".(int)$user_zone_id."'";
+		    }else{
+		        // User is outside any zone -> strictly no sellers shown
+		        $zone_filter = " AND `zone_id`='-1'";
+		    }
+		    $distance_selector = ", (6371 * acos(LEAST(1, COS(RADIANS(".$latitude.")) * COS(RADIANS(`latitude`)) * COS(RADIANS(`longitude` - ".$longitude.")) + SIN(RADIANS(".$latitude.")) * SIN(RADIANS(`latitude`))))) AS distance";
+		    $distance_order = "`sel_priority` ASC, `id` ASC, distance ASC";
+		}
+		// get all sellers belonging to the user's zone, ordered by proximity
+		$sql_query = "SELECT *".$distance_selector." 
 			FROM seller 
-            WHERE main_cat_id ='1' AND status='1' AND main_cat_id IN (SELECT id FROM main_category WHERE status = '1')
-			ORDER BY sel_priority ASC ";
+            WHERE status='1' AND main_cat_id IN (SELECT id FROM main_category WHERE status = '1')".$zone_filter."
+			ORDER BY ".$distance_order;
 		$db->sql($sql_query);
 		$res=$db->getResult();
 		if (!empty($res)) {

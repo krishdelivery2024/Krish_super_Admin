@@ -150,6 +150,21 @@ class custom_functions{
         foreach($res as $row)
         return $row['total'];
     }
+
+    public function get_zone_scope($id){
+        if(isset($_SESSION['id']) && $_SESSION['role'] == 'sub admin'){
+            $this->db->sql("SELECT zone_ids FROM admin WHERE id=".(int)$id);
+            $res = $this->db->getResult();
+            if(!empty($res) && !empty($res[0]['zone_ids'])){
+                $zones = json_decode($res[0]['zone_ids'], true);
+                if(is_array($zones) && count($zones) > 0){
+                    $zones = array_map('intval', $zones);
+                    return array_values(array_filter($zones, function($z){ return $z > 0; }));
+                }
+            }
+        }
+        return array();
+    }
 //     function orders_count(){
 //         $where = '';
 //         if($_SESSION['role'] == 'seller'){

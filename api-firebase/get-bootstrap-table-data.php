@@ -49,6 +49,9 @@
 	$db = new Database();
 	$db->connect();
 	$config = $fn->get_configurations();
+
+	$my_zone_scope = $fn->get_zone_scope(isset($_SESSION['id']) ? $_SESSION['id'] : 0);
+	$zone_scope_sql = !empty($my_zone_scope) ? " IN (".implode(',',$my_zone_scope).")" : "";
 	
 	if(isset($config['system_timezone']) && isset($config['system_timezone_gmt'])){
 		date_default_timezone_set($config['system_timezone']);
@@ -119,6 +122,14 @@
             $where .=" and o.`active_status`='".$filter_order."'";
         }
 
+        if(isset($_GET['filter_zone']) && $_GET['filter_zone']!=''){
+            $where .=" and o.`zone_id`='".(int)$_GET['filter_zone']."'";
+        }
+
+        if(!empty($zone_scope_sql)){
+            $where .= " and o.`zone_id`".$zone_scope_sql;
+        }
+
         if(!empty($_GET['deliver_by'])){
             $where .=" and o.`delivery_boy_id`='".(int)$_GET['deliver_by']."'";
         }
@@ -132,10 +143,11 @@
 		$res = $db->getResult();
 		$total = isset($res)?$res[0]['total']:0;
 
-        $sql="select o.*, u.name, s.name as vendor_name, s.mobile as vendor_mobile 
+        $sql="select o.*, u.name, s.name as vendor_name, s.mobile as vendor_mobile, z.name as zone_name 
               FROM orders o 
               JOIN users u ON u.id=o.user_id 
-              LEFT JOIN seller s ON s.id=o.seller_id".$where." ORDER BY ".$sort." ".$order." LIMIT ".$offset.", ".$limit;
+              LEFT JOIN seller s ON s.id=o.seller_id 
+              LEFT JOIN zone z ON z.id=o.zone_id".$where." ORDER BY ".$sort." ".$order." LIMIT ".$offset.", ".$limit;
 		$db->sql($sql);
 		$res = $db->getResult();
 		for($i=0;$i<count($res);$i++) {
@@ -194,6 +206,7 @@
                 $discount_in_rupees = $row['total']-$final_total;
                 $discount_in_rupees = floor($discount_in_rupees);
     			$tempRow['id'] = $row['id'];
+    			$tempRow['zone_name'] = (!empty($row['zone_name'])) ? $row['zone_name'] : '-';
     			$tempRow['user_id'] = $row['user_id'];
     			$tempRow['name'] = $row['items'][0]['uname'];
     			$tempRow['mobile'] = $row['mobile'];
@@ -226,6 +239,85 @@
     			}
     			$rows[] = $tempRow;
     		}
+		}
+
+		// ============================================================
+		// Add PARCEL orders into the same list (so the Orders page
+		// shows food + parcel combined, matching the dashboard total).
+		// ============================================================
+		$p_where = "";
+		if(isset($_SESSION['role']) && $_SESSION['role'] == 'seller'){
+			$p_where .= " AND 1=0";
+		}
+		if(!empty($_GET['start_date']) && !empty($_GET['end_date'])){
+			$p_where .= " AND DATE(p.created_at)>=DATE('".$db->escapeString($_GET['start_date'])."') AND DATE(p.created_at)<=DATE('".$db->escapeString($_GET['end_date'])."')";
+		}
+		if(isset($_GET['filter_zone']) && $_GET['filter_zone']!=''){
+			$p_where .= " AND p.zone_id='".(int)$_GET['filter_zone']."'";
+		}
+		if(!empty($zone_scope_sql)){
+			$p_where .= " AND p.zone_id".$zone_scope_sql;
+		}
+		if(!empty($_GET['deliver_by'])){
+			$p_where .= " AND p.delivery_boy_id='".(int)$_GET['deliver_by']."'";
+		}
+		if(isset($_GET['filter_order']) && $_GET['filter_order']!=''){
+			$p_status = $db->escapeString($_GET['filter_order']);
+			if(in_array($p_status, array('delivered','cancelled','returned'))){
+				$p_where .= " AND p.status='".$p_status."'";
+			} else {
+				$p_where .= " AND 1=0";
+			}
+		}
+		$sql_parcel_count = "SELECT COUNT(p.id) AS total FROM parcel_requests p WHERE 1=1 ".$p_where;
+		$db->sql($sql_parcel_count);
+		$res_parcel_count = $db->getResult();
+		if(isset($res_parcel_count[0]['total'])){
+			$total += (int)$res_parcel_count[0]['total'];
+			$bulkData['total'] = $total;
+		}
+		$sql_parcel = "SELECT p.*, u.name AS uname, u.mobile AS umobile, b.name AS boy_name
+			FROM parcel_requests p
+			LEFT JOIN users u ON u.id=p.user_id
+			LEFT JOIN delivery_boys b ON b.id=p.delivery_boy_id
+			WHERE 1=1 ".$p_where." ORDER BY p.id DESC LIMIT ".$offset.", ".$limit;
+		$db->sql($sql_parcel);
+		$res_parcel = $db->getResult();
+		if($res_parcel){
+			foreach($res_parcel as $row){
+				$active_status = '<label class="label label-primary">'.$row['status'].'</label>';
+				if($row['status']=='accepted'){ $active_status = '<label class="label label-info">'.$row['status'].'</label>'; }
+				if($row['status']=='picked'){ $active_status = '<label class="label label-warning">'.$row['status'].'</label>'; }
+				if($row['status']=='delivered'){ $active_status = '<label class="label label-success">'.$row['status'].'</label>'; }
+				if($row['status']=='cancelled' || $row['status'] == 'returned'){ $active_status = '<label class="label label-danger">'.$row['status'].'</label>'; }
+				$tempRow = array();
+				$tempRow['id'] = 'P'.$row['id'];
+				$tempRow['user_id'] = $row['user_id'];
+				$tempRow['qty'] = 1;
+				$tempRow['name'] = !empty($row['uname']) ? $row['uname'] : $row['recipient_name'];
+				$tempRow['mobile'] = $row['recipient_phone'];
+				$tempRow['items'] = $row['item_type_name'];
+				$tempRow['total'] = $row['total_price'];
+				$tempRow['delivery_charge'] = '';
+				$tempRow['tax'] = '0';
+				$tempRow['discount'] = '';
+				$tempRow['promo_code'] = '';
+				$tempRow['promo_discount'] = '';
+				$tempRow['wallet_balance'] = 0;
+				$tempRow['final_total'] = !empty($row['grand_total']) ? $row['grand_total'] : $row['total_price'];
+				$tempRow['deliver_by'] = $row['boy_name'];
+				$tempRow['payment_method'] = $row['payment_method'];
+				$tempRow['address'] = $row['drop_location'];
+				$tempRow['delivery_time'] = $row['pickup_time'];
+				$tempRow['status'] = '';
+				$tempRow['active_status'] = $active_status;
+				$tempRow['date_added'] = date('d-m-Y',strtotime($row['created_at']));
+				if(isset($_SESSION['role']) && $_SESSION['role'] != 'seller'){
+					$tempRow['sname'] = 'Parcel';
+					$tempRow['smobile'] = '';
+				}
+				$rows[] = $tempRow;
+			}
 		}
 		$bulkData['rows'] = $rows;
 		print_r(json_encode($bulkData));
@@ -1031,7 +1123,7 @@
 		
 		if(isset($_GET['search'])){
 			$search = $_GET['search'];
-			$where = " Where `id` like '%".$search."%' OR `name` like '%".$search."%' OR `email` like '%".$search."%' OR `mobile` like '%".$search."%' OR `company_name` like '%".$search."%'";
+			$where = " Where u.`id` like '%".$search."%' OR u.`name` like '%".$search."%' OR u.`email` like '%".$search."%' OR u.`mobile` like '%".$search."%' OR u.`company_name` like '%".$search."%'";
 		}
 		if(isset($_GET['filter_order_status']) && $_GET['filter_order_status'] !=''){
 			$filter_order = $_GET['filter_order'];
@@ -1040,15 +1132,22 @@
 			else
 				$where =' where active_status='.$filter_order;
 		}
+		if(isset($_GET['filter_zone']) && $_GET['filter_zone'] != ''){
+			$filter_zone = (int)$_GET['filter_zone'];
+			if(isset($_GET['search']) && $_GET['search'] != '')
+				$where .=' and u.zone_id = '.$filter_zone;
+			else
+				$where =' where u.zone_id = '.$filter_zone;
+		}
 		
-		$sql = "SELECT COUNT(*) as total FROM `seller` ".$where;
+		$sql = "SELECT COUNT(*) as total FROM `seller` u ".$where;
 		$db->sql($sql);
 		$res = $db->getResult();
 		// print_r($res);
 		foreach($res as $row)
 			$total = $row['total'];
 		
-		$sql = "SELECT * FROM `seller` u ".$where." ORDER BY `".$sort."` ".$order." LIMIT ".$offset.", ".$limit;
+		$sql = "SELECT u.*, IFNULL(z.name,'-') as zone_name FROM `seller` u LEFT JOIN `zone` z ON z.id = u.zone_id ".$where." ORDER BY u.`".$sort."` ".$order." LIMIT ".$offset.", ".$limit;
 		$db->sql($sql);
 		$res = $db->getResult();
 // 		print_r($res);
@@ -1069,6 +1168,7 @@
 			$tempRow['mobile'] = $row['mobile'];
 			$tempRow['email'] = $row['email'];
 			$tempRow['company_name'] = $row['company_name'];
+			$tempRow['zone_name'] = $row['zone_name'];
 			if($row['status']==0)
 			    $tempRow['status']="<label class='label label-danger'>Inactive</label>";
             else
@@ -2094,7 +2194,14 @@
 		
 		if(isset($_GET['search']) && $_GET['search'] !=''){
 			$search = $_GET['search'];
-			$where = " Where `pr`.`id` like '%".$search."%' OR `pr`.`item_type_name` like '%".$search."%' OR `pr`.`pickup_location` like '%".$search."%' OR `pr`.`drop_location` like '%".$search."%' OR `pr`.`sender_name` like '%".$search."%' OR `pr`.`recipient_name` like '%".$search."%' OR `pr`.`sender_phone` like '%".$search."%' OR `pr`.`recipient_phone` like '%".$search."%' OR `pr`.`status` like '%".$search."%' OR `pr`.`payment_status` like '%".$search."%' OR `pr`.`otp` like '%".$search."%'";
+			$where = " Where (`pr`.`id` like '%".$search."%' OR `pr`.`item_type_name` like '%".$search."%' OR `pr`.`pickup_location` like '%".$search."%' OR `pr`.`drop_location` like '%".$search."%' OR `pr`.`sender_name` like '%".$search."%' OR `pr`.`recipient_name` like '%".$search."%' OR `pr`.`sender_phone` like '%".$search."%' OR `pr`.`recipient_phone` like '%".$search."%' OR `pr`.`status` like '%".$search."%' OR `pr`.`payment_status` like '%".$search."%' OR `pr`.`otp` like '%".$search."%')";
+		}
+		if(!empty($zone_scope_sql)){
+			if(empty($where)){
+				$where = " Where pr.`zone_id`".$zone_scope_sql;
+			}else{
+				$where .= " AND pr.`zone_id`".$zone_scope_sql;
+			}
 		}
 		
 		$sql = "SELECT COUNT(*) as total FROM `parcel_requests` pr ".$where;
@@ -2191,6 +2298,12 @@
 		if(isset($_GET['search']) && $_GET['search'] !=''){
 			$search = $db->escapeString($_GET['search']);
 			$where .= " AND (t.`id` like '%".$search."%' OR t.`order_id` like '%".$search."%' OR t.`txn_id` like '%".$search."%' OR t.`type` like '%".$search."%' OR t.`status` like '%".$search."%' OR t.`transaction_date` like '%".$search."%' OR u.`name` like '%".$search."%' OR u.`mobile` like '%".$search."%')";
+		}
+		if(isset($_GET['filter_zone']) && $_GET['filter_zone']!=''){
+			$where .= " AND t.`order_id` IN (SELECT id FROM parcel_requests WHERE zone_id='".(int)$_GET['filter_zone']."')";
+		}
+		if(!empty($zone_scope_sql)){
+			$where .= " AND t.`order_id` IN (SELECT id FROM parcel_requests WHERE zone_id".$zone_scope_sql.")";
 		}
 		
 		$sql = "SELECT COUNT(*) as total FROM `transactions` t INNER JOIN `users` u ON u.id = t.user_id ".$where;
@@ -2391,6 +2504,7 @@
 			$tempRow['email'] = $row['email'];
 			$tempRow['mobile'] = $row['mobile'];
 			$tempRow['permissions'] = $row['permissions'];
+			$tempRow['zone_ids'] = $row['zone_ids'];
 			$tempRow['role'] = $role;
 			$tempRow['created_by_id'] = $row['created_by']!=0?$row['created_by']:'-';
 			$tempRow['created_by'] = ($row['created_by']!=0 && !empty($created_by[0]['username']))?$created_by[0]['username']:'-';
@@ -4075,7 +4189,14 @@ FROM
 		
 		if(isset($_GET['search'])){
 			$search = $_GET['search'];
-			$where = " Where `id` like '%".$search."%' OR `name` like '%".$search."%'";
+			$where = " Where (`id` like '%".$search."%' OR `name` like '%".$search."%')";
+		}
+		if(!empty($zone_scope_sql)){
+			if(empty($where)){
+				$where = " Where `id`".$zone_scope_sql;
+			}else{
+				$where .= " AND `id`".$zone_scope_sql;
+			}
 		}
 		
 		$sql = "SELECT COUNT(*) as total FROM `zone` ".$where;

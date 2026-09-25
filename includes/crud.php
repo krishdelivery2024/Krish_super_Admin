@@ -14,7 +14,7 @@ define('WP_DEBUG_DISPLAY', true); */
  error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-define('DOMAIN_URL','http://localhost/Krish/production/'); /* chnage to your domain here - Don't forget to add forward slash at the end like this "/" */
+define('DOMAIN_URL','http://127.0.0.1/Krish/production/'); /* chnage to your domain here - Don't forget to add forward slash at the end like this "/" */
 // define('DOMAIN_URL','https://www.krishdelivery.com/'); /* chnage to your domain here - Don't forget to add forward slash at the end like this "/" */
 define('JWT_SECRET_KEY','HS256'); /* chnage to your secret key here - you can set anything here - make sure same you set on android side as well */
 define('sms_max_limit_count','100');

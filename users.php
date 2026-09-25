@@ -376,24 +376,54 @@ if($_SESSION['role']!='super admin'){
                  <td>-
                  </td>
                </tr>
-               <tr>
-                <td>Faqs</td>
-                <td><input type="checkbox" id="create-faq-button" class="js-switch" checked>
-                     <input type="hidden" id="is-create-faq" name="is-create-faq" value="1">
+<tr>
+                 <td>Faqs</td>
+                 <td><input type="checkbox" id="create-faq-button" class="js-switch" checked>
+                      <input type="hidden" id="is-create-faq" name="is-create-faq" value="1">
                  </td>
-                <td><input type="checkbox" id="read-faq-button" class="js-switch" checked>
-                     <input type="hidden" id="is-read-faq" name="is-read-faq" value="1">
+                 <td><input type="checkbox" id="read-faq-button" class="js-switch" checked>
+                      <input type="hidden" id="is-read-faq" name="is-read-faq" value="1">
                  </td>
                  <td><input type="checkbox" id="update-faq-button" class="js-switch" checked>
-                     <input type="hidden" id="is-update-faq" name="is-update-faq" value="1">
+                      <input type="hidden" id="is-update-faq" name="is-update-faq" value="1">
                  </td>
                 <td><input type="checkbox" id="delete-faq-button" class="js-switch" checked>
-                     <input type="hidden" id="is-delete-faq" name="is-delete-faq" value="1">
+                      <input type="hidden" id="is-delete-faq" name="is-delete-faq" value="1">
                  </td>
-               </tr>
+                </tr>
+                <tr>
+                 <td>Zones</td>
+                 <td><input type="checkbox" id="create-zone-button" class="js-switch" checked>
+                      <input type="hidden" id="is-create-zone" name="is-create-zone" value="1">
+                 </td>
+                 <td><input type="checkbox" id="read-zone-button" class="js-switch" checked>
+                      <input type="hidden" id="is-read-zone" name="is-read-zone" value="1">
+                 </td>
+                 <td><input type="checkbox" id="update-zone-button" class="js-switch" checked>
+                      <input type="hidden" id="is-update-zone" name="is-update-zone" value="1">
+                 </td>
+                 <td><input type="checkbox" id="delete-zone-button" class="js-switch" checked>
+                      <input type="hidden" id="is-delete-zone" name="is-delete-zone" value="1">
+                 </td>
+                </tr>
 
       </table>
             
+        </div>
+        <div class="form-group" style="padding:8px;">
+            <label style="font-weight:600;">Assign Zones</label>
+            <div style="border:1px solid #ddd;border-radius:4px;padding:10px;max-height:160px;overflow-y:auto;">
+            <?php
+                $db->sql("SELECT id, name, status FROM zone ORDER BY name ASC");
+                $zone_options = $db->getResult();
+                if(!empty($zone_options)){
+                    foreach($zone_options as $zo){ ?>
+                        <label style="display:block;font-weight:normal;">
+                            <input type="checkbox" name="zone_ids[]" value="<?= (int)$zo['id']; ?>"> <?= htmlspecialchars($zo['name']); ?><?php if((int)$zo['status']!=1){ echo ' (Inactive)'; } ?>
+                        </label>
+            <?php } } else { echo "No zones available."; } ?>
+            </div>
+            <span class="help-block" style="color:#777;">Select one or more zones. If no zone is selected, the sub admin will see data of all zones.</span>
         </div>
         </form>
     </div>

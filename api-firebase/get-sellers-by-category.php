@@ -23,6 +23,19 @@
 		$access_key_received = $db->escapeString($fn->xss_clean($_POST['accesskey']));
         $category_id = (isset($_POST['category_id'])) ? $db->escapeString($fn->xss_clean($_POST['category_id'])) : "0";
 		$user_id = (isset($_POST['user_id']))?$db->escapeString($fn->xss_clean($_POST['user_id'])):"";
+		// Optional user location for zone-based filtering
+		$latitude  = (isset($_POST['latitude']))?$db->escapeString($fn->xss_clean($_POST['latitude'])):"";
+		$longitude = (isset($_POST['longitude']))?$db->escapeString($fn->xss_clean($_POST['longitude'])):"";
+		$user_zone_id = $fn->get_zone_id_from_latlng($latitude, $longitude);
+		if($user_zone_id === null && $user_id != ''){
+		    // Fallback: derive zone from the user's saved delivery address
+		    $db->sql("SELECT latitude, longitude FROM user_address WHERE user_id = '$user_id' AND status = '1' ORDER BY is_default DESC, id DESC LIMIT 1");
+		    $saved_addr = $db->getResult();
+		    if (!empty($saved_addr)) {
+		        $user_zone_id = $fn->get_zone_id_from_latlng($saved_addr[0]['latitude'], $saved_addr[0]['longitude']);
+		    }
+		}
+		$zone_filter = ($user_zone_id > 0) ? " AND seller.zone_id = '".(int)$user_zone_id."'" : " AND seller.zone_id = '-1'";
 		if ($access_key_received == $access_key) {
 
 			// Step 1: Get unique category_ids where seller has active products
@@ -35,9 +48,9 @@
 				$seller_ids_str = implode(',', $seller_ids);
 
 				// Step 2: Get category details
-				$sql = "SELECT *
-						FROM seller 
-						WHERE id IN ($seller_ids_str) AND status ='1' AND main_cat_id IN (SELECT id FROM main_category WHERE status = '1') ORDER BY id ASC";
+$sql = "SELECT *
+					FROM seller 
+					WHERE id IN ($seller_ids_str) AND status ='1' AND main_cat_id IN (SELECT id FROM main_category WHERE status = '1')".$zone_filter." ORDER BY id ASC";
 				$db->sql($sql);
 				$sellers = $db->getResult();
                 for ($i = 0; $i < count($sellers); $i++) {

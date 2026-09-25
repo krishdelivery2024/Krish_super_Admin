@@ -388,6 +388,10 @@ if(isset($_POST['add_zone']) && $_POST['add_zone']==1){
         echo "<label class='alert alert-danger'>Access denied - You are not authorized to access this page.</label>";
         return false;
     }
+    if($permissions['zones']['create']==0){
+        echo '<label class="alert alert-danger">You have no permission to create zones</label>';
+        return false;
+    }
     $name = $db->escapeString($fn->xss_clean($_POST['name']));
     $raw_poly = !empty($_POST['polygon']) ? $_POST['polygon'] : '[]';
     $status = (!empty($_POST['status']) && $_POST['status']==1) ? 1 : 0;
@@ -414,6 +418,10 @@ if(isset($_POST['update_zone']) && $_POST['update_zone']==1){
         echo "<label class='alert alert-danger'>Access denied - You are not authorized to access this page.</label>";
         return false;
     }
+    if($permissions['zones']['update']==0){
+        echo '<label class="alert alert-danger">You have no permission to update zones</label>';
+        return false;
+    }
     $id = $db->escapeString($fn->xss_clean($_POST['zone_id']));
     $name = $db->escapeString($fn->xss_clean($_POST['name']));
     $raw_poly = !empty($_POST['polygon']) ? $_POST['polygon'] : '[]';
@@ -437,6 +445,14 @@ if(isset($_POST['update_zone']) && $_POST['update_zone']==1){
     }
 }
 if(isset($_GET['delete_zone']) && $_GET['delete_zone']==1){
+    if(!checkadmin($auth_username)){
+        echo "<label class='alert alert-danger'>Access denied - You are not authorized to access this page.</label>";
+        return false;
+    }
+    if($permissions['zones']['delete']==0){
+        echo '<label class="alert alert-danger">You have no permission to delete zones</label>';
+        return false;
+    }
     $id = $db->escapeString($fn->xss_clean($_GET['id']));
     $sql = "DELETE FROM zone WHERE id=".$id;
     if($db->sql($sql)){
@@ -1085,9 +1101,13 @@ if(isset($_POST['add_system_user']) && $_POST['add_system_user']==1){
 
     $permissions['faqs']=array("create"=>$fn->xss_clean($_POST['is-create-faq']), "read"=>$fn->xss_clean($_POST['is-read-faq']), "update"=>$fn->xss_clean($_POST['is-update-faq']),"delete"=>$fn->xss_clean($_POST['is-delete-faq']));
 
+    $permissions['zones']=array("create"=>$fn->xss_clean($_POST['is-create-zone']), "read"=>$fn->xss_clean($_POST['is-read-zone']), "update"=>$fn->xss_clean($_POST['is-update-zone']),"delete"=>$fn->xss_clean($_POST['is-delete-zone']));
+
+    $zone_ids = isset($_POST['zone_ids']) && is_array($_POST['zone_ids']) ? array_values(array_map('intval', $_POST['zone_ids'])) : array();
+    $zone_ids_json = json_encode($zone_ids);
     $encoded_permissions = json_encode($permissions);
-    $sql = "INSERT INTO admin (username,mobile,email,password,role,permissions,created_by,applicable_for)
-                        VALUES('$username','$mobile', '$email', '$password', '$role','$encoded_permissions','$id','web')";
+    $sql = "INSERT INTO admin (username,mobile,email,password,role,permissions,zone_ids,created_by,applicable_for)
+                        VALUES('$username','$mobile', '$email', '$password', '$role','$encoded_permissions','$zone_ids_json','$id','web')";
                         // echo $sql;
     if($db->sql($sql)){
         echo '<label class="alert alert-success">'.$role.' Added Successfully!</label>';
@@ -1155,10 +1175,14 @@ if(isset($_POST['update_system_user']) && $_POST['update_system_user']==1){
 
     $permissions['faqs']=array("create"=>$fn->xss_clean($_POST['permission-is-create-faq']), "read"=>$fn->xss_clean($_POST['permission-is-read-faq']), "update"=>$fn->xss_clean($_POST['permission-is-update-faq']),"delete"=>$fn->xss_clean($_POST['permission-is-delete-faq']));
 
+    $permissions['zones']=array("create"=>$fn->xss_clean($_POST['permission-is-create-zone']), "read"=>$fn->xss_clean($_POST['permission-is-read-zone']), "update"=>$fn->xss_clean($_POST['permission-is-update-zone']),"delete"=>$fn->xss_clean($_POST['permission-is-delete-zone']));
+
     $permissions = json_encode($permissions);
     // print_r($permissions);
     // return false;
-    $sql = "UPDATE admin SET permissions='".$permissions."' WHERE id=".$id;
+    $zone_ids = isset($_POST['zone_ids']) && is_array($_POST['zone_ids']) ? array_values(array_map('intval', $_POST['zone_ids'])) : array();
+    $zone_ids_json = json_encode($zone_ids);
+    $sql = "UPDATE admin SET permissions='".$permissions."', zone_ids='".$zone_ids_json."' WHERE id=".$id;
     if($db->sql($sql)){
         echo '<label class="alert alert-success">Updated Successfully!</label>';
     }else{

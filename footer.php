@@ -621,7 +621,27 @@
                                             <td><input type="checkbox" id="permission-update-faq-button" class="permission-checkbox" data-hidden="permission-is-update-faq"><input type="hidden" name="permission-is-update-faq" id="permission-is-update-faq" value="1"></td>
                                             <td><input type="checkbox" id="permission-delete-faq-button" class="permission-checkbox" data-hidden="permission-is-delete-faq"><input type="hidden" name="permission-is-delete-faq" id="permission-is-delete-faq" value="1"></td>
                                         </tr>
+                                        <tr>
+                                            <td>Zones</td>
+                                            <td><input type="checkbox" id="permission-create-zone-button" class="permission-checkbox" data-hidden="permission-is-create-zone"><input type="hidden" name="permission-is-create-zone" id="permission-is-create-zone" value="1"></td>
+                                            <td><input type="checkbox" id="permission-read-zone-button" class="permission-checkbox" data-hidden="permission-is-read-zone"><input type="hidden" name="permission-is-read-zone" id="permission-is-read-zone" value="1"></td>
+                                            <td><input type="checkbox" id="permission-update-zone-button" class="permission-checkbox" data-hidden="permission-is-update-zone"><input type="hidden" name="permission-is-update-zone" id="permission-is-update-zone" value="1"></td>
+                                            <td><input type="checkbox" id="permission-delete-zone-button" class="permission-checkbox" data-hidden="permission-is-delete-zone"><input type="hidden" name="permission-is-delete-zone" id="permission-is-delete-zone" value="1"></td>
+                                        </tr>
                                     </table>
+                                    <label style="font-weight:600;margin-top:12px;">Assign Zones</label>
+                                    <div style="border:1px solid #ddd;border-radius:4px;padding:10px;max-height:160px;overflow-y:auto;">
+                                    <?php
+                                        $db->sql("SELECT id, name, status FROM zone ORDER BY name ASC");
+                                        $zone_edit_options = $db->getResult();
+                                        if(!empty($zone_edit_options)){
+                                            foreach($zone_edit_options as $ze){ ?>
+                                                <label style="display:block;font-weight:normal;">
+                                                    <input type="checkbox" name="zone_ids[]" class="edit-zone-assign" value="<?= (int)$ze['id']; ?>"> <?= htmlspecialchars($ze['name']); ?><?php if((int)$ze['status']!=1){ echo ' (Inactive)'; } ?>
+                                                </label>
+                                    <?php } } else { echo "No zones available."; } ?>
+                                    </div>
+                                    <span class="help-block" style="color:#777;">Select one or more zones. If no zone is selected, the sub admin will see data of all zones.</span>
                                 </div>
                                 <div class="ln_solid"></div>
                                 <div class="box-footer">
@@ -1468,6 +1488,49 @@
     // var switchStatus = false;
 </script>
 <script>
+    var changeCheckbox = document.querySelector('#create-zone-button');
+    var init = new Switchery(changeCheckbox);
+    changeCheckbox.onchange = function() {
+         // alert(changeCheckbox.checked);
+       if ($(this).is(':checked')) {
+            $('#is-create-zone').val(1);
+        }else{
+            $('#is-create-zone').val(0);
+        }
+    };
+    var changeCheckbox = document.querySelector('#read-zone-button');
+    var init = new Switchery(changeCheckbox);
+    changeCheckbox.onchange = function() {
+         // alert(changeCheckbox.checked);
+       if ($(this).is(':checked')) {
+            $('#is-read-zone').val(1);
+        }else{
+            $('#is-read-zone').val(0);
+        }
+    };
+    var changeCheckbox = document.querySelector('#update-zone-button');
+    var init = new Switchery(changeCheckbox);
+    changeCheckbox.onchange = function() {
+         // alert(changeCheckbox.checked);
+       if ($(this).is(':checked')) {
+            $('#is-update-zone').val(1);
+        }else{
+            $('#is-update-zone').val(0);
+        }
+    };
+    var changeCheckbox = document.querySelector('#delete-zone-button');
+    var init = new Switchery(changeCheckbox);
+    changeCheckbox.onchange = function() {
+         // alert(changeCheckbox.checked);
+       if ($(this).is(':checked')) {
+            $('#is-delete-zone').val(1);
+        }else{
+            $('#is-delete-zone').val(0);
+        }
+    };
+    // var switchStatus = false;
+</script>
+<script>
   // var changeCheckbox = document.querySelector('#permission-create-order-button');
   // var init = new Switchery(changeCheckbox);
   // $('.switchery').trigger('click');
@@ -1941,6 +2004,50 @@ window.actionEvents = {
         $('#permission-is-delete-faq').val(0);
       }
 
+      if(permissions.zones.create==1){
+        $('#permission-create-zone-button').prop('checked', true);
+        $('#permission-is-create-zone').val(1);
+      }else{
+        $('#permission-create-zone-button').prop('checked', false);
+        $('#permission-is-create-zone').val(0);
+      }
+
+      if(permissions.zones.read==1){
+        $('#permission-read-zone-button').prop('checked', true);
+        $('#permission-is-read-zone').val(1);
+      }else{
+        $('#permission-read-zone-button').prop('checked', false);
+        $('#permission-is-read-zone').val(0);
+      }
+
+      if(permissions.zones.update==1){
+        $('#permission-update-zone-button').prop('checked', true);
+        $('#permission-is-update-zone').val(1);
+      }else{
+        $('#permission-update-zone-button').prop('checked', false);
+        $('#permission-is-update-zone').val(0);
+      }
+
+      if(permissions.zones.delete==1){
+        $('#permission-delete-zone-button').prop('checked', true);
+        $('#permission-is-delete-zone').val(1);
+      }else{
+        $('#permission-delete-zone-button').prop('checked', false);
+        $('#permission-is-delete-zone').val(0);
+      }
+
+      $('.edit-zone-assign').prop('checked', false);
+      var assignedZones = [];
+      if(typeof row.zone_ids !== 'undefined' && row.zone_ids){
+        try { assignedZones = JSON.parse(row.zone_ids); } catch(e) { assignedZones = []; }
+        if(assignedZones === null || !Array.isArray(assignedZones)) assignedZones = [];
+      }
+      $('.edit-zone-assign').each(function(){
+        if(assignedZones.indexOf(parseInt($(this).val())) !== -1){
+          $(this).prop('checked', true);
+        }
+      });
+
       $('#system_user_id').val(row.system_user_id);
       $('#editSystemUserModal').modal('show');
     }
@@ -2409,6 +2516,38 @@ window.actionEvents = {
               $('#permission-is-delete-faq').val(1);
           }else{
               $('#permission-is-delete-faq').val(0);
+          }
+      });
+
+      $('#permission-create-zone-button').change(function () {
+        if ($(this).is(':checked')) {
+              $('#permission-is-create-zone').val(1);
+          }else{
+              $('#permission-is-create-zone').val(0);
+          }
+      });
+
+      $('#permission-read-zone-button').change(function () {
+        if ($(this).is(':checked')) {
+              $('#permission-is-read-zone').val(1);
+          }else{
+              $('#permission-is-read-zone').val(0);
+          }
+      });
+
+      $('#permission-update-zone-button').change(function () {
+        if ($(this).is(':checked')) {
+              $('#permission-is-update-zone').val(1);
+          }else{
+              $('#permission-is-update-zone').val(0);
+          }
+      });
+
+      $('#permission-delete-zone-button').change(function () {
+        if ($(this).is(':checked')) {
+              $('#permission-is-delete-zone').val(1);
+          }else{
+              $('#permission-is-delete-zone').val(0);
           }
       });
 </script>
@@ -3055,6 +3194,10 @@ document.addEventListener("DOMContentLoaded", function(){
 	 $('#deliver_by').on('change', function() {
         $('#order_list').bootstrapTable('refresh'); 
 	});
+
+	 $('#filter_zone').on('change', function() {
+        $('#order_list').bootstrapTable('refresh'); 
+	});
 </script>
 <script>
   $(document).ready(function(){
@@ -3092,6 +3235,7 @@ document.addEventListener("DOMContentLoaded", function(){
 				"end_date": $('#end_date').val(),
 				"filter_order": $('#filter_order_status').val(),
 				"deliver_by": $('#deliver_by').val(),
+				"filter_zone": $('#filter_zone').val(),
 				limit:p.limit,
 				sort:p.sort,
 				order:p.order,

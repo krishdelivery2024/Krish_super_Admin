@@ -124,12 +124,21 @@ function ezRedraw(){
 	for(var i=0;i<ezMarkers.length;i++){ ezMarkers[i].setMap(null); }
 	ezMarkers = [];
 	for(var v=0; v<ezPts.length; v++){
-		ezMarkers.push(new google.maps.Marker({
-			position: ezPts[v], map: ezMap,
-			icon: {path: google.maps.SymbolPath.CIRCLE, scale: 5, fillColor: '#dd4b39', fillOpacity: 1, strokeColor: '#ffffff', strokeWeight: 2}
-		}));
+		addEzMarker(v, ezPts[v]);
 	}
 	document.getElementById('edit-zone-polygon').value = JSON.stringify(ezPts);
+}
+
+function addEzMarker(index, pos){
+	var m = new google.maps.Marker({
+		position: pos, map: ezMap, draggable: true,
+		icon: {path: google.maps.SymbolPath.CIRCLE, scale: 5, fillColor: '#dd4b39', fillOpacity: 1, strokeColor: '#ffffff', strokeWeight: 2}
+	});
+	m.addListener('dragend', function(e){
+		ezPts[index] = {lat: e.latLng.lat(), lng: e.latLng.lng()};
+		ezRedraw();
+	});
+	ezMarkers.push(m);
 }
 
 function initEditZoneMap(){
@@ -174,6 +183,11 @@ function initEditZoneMap(){
 		google.maps.event.addListenerOnce(ezMap, 'idle', function(){
 			ezMap.fitBounds(bounds);
 		});
+	} else if(ezPts.length === 0 && navigator.geolocation){
+		navigator.geolocation.getCurrentPosition(function(pos){
+			ezMap.setCenter({lat: pos.coords.latitude, lng: pos.coords.longitude});
+			ezMap.setZoom(14);
+		}, function(){}, {timeout: 8000, maximumAge: 60000});
 	} else {
 		setTimeout(function(){ google.maps.event.trigger(ezMap, 'resize'); }, 250);
 	}
