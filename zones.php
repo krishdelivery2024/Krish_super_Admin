@@ -5,9 +5,11 @@ $db->sql("SELECT value FROM settings WHERE variable='store_map_api'");
 $mk_res=$db->getResult();
 if(!empty($mk_res)){ $map_key=$mk_res[0]['value']; }
 if(empty($map_key)){ $map_key='AIzaSyDYXBYj5sA6nxiNvUsSrQKWSvytDzVRM7I'; }
-        $db->sql("SELECT id, name, latitude, longitude, zone_id, status, company_name, store_address FROM seller WHERE latitude IS NOT NULL AND latitude != '' AND longitude IS NOT NULL AND longitude != ''");
+        $my_zone_scope = $fn->get_zone_scope($_SESSION['id']);
+		$scope_sql = !empty($my_zone_scope) ? " IN (".implode(',',$my_zone_scope).")" : "";
+        $db->sql("SELECT id, name, latitude, longitude, zone_id, status, company_name, store_address FROM seller WHERE latitude IS NOT NULL AND latitude != '' AND longitude IS NOT NULL AND longitude != ''".(!empty($my_zone_scope) ? " AND zone_id".$scope_sql : ""));
         $sellers_locations = $db->getResult();
-        $db->sql("SELECT id, name, polygon, status FROM zone");
+        $db->sql("SELECT id, name, polygon, status FROM zone".(!empty($my_zone_scope) ? " WHERE id".$scope_sql : ""));
         $zones_map = $db->getResult();
         ?>
         <!-- Content Wrapper. Contains page content -->
@@ -81,9 +83,10 @@ if(empty($map_key)){ $map_key='AIzaSyDYXBYj5sA6nxiNvUsSrQKWSvytDzVRM7I'; }
                             <label for="zone-map-draw">Draw Zone Boundary</label>
                             <div id="zone-map-draw" style="width:100%;height:360px;border:1px solid #d2d6de;border-radius:4px;"></div>
                             <div class="clearfix" style="margin-top:6px;">
+                                <button type="button" class="btn btn-sm btn-default" id="zone-my-location-btn">Use My Location</button>
                                 <button type="button" class="btn btn-sm btn-default" id="zone-undo-btn">Undo Last Point</button>
                                 <button type="button" class="btn btn-sm btn-default" id="zone-clear-btn">Clear</button>
-                                <span class="help-block" style="margin:8px 0 0 0;">Click the map to place polygon vertices. Ends are joined automatically. Undo removes the last placed point.</span>
+                                <span class="help-block" style="margin:8px 0 0 0;">Click the map to place polygon vertices. Drag any marker to rearrange it. Ends are joined automatically. Undo removes the last placed point.</span>
                             </div>
                             <input type="hidden" id="polygon" name="polygon" value="<?php echo isset($_GET['polygon']) ? htmlspecialchars($_GET['polygon'],ENT_QUOTES) : ''; ?>">
                         </div>
@@ -137,10 +140,17 @@ if(empty($map_key)){ $map_key='AIzaSyDYXBYj5sA6nxiNvUsSrQKWSvytDzVRM7I'; }
         for(var i=0;i<markers.length;i++){ markers[i].setMap(null); }
         markers = [];
         for(var v=0; v<pts.length; v++){
-            markers.push(new google.maps.Marker({
-                position: pts[v], map: map,
+            var m = new google.maps.Marker({
+                position: pts[v], map: map, draggable: true,
                 icon: {path: google.maps.SymbolPath.CIRCLE, scale: 5, fillColor: '#dd4b39', fillOpacity: 1, strokeColor: '#ffffff', strokeWeight: 2}
-            }));
+            });
+            (function(idx){
+                google.maps.event.addListener(m, 'dragend', function(e){
+                    pts[idx] = {lat: e.latLng.lat(), lng: e.latLng.lng()};
+                    redraw();
+                });
+            })(v);
+            markers.push(m);
         }
         document.getElementById('polygon').value = JSON.stringify(pts);
         if(pts.length >= 3 && !window.__zoneValidNotified){
@@ -156,11 +166,26 @@ if(empty($map_key)){ $map_key='AIzaSyDYXBYj5sA6nxiNvUsSrQKWSvytDzVRM7I'; }
         if(__zoneMapStarted){ return; }
         __zoneMapStarted = true;
         
+        var defaultCenter = {lat:12.9716, lng:77.5946};
+        var startCenter = null;
+        if(typeof window.__zoneEditPolygon !== 'undefined' && window.__zoneEditPolygon && Array.isArray(window.__zoneEditPolygon) && window.__zoneEditPolygon.length > 0){
+            var b = new google.maps.LatLngBounds();
+            for(var bi=0;bi<window.__zoneEditPolygon.length;bi++){ b.extend(window.__zoneEditPolygon[bi]); }
+            startCenter = b.getCenter();
+        }
+        
         map = new google.maps.Map(document.getElementById('zone-map-draw'), {
-            center: {lat:12.9716, lng:77.5946},
+            center: startCenter || defaultCenter,
             zoom: 13,
             mapTypeId: google.maps.MapTypeId.ROADMAP
         });
+        
+        if(!startCenter && navigator.geolocation){
+            navigator.geolocation.getCurrentPosition(function(pos){
+                map.setCenter({lat: pos.coords.latitude, lng: pos.coords.longitude});
+                map.setZoom(14);
+            }, function(){}, {timeout: 8000, maximumAge: 60000});
+        }
         
         google.maps.event.addListener(map, 'click', function(e){
             pts.push({lat: e.latLng.lat(), lng: e.latLng.lng()});
@@ -169,6 +194,16 @@ if(empty($map_key)){ $map_key='AIzaSyDYXBYj5sA6nxiNvUsSrQKWSvytDzVRM7I'; }
         
         document.getElementById('zone-undo-btn').onclick = function(){ if(pts.length>0){ pts.pop(); redraw(); } };
         document.getElementById('zone-clear-btn').onclick = function(){ pts=[]; redraw(); };
+        document.getElementById('zone-my-location-btn').onclick = function(){
+            if(map && navigator.geolocation){
+                navigator.geolocation.getCurrentPosition(function(pos){
+                    var loc = {lat: pos.coords.latitude, lng: pos.coords.longitude};
+                    map.setCenter(loc); map.setZoom(14);
+                    pts.push(loc);
+                    redraw();
+                });
+            }
+        };
         
         if(typeof window.__zoneEditPolygon !== 'undefined' && window.__zoneEditPolygon && Array.isArray(window.__zoneEditPolygon)){
             pts = window.__zoneEditPolygon;

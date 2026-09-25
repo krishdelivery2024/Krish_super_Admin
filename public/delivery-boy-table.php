@@ -14,6 +14,11 @@
     $sql = "SELECT id, name FROM zone WHERE status=1 ORDER BY id DESC";
     $db->sql($sql);
     $zones = $db->getResult();
+
+    $my_zone_scope = $fn->get_zone_scope(isset($_SESSION['id']) ? $_SESSION['id'] : 0);
+    if(!empty($my_zone_scope)){
+        $zones = array_values(array_filter($zones, function($z) use ($my_zone_scope){ return in_array((int)$z['id'], $my_zone_scope); }));
+    }
     ?>
     <!-- Main row -->
     <div class="row">

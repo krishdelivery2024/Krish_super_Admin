@@ -17,6 +17,15 @@
 			$db->sql($sql_query);
 			// store result 
 			$res_slot=$db->getResult();
+
+        $sql_query = "SELECT id, name FROM zone ORDER BY name ASC";
+        $db->sql($sql_query);
+        $res_zone=$db->getResult();
+
+        $my_zone_scope = $fn->get_zone_scope($_SESSION['id']);
+        if(!empty($my_zone_scope)){
+            $res_zone = array_values(array_filter($res_zone, function($z) use ($my_zone_scope){ return in_array((int)$z['id'], $my_zone_scope); }));
+        }
 ?>
 <style>
 .uppercase {
@@ -73,6 +82,18 @@
                         </select>
 					</div>
 
+                    <?php if(isset($_SESSION['role']) && $_SESSION['role'] != 'seller'){ ?>
+                    <div class="col-md-3  form-group">
+                    <label for="filter_zone" class="control-label">Filter By Zone:</label>
+                        <select id="filter_zone" name="filter_zone" placeholder="Select Zone" class="form-control">
+                            <option value="">All Zones</option>
+                            <?php if(!empty($res_zone)){ foreach($res_zone as $rz){ ?>
+                                <option value="<?=$rz['id']?>"><?=htmlspecialchars($rz['name'])?></option>
+                            <?php }} ?>
+                        </select>
+					</div>
+                    <?php } ?>
+
                     <div class="col-md-3  form-group" style="display:none;">
                     <label for="filter_slot" class="control-label">Filter By Slot:</label>
                       <select id="filter_slot" name="filter_slot" placeholder="Select Slot" required class="form-control">
@@ -120,7 +141,8 @@
                                 <tr>
     								<th data-field="id" data-sortable='true'>O.ID</th>
 									<th data-field="user_id" data-sortable='true' data-visible="false">User ID</th>
-									 <th data-field="qty" data-sortable='true' data-visible="false">Qty</th>
+									<th data-field="qty" data-sortable='true' data-visible="false">Qty</th>
+									 <th data-field="zone_name" data-sortable='true'>Zone</th>
 									 <?php if(isset($_SESSION['role']) && $_SESSION['role'] != 'seller'){ ?>
 									 <th data-field="sname" data-sortable='true'>V.Name</th>
 									 <th data-field="smobile" data-sortable='true'>V.Mob.</th>

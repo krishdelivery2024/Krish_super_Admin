@@ -433,10 +433,10 @@ session_start();
 				</li>
 				<?php endif; ?>
 				
-				<?php if(!$is_sub_admin || !empty($permissions['locations']['read'])): ?>
-				<li <?php if($page=="Cities" || $page=="Areas" || $page=="State" || $page=="Routes"){?>class="active"<?php } ?>>
+				<?php if(!$is_sub_admin || !empty($permissions['locations']['read']) || !empty($permissions['zones']['read'])): ?>
+				<li <?php if($page=="Cities" || $page=="Areas" || $page=="State" || $page=="Routes" || $page=="Zones"){?>class="active"<?php } ?>>
 					<a class="waves-effect parent-item js__control" href="#"><i class="menu-icon ti-location-pin"></i><span>Location</span><span class="menu-arrow fa fa-angle-down"></span></a>
-					<ul class="sub-menu js__content" <?php if($page=="Cities" || $page=="Areas" || $page=="State" || $page=="Routes"){?>style="display: block;"<?php } ?>>
+					<ul class="sub-menu js__content" <?php if($page=="Cities" || $page=="Areas" || $page=="State" || $page=="Routes" || $page=="Zones"){?>style="display: block;"<?php } ?>>
 						<li <?php if($page=="State"){?>class="current"<?php } ?>><a <?php if($page=="State"){?>class="active"<?php } ?> href="state.php">States</a></li>				
 						<li <?php if($page=="Cities"){?>class="current"<?php } ?>><a <?php if($page=="Cities"){?>class="active"<?php } ?> href="city.php">Cities</a></li>
 					    <li <?php if($page=="Areas"){?>class="current"<?php } ?>><a <?php if($page=="Areas"){?>class="active"<?php } ?> href="areas.php">Area</a></li>
