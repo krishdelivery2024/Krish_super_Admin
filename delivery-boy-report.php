@@ -41,6 +41,8 @@ $(function() {
                 { field: 'id', title: 'ID' },
                 { field: 'delivery_boy_name', title: 'Delivery Boy Name' },
                 { field: 'delivery_boy_mobile', title: 'Delivery Boy Mobile' },
+                { field: 'zone_name', title: 'Order Zone' },
+                { field: 'delivery_boy_zone_name', title: "Boy's Zone" },
                 { field: 'product_details', title: 'Product / Qty / Unit', formatter: exportListFormatter },
                 { field: 'discounted_price', title: 'Discounted Price', formatter: exportListFormatter },
                 { field: 'delivery_charge', title: 'Delivery Charge' },
@@ -77,8 +79,8 @@ $(document).ready(function(){
         $('#delivery_boy_table').bootstrapTable('refresh');
     });
 
-    // Payment method / delivery boy dropdowns trigger a table refresh
-    $(document).on('change', '#db_payment_method_filter, #db_boy_filter', function(){
+    // Payment method / delivery boy / zone dropdowns trigger a table refresh
+    $(document).on('change', '#db_payment_method_filter, #db_boy_filter, #db_zone_filter', function(){
         $('#delivery_boy_table').bootstrapTable('refresh');
     });
 });
@@ -89,6 +91,9 @@ function queryParams_delivery_boy(p){
         "search": $('#db_keyword').val(),
         "payment_method": $('#db_payment_method_filter').val(),
         "delivery_boy_id": $('#db_boy_filter').val(),
+        // Empty string means "all zones"; "0" is the explicit
+        // unassigned selection and must survive as 0, not be dropped.
+        "zone_id": $('#db_zone_filter').val(),
         limit: p.limit,
         sort: p.sort,
         order: p.order,

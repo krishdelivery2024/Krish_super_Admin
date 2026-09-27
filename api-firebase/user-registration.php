@@ -282,7 +282,11 @@ if(isset($_POST['type']) && $_POST['type'] != '' && $_POST['type'] == 'edit-prof
     $city   = $db->escapeString($_POST['city_id']);
     $area   = $db->escapeString($_POST['area_id']);
     $street = $db->escapeString($_POST['street']);
-    $address = $db->escapeString($_POST['street']);
+    // Older clients only send `street`, so the address falls back to it rather
+    // than going stale from whatever was stored at registration time.
+    $address = (isset($_POST['address']) && trim($_POST['address']) !== '')
+        ? $db->escapeString($_POST['address'])
+        : $street;
     $pincode = $db->escapeString($_POST['pincode']);
     $dob = $db->escapeString($_POST['dob']);
 	$latitude 	= (isset($_POST['latitude']) && !empty($_POST['latitude']))?$db->escapeString($_POST['latitude']):"0";
@@ -294,7 +298,7 @@ if(isset($_POST['type']) && $_POST['type'] != '' && $_POST['type'] == 'edit-prof
 
     if (!empty($res)) {
     
-		$sql = 'UPDATE `users` SET `name`="'.$name.'",`email`="'.$email.'",`dob`="'.$dob.'",`state`="'.$state.'",`city`="'.$city.'",`area`="'.$area.'",`street`="'.$street.'",`pincode`="'.$pincode.'",`latitude`="'.$latitude.'",`longitude`="'.$longitude.'" WHERE `id`='.$id;
+		$sql = 'UPDATE `users` SET `name`="'.$name.'",`email`="'.$email.'",`dob`="'.$dob.'",`state`="'.$state.'",`city`="'.$city.'",`area`="'.$area.'",`street`="'.$street.'",`address`="'.$address.'",`pincode`="'.$pincode.'",`latitude`="'.$latitude.'",`longitude`="'.$longitude.'" WHERE `id`='.$id;
 		$db->sql($sql);
 		$db->getResult();
 

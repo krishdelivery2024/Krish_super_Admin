@@ -94,6 +94,27 @@
                         </div>
                         <?php } ?>
 
+                        <!-- Zone filter. "Unassigned" is a real selection, not
+                             filler: orders placed before zones existed carry a
+                             NULL zone_id and would otherwise be unreachable. -->
+                        <div class="col-md-2 form-group">
+                            <label for="zone_filter" class="control-label">Zone</label>
+                            <select class="form-control" id="zone_filter" name="zone_id">
+                                <option value="">All Zones</option>
+                                <option value="0">Unassigned (no zone)</option>
+                                <?php
+                                    $db->sql("SELECT id, name FROM zone ORDER BY name ASC");
+                                    $zone_list = $db->getResult();
+                                    if (is_array($zone_list)) {
+                                        foreach ($zone_list as $zone_row) {
+                                            echo '<option value="' . intval($zone_row['id']) . '">'
+                                                . htmlspecialchars($zone_row['name'], ENT_QUOTES) . '</option>';
+                                        }
+                                    }
+                                ?>
+                            </select>
+                        </div>
+
 				        <div class="col-md-2 form-group" style="padding-top:25px;">
 				            <span class="export">Export Data</span>
 				        </div>
@@ -130,6 +151,7 @@
                             <th data-field="user_mobile" data-sortable="true">User Mobile</th>
                             <th data-field="address" data-sortable="true">Address</th>
                             <th data-field="product_details" data-formatter="productListFormatter">Product / Qty / Unit</th>
+                            <th data-field="zone_name" data-sortable="true">Zone</th>
                             <th data-field="order_date" data-sortable="true">Order Date</th>
                             <?php if(!$is_seller) { ?>
                             <th data-field="vendor_price" data-formatter="priceListFormatter">Vendor Price</th>

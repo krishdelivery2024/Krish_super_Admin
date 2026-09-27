@@ -62,7 +62,24 @@ if ((isset($_POST['add-image'])) && ($_POST['add-image'] == 1)) {
 	$type = $db->escapeString($_POST['type']);
 	$section_type = $db->escapeString($_POST['section_type']);
 	$id = ($type != 'default')?$_POST[$type]:"0";
-// 	echo $id;
+
+	// Zone targeting. Blank/absent/invalid means "all zones", which is stored
+	// as NULL and is how every pre-existing slider row behaves. The zone id is
+	// checked against the zone table so a stale form cannot orphan a slider
+	// onto a zone that no longer exists.
+	$zone_id = 0;
+	if(isset($_POST['zone_id']) && trim($_POST['zone_id']) !== '' && is_numeric($_POST['zone_id'])){
+		$zone_id = (int)$_POST['zone_id'];
+	}
+	if($zone_id > 0){
+		$db->sql("SELECT id FROM zone WHERE id = ".$zone_id." AND status = 1");
+		if(count($db->getResult()) != 1){
+			$zone_id = 0;
+		}
+	}
+	$zone_column = ($zone_id > 0) ? "'".$zone_id."'" : 'NULL';
+ // 	echo $id;
+
 	
 	// create array variable to handle error
 	$error = array();
@@ -95,7 +112,7 @@ if ((isset($_POST['add-image'])) && ($_POST['add-image'] == 1)) {
 		
 		// insert new data to menu table
 		$upload_image = 'upload/slider/'.$image;
-		$sql = "INSERT INTO `slider`(`image`,`type`, `type_id`,`slider`,`section_type`) VALUES ('$upload_image','".$type."','".$id."','".$slider."','".$section_type."')";
+		$sql = "INSERT INTO `slider`(`image`,`type`, `type_id`,`slider`,`section_type`,`zone_id`) VALUES ('$upload_image','".$type."','".$id."','".$slider."','".$section_type."',".$zone_column.")";
 // 		echo $sql;
 		// echo "a";
 		// echo $sql;

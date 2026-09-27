@@ -91,6 +91,27 @@
                             </select>
                         </div>
 
+                        <!-- Zone filter. "Unassigned" is a real selection, not
+                             filler: orders placed before zones existed carry a
+                             NULL zone_id and would otherwise be unreachable. -->
+                        <div class="col-md-2 form-group">
+                            <label for="db_zone_filter" class="control-label">Zone</label>
+                            <select class="form-control" id="db_zone_filter" name="zone_id">
+                                <option value="">All Zones</option>
+                                <option value="0">Unassigned (no zone)</option>
+                                <?php
+                                    $db->sql("SELECT id, name FROM zone ORDER BY name ASC");
+                                    $zone_list = $db->getResult();
+                                    if (is_array($zone_list)) {
+                                        foreach ($zone_list as $zone_row) {
+                                            echo '<option value="' . intval($zone_row['id']) . '">'
+                                                . htmlspecialchars($zone_row['name'], ENT_QUOTES) . '</option>';
+                                        }
+                                    }
+                                ?>
+                            </select>
+                        </div>
+
 				        <div class="col-md-2 form-group" style="padding-top:25px;">
 				            <span class="export_db">Export Data</span>
 				        </div>
@@ -121,6 +142,8 @@
                             <th data-field="id" data-sortable="true">ID</th>
                             <th data-field="delivery_boy_name" data-sortable="true">Delivery Boy Name</th>
                             <th data-field="delivery_boy_mobile" data-sortable="true">Delivery Boy Mobile</th>
+                            <th data-field="zone_name" data-sortable="true">Order Zone</th>
+                            <th data-field="delivery_boy_zone_name" data-sortable="true">Boy's Zone</th>
                             <th data-field="product_details" data-formatter="productListFormatter">Product / Qty / Unit</th>
                             <th data-field="discounted_price" data-formatter="priceListFormatter">Discounted Price</th>
                             <th data-field="delivery_charge" data-sortable="true">Delivery Charge</th>

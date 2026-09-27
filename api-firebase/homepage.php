@@ -50,8 +50,42 @@ if(isset($_POST['accesskey'])) {
     		$temp1[] = $temp;
     	}
     	$data['offers'] = $temp1;
-    	
-    	$sql = 'select * from slider where section_type=1 order by id desc';
+
+		// Resolve the caller's zone from the coordinates the app already knows.
+		// This is the same point-in-polygon path food orders use, so the home
+		// carousel always matches the zone the customer will actually be billed
+		// for. Works for both location modes in the app (saved address and
+		// "current location"), because both send latitude/longitude.
+		$slider_zone_id = null;
+		$req_lat = isset($_POST['latitude']) ? trim($_POST['latitude']) : '';
+		$req_lng = isset($_POST['longitude']) ? trim($_POST['longitude']) : '';
+		if ($req_lat !== '' && $req_lng !== '' && is_numeric($req_lat) && is_numeric($req_lng)) {
+			$resolved_zone = $fn->get_zone_id_from_latlng($req_lat, $req_lng);
+			if (!empty($resolved_zone)) {
+				$slider_zone_id = (int)$resolved_zone;
+			}
+		}
+
+		// Zone sliders are shown ahead of the global (zone_id IS NULL) ones so a
+		// zone can lead with its own offers while still sharing the common
+		// banners. When the customer resolves to no zone - or sends no
+		// coordinates, as older app builds do - only the global sliders are
+		// returned, which is exactly the pre-existing behaviour. The explicit
+		// "zone_id IS NULL" matters here: without it an unresolved zone would
+		// fall back to every row and leak other zones' banners.
+		if ($slider_zone_id) {
+			$slider_where_1 = "section_type=1 AND (zone_id = ".(int)$slider_zone_id." OR zone_id IS NULL)";
+			$slider_where_2 = "section_type=2 AND (zone_id = ".(int)$slider_zone_id." OR zone_id IS NULL)";
+			// (zone_id IS NULL) is 0 for zone rows and 1 for global rows, so
+			// ascending puts the zone rows first.
+			$slider_order = " ORDER BY (zone_id IS NULL) ASC, id DESC";
+		} else {
+			$slider_where_1 = "section_type=1 AND zone_id IS NULL";
+			$slider_where_2 = "section_type=2 AND zone_id IS NULL";
+			$slider_order = " ORDER BY id DESC";
+		}
+
+                $sql = 'select * from slider where '.`$slider_where_1.`$slider_order;
     	$db->sql($sql);
     	$result =$db->getResult();
     	$temp = $temp1 = array();
@@ -81,7 +115,7 @@ if(isset($_POST['accesskey'])) {
     	}
     	$data['slider_section_one'] = $temp1;
 
-		$sql = 'select * from slider where section_type=2 order by id desc';
+		$sql = 'select * from slider where '.$slider_where_2.$slider_order;
     	$db->sql($sql);
     	$result =$db->getResult();
     	$temp = $temp1 = array();
