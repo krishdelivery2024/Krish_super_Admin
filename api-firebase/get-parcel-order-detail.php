@@ -43,7 +43,7 @@ if (!empty($user_id)) {
     $where_user = " AND pr.user_id = '" . $user_id . "'";
 }
 
-$sql = "SELECT pr.*, (SELECT name FROM users u WHERE u.id = pr.user_id) AS user_name, (SELECT mobile FROM users u WHERE u.id = pr.user_id) AS user_mobile, (SELECT name FROM delivery_boys db WHERE db.id = pr.delivery_boy_id) AS delivery_boy_name, (SELECT mobile FROM delivery_boys db WHERE db.id = pr.delivery_boy_id) AS delivery_boy_mobile FROM `parcel_requests` pr WHERE pr.id = '" . $order_id . "'" . $where_user;
+$sql = "SELECT pr.*, (SELECT name FROM users u WHERE u.id = pr.user_id) AS user_name, (SELECT mobile FROM users u WHERE u.id = pr.user_id) AS user_mobile, (SELECT name FROM delivery_boys db WHERE db.id = pr.delivery_boy_id) AS delivery_boy_name, (SELECT mobile FROM delivery_boys db WHERE db.id = pr.delivery_boy_id) AS delivery_boy_mobile, (SELECT profile FROM delivery_boys db WHERE db.id = pr.delivery_boy_id) AS delivery_boy_image FROM `parcel_requests` pr WHERE pr.id = '" . $order_id . "'" . $where_user;
 $db->sql($sql);
 $res = $db->getResult();
 
@@ -55,6 +55,11 @@ if (count($res) == 0) {
 }
 
 $row = $res[0];
+// Sent as a path relative to the site root rather than a full URL, so the app can
+// build the address from its own base URL. That base differs per environment
+// (adb reverse proxy locally, LAN address, production domain) and a hardcoded
+// host here would point the device at the wrong place.
+$row['delivery_boy_image'] = !empty($row['delivery_boy_image']) ? $row['delivery_boy_image'] : '';
 $images = (!empty($row['parcel_image'])) ? array_filter(array_map('trim', explode(',', $row['parcel_image']))) : array();
 $row['parcel_images'] = array_map(function($img){ return DOMAIN_URL . $img; }, array_values($images));
 

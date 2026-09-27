@@ -8,6 +8,7 @@ $db->sql("SET NAMES 'utf8'");
 $auth_username = $db->escapeString($_SESSION["user"]);
 
 include_once('../includes/custom-functions.php');
+include_once('../includes/zone-functions.php');
 $fn = new custom_functions;
 $function = new custom_functions;
 $permissions = $fn->get_permissions($_SESSION['id']);
@@ -19,6 +20,10 @@ if(isset($config['system_timezone']) && isset($config['system_timezone_gmt'])){
     date_default_timezone_set('Asia/Kolkata');
     $db->sql("SET `time_zone` = '+05:30'");
 }
+/**
+ * Per-zone fee inputs are parsed by zn_read_fee_inputs() in
+ * includes/zone-functions.php, which is unit testable on its own.
+ */
 function upload_compressed_image($file, $prefix, $max_width = 800){
     if (empty($file) || !is_array($file) || !isset($file['error'])) {
         return '';
@@ -405,8 +410,13 @@ if(isset($_POST['add_zone']) && $_POST['add_zone']==1){
         return false;
     }
     $poly = $db->escapeString(json_encode($decoded_poly));
-    
-    $sql = "INSERT INTO zone (name,polygon,status) VALUES('$name','$poly','$status')";
+    $fee_problems = array();
+    $zone_fees = zn_read_fee_inputs($_POST, $fee_problems);
+    if (!empty($fee_problems)) {
+        echo '<label class="alert alert-danger">Zone fees must be zero or a positive number. The zone was saved using the global fees.</label>';
+    }
+
+    $sql = "INSERT INTO zone (name,polygon,status,platform_fee,convenience_fee) VALUES('$name','$poly','$status',".$zone_fees['platform_fee'].",".$zone_fees['convenience_fee'].")";
     if($db->sql($sql)){
         echo '<label class="alert alert-success">Zone Added Successfully!</label>';
     }else{
@@ -436,8 +446,13 @@ if(isset($_POST['update_zone']) && $_POST['update_zone']==1){
         return false;
     }
     $polygon = $db->escapeString(json_encode($decoded_poly));
+    $fee_problems = array();
+    $zone_fees = zn_read_fee_inputs($_POST, $fee_problems);
+    if (!empty($fee_problems)) {
+        echo '<label class="alert alert-danger">Zone fees must be zero or a positive number. The zone was saved using the global fees.</label>';
+    }
 
-    $sql = "UPDATE zone SET name='$name', polygon='$polygon', status='$status' WHERE id=".$id;
+    $sql = "UPDATE zone SET name='$name', polygon='$polygon', status='$status', platform_fee=".$zone_fees['platform_fee'].", convenience_fee=".$zone_fees['convenience_fee']." WHERE id=".$id;
     if($db->sql($sql)){
         echo '<label class="alert alert-success">Zone Updated Successfully!</label>';
     }else{

@@ -98,4 +98,42 @@ if (!function_exists('zn_clean_polygon')) {
     {
         return count(zn_clean_polygon($polygon)) >= 3;
     }
+
+    /**
+     * Read the per-zone fee inputs from an add/update zone submission and return
+     * them ready to splice into SQL.
+     *
+     * A blank field means "inherit the global fee", stored as SQL NULL. That is
+     * the point of the feature: leaving a field alone keeps the zone on the
+     * global amount instead of silently dropping it to zero. A typed 0 is a real
+     * value and is stored as 0.00, which is how an admin switches one fee off
+     * for a single zone.
+     *
+     * Anything that is not a non-negative number is treated as blank, so a typo
+     * cannot end up stored as a negative or non-numeric fee. $problems collects
+     * the names of the fields that were rejected so the caller can warn.
+     *
+     * @param array $post    typically $_POST
+     * @param array $problems filled with the field names that were rejected
+     * @return array 'platform_fee' and 'convenience_fee' as SQL fragments
+     */
+    function zn_read_fee_inputs(array $post, array &$problems = []): array
+    {
+        $out = array('platform_fee' => 'NULL', 'convenience_fee' => 'NULL');
+        foreach (array('platform_fee', 'convenience_fee') as $field) {
+            if (!isset($post[$field])) {
+                continue;
+            }
+            $raw = trim((string)$post[$field]);
+            if ($raw === '') {
+                continue;
+            }
+            if (!is_numeric($raw) || (float)$raw < 0) {
+                $problems[] = $field;
+                continue;
+            }
+            $out[$field] = number_format((float)$raw, 2, '.', '');
+        }
+        return $out;
+    }
 }

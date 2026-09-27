@@ -129,23 +129,63 @@ if(!empty($pickup_time)){
 
 $otp = str_pad((string)mt_rand(0, 9999), 4, '0', STR_PAD_LEFT);
 
+// Authoritative pricing.
+// The client sends distance_km / per_km_price / base_price / total_price only so
+// the checkout screen can show a live preview. Everything below is recomputed
+// here from the parcel_settings table and the routed driving distance, so a
+// tampered request cannot change what the customer is actually charged.
+if(empty($drop_lat) || empty($drop_lng) || !is_numeric($drop_lat) || !is_numeric($drop_lng)){
+	$response['error'] = true;
+	$response['message'] = "Drop location coordinates are required. Please select the drop point on the map.";
+	print_r(json_encode($response));
+	return false;
+}
+
+$sql_parcel_pricing = "SELECT per_km_price, base_price FROM parcel_settings ORDER BY id ASC LIMIT 1";
+$db->sql($sql_parcel_pricing);
+$parcel_pricing_res = $db->getResult();
+$per_km_price_db = (isset($parcel_pricing_res[0]['per_km_price']) && is_numeric($parcel_pricing_res[0]['per_km_price']))
+	? (float)$parcel_pricing_res[0]['per_km_price'] : 0;
+$base_price_db = (isset($parcel_pricing_res[0]['base_price']) && is_numeric($parcel_pricing_res[0]['base_price']))
+	? (float)$parcel_pricing_res[0]['base_price'] : 0;
+
+// Driving distance, not straight line. Falls back to haversine if Google is
+// unreachable, which is why distance_source is kept for auditing.
+$road_distance = $fn->get_road_distance_km($pickup_lat, $pickup_lng, $drop_lat, $drop_lng);
+$distance_km_db = (float)$road_distance['km'];
+$distance_source = $road_distance['source'];
+
+// First 1 km is free, then the whole distance is charged. This mirrors the
+// quote endpoint so the preview and the charge cannot drift apart.
+$km_charge = ($distance_km_db <= 1.0) ? 0.0 : ($distance_km_db * $per_km_price_db);
+$total_price_db = round($base_price_db + $km_charge, 2);
+
+// Discard whatever the client claimed and use the server figures.
+$distance_km 	= $distance_km_db;
+$per_km_price 	= $per_km_price_db;
+$base_price 	= $base_price_db;
+$total_price 	= $total_price_db;
+
 // Server-side computation of platform fee, GST & grand total (authoritative, not trusted from client)
 $sql_settings = "SELECT value FROM settings WHERE variable = 'system_timezone'";
 $db->sql($sql_settings);
 $settings_res = $db->getResult();
-$platform_fee_value = 0;
 $tax_value = 0;
-$convenience_fee_value = 0;
+$sys_settings = array();
 if (!empty($settings_res)) {
 	$sys_settings = json_decode($settings_res[0]['value'], true);
-	$platform_fee_value = isset($sys_settings['platform_fee']) ? floatval($sys_settings['platform_fee']) : 0;
+	if (!is_array($sys_settings)) { $sys_settings = array(); }
 	$tax_value = isset($sys_settings['tax']) ? floatval($sys_settings['tax']) : 0;
-	$convenience_fee_value = isset($sys_settings['convenience_fee']) ? floatval($sys_settings['convenience_fee']) : 0;
 }
-$platform_fee = round($platform_fee_value, 2);
-$convenience_fee = round((floatval($total_price) * $convenience_fee_value) / 100, 2);
-$gst = round((floatval($total_price) + $convenience_fee + $platform_fee) * $tax_value / 100, 2);
-$grand_total = round(floatval($total_price) + $convenience_fee + $platform_fee + $gst, 2);
+
+// Fees come from the pickup zone, the same zone stored on this request and the
+// same zone the quote used, so the preview and the charge cannot disagree. A
+// zone with no override falls back to the global setting.
+$zone_fees = $fn->split_zone_fees($total_price, $pickup_zone, $sys_settings);
+$platform_fee = $zone_fees['platform_fee'];
+$convenience_fee = $zone_fees['convenience_fee'];
+$gst = $zone_fees['gst'];
+$grand_total = $zone_fees['grand_total'];
 
 $data = array(
 	'user_id' 		=> $user_id,
@@ -208,7 +248,15 @@ if (!empty($last_id) && $last_id > 0) {
 
 $response["error"] 	= false;
 $response["message"] = "Parcel pickup request submitted successfully";
-$response["data"] 	= array('id' => $last_id, 'otp' => $otp);
+$response["data"] 	= array(
+	'id' => $last_id,
+	'otp' => $otp,
+	// Echoed back so the app and the audit trail both see the distance that was
+	// actually charged, which may differ from the preview if the pin moved.
+	'distance_km' => $distance_km,
+	'total_price' => $total_price,
+	'grand_total' => $grand_total
+);
 print_r(json_encode($response));
 return false;
 ?>

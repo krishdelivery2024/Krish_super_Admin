@@ -116,7 +116,7 @@
               </div><!-- /.box -->
              </div>
         <!-- Left col -->
-        <div class="col-xs-6">
+        <div class="col-md-12">
             <?php if($permissions['delivery_boys']['read']==1){?>
             <div class="box">
                 <div class="box-header">

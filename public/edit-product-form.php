@@ -184,8 +184,11 @@
                     $temp = explode('.',$filename);
                     $filename = microtime(true) . '.' . end($temp);
                     $file_data[] = $target_path.''.$filename;
-                    if(!move_uploaded_file($_FILES["other_images"]["tmp_name"][$i], $target_path.''.$filename))
+                    if(!move_uploaded_file($_FILES["other_images"]["tmp_name"][$i], $target_path.''.$filename)){
                         echo "{$_FILES['image']['name'][$i]} not uploaded<br/>";
+                    }else{
+                        $fn->compress_image_file($target_path.''.$filename);
+                    }
                 }
                 if(!empty($other_images)){
                     $arr_old_images = json_decode($other_images);
@@ -218,6 +221,10 @@
                     
                     // upload new image
                     $upload = move_uploaded_file($_FILES['image']['tmp_name'], 'upload/images/'.$image);
+                    // seller may pick a file over 300 KB, so bring the stored copy down to size
+                    if($upload){
+                        $fn->compress_image_file('upload/images/'.$image);
+                    }
       
                     $upload_image = 'upload/images/'.$image;
                     $sql_query = "UPDATE products SET name = '$name' ,slug = '$slug' , category_id = '$category_id' ,subcategory_id = '$subcategory_id', brand_id = '$brand_id',price_type='$price_type', hsn = '$hsn',sgst = '$sgst',cgst = '$cgst',igst = '$igst', image = '$upload_image', description = '$description', available_time = '$available_time', min_stock = '$min_stock', min_order_qty = '$min_order_qty', status = '$product_status',  indicator = '$indicator'  WHERE id = $ID";
@@ -1009,11 +1016,13 @@
                         <div class="form-group">
                             <label for="exampleInputFile">Image&nbsp;&nbsp;&nbsp;*Please choose square image of larger than 350px*350px & smaller than 550px*550px.</label><?php echo isset($error['image']) ? $error['image'] : '';?>
                             <input type="file" name="image" id="image" title="Please choose square image of larger than 350px*350px & smaller than 550px*550px."/><br />
+<div id="image_size_note" class="help-block"></div>
                             <img src="<?php echo $data['image']; ?>" width="210" height="160"/>
                         </div>
                         <div class="form-group">
                             <label for="exampleInputFile">Other Images *Please choose square image of larger than 350px*350px & smaller than 550px*550px.</label><?php echo isset($error['other_images']) ? $error['other_images'] : '';?>
                             <input type="file" name="other_images[]" id="other_images" multiple title="Please choose square image of larger than 350px*350px & smaller than 550px*550px."/><br />
+<div id="other_images_size_note" class="help-block"></div>
                             <?php
                             if(!empty($data['other_images'])){
                                 $other_images = json_decode($data['other_images']);
@@ -1086,25 +1095,58 @@
 </div>
 <div class="separator"> </div>
 <script>
-	    var uploadField = document.getElementById("other_images");
+    // Images bigger than 300 KB are accepted here and compressed to 300 KB on the
+    // server, so the seller is only told what is going to happen to the file.
+    var IMAGE_MAX_BYTES = 300024;
 
-        uploadField.onchange = function() {
-            if(this.files[0].size > 300024){
-               alert("Allowed Max File size 300 KB");
-               this.value = "";
-            };
-        };
-        var uploadField = document.getElementById("image");
+    function describeImageSelection(input, noteId){
+        var note = document.getElementById(noteId);
+        if(!note){ return; }
+        if(!input.files || input.files.length === 0){
+            note.innerHTML = "";
+            return;
+        }
+        var over = [];
+        for(var i = 0; i < input.files.length; i++){
+            if(input.files[i].size > IMAGE_MAX_BYTES){
+                over.push(input.files[i].name + " (" + Math.round(input.files[i].size/1024) + " KB)");
+            }
+        }
+        if(over.length > 0){
+            note.innerHTML = '<span class="text-warning">' + over.length +
+                ' image(s) over 300 KB will be compressed automatically: ' +
+                over.join(", ") + '</span>';
+        }else{
+            note.innerHTML = '<span class="text-success">All images are within 300 KB.</span>';
+        }
+    }
 
-        uploadField.onchange = function() {
-            if(this.files[0].size > 300024){
-               alert("Allowed Max File size 300 KB");
-               this.value = "";
-            };
-        };
-	</script>
+    var otherImagesField = document.getElementById("other_images");
+    otherImagesField.onchange = function() {
+        describeImageSelection(this, "other_images_size_note");
+    };
+
+    var mainImageField = document.getElementById("image");
+    mainImageField.onchange = function() {
+        describeImageSelection(this, "image_size_note");
+    };
+</script>
 <script>
     if ( window.history.replaceState ) {
         window.history.replaceState( null, null, window.location.href );
     }
+</script>
+<script src="dist/plugin/select2/js/select2.min.js"></script>
+<script>
+	$(document).ready(function(){
+		// Select2's built-in matcher already does what we need: it lists every
+		// brand when the search box is empty, and filters as the seller types.
+		// Do NOT pass a custom matcher here - in select2 4.0.3 overriding it
+		// makes the results render blank.
+		$('#brand_id').select2({
+			width: '100%',
+			minimumResultsForSearch: 0,
+			placeholder: "type in brand name to search"
+		});
+	});
 </script>
