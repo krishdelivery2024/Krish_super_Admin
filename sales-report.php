@@ -49,6 +49,7 @@ $(function() {
         exportColumns.push({ field: 'user_mobile', title: 'User Mobile' });
         exportColumns.push({ field: 'address', title: 'Address' });
         exportColumns.push({ field: 'product_details', title: 'Product / Qty / Unit', formatter: exportListFormatter });
+        exportColumns.push({ field: 'zone_name', title: 'Zone' });
         exportColumns.push({ field: 'order_date', title: 'Order Date' });
         if (!isSeller) {
             exportColumns.push({ field: 'vendor_price', title: 'Vendor Price', formatter: exportListFormatter });
@@ -90,8 +91,8 @@ $(document).ready(function(){
         $('#sales_table').bootstrapTable('refresh');
     });
 
-    // Payment method / seller dropdowns trigger a table refresh
-    $(document).on('change', '#payment_method_filter, #seller_filter', function(){
+    // Payment method / seller / zone dropdowns trigger a table refresh
+    $(document).on('change', '#payment_method_filter, #seller_filter, #zone_filter', function(){
         $('#sales_table').bootstrapTable('refresh');
     });
 });
@@ -102,6 +103,9 @@ function queryParams_sales(p){
         "search": $('#sales_keyword').val(),
         "payment_method": $('#payment_method_filter').val(),
         "seller_id": $('#seller_filter').val(),
+        // Empty string means "all zones"; "0" is the explicit
+        // unassigned selection and must survive as 0, not be dropped.
+        "zone_id": $('#zone_filter').val(),
         limit: p.limit,
         sort: p.sort,
         order: p.order,

@@ -23,7 +23,21 @@ if(isset($_POST['accesskey'])) {
 	$user_id = (isset($_POST['user_id']))?$db->escapeString($fn->xss_clean($_POST['user_id'])):"";
 	if($access_key_received == $access_key){
 		
-		$sql_query = "SELECT * ,(select name from state s where s.id=u.state) as state_name ,(select name from city c where c.id=u.city) as city_name ,(select name from area a where a.id=u.area) as area_name
+		/* The state/city/area columns are supposed to hold ids, but older records
+			store the plain name instead. Resolving a purely numeric value through
+			the lookup tables keeps the real name, while a non numeric value is
+			taken as the name itself. A numeric value with no matching row stays NULL
+			so the app asks for a proper selection instead of showing a bare id. */
+		$sql_query = "SELECT * ,
+			CASE WHEN u.state REGEXP '^[0-9]+$' THEN (select name from state s where s.id=u.state)
+				WHEN TRIM(u.state) = '' OR u.state = '0' THEN NULL
+				ELSE TRIM(u.state) END as state_name ,
+			CASE WHEN u.city REGEXP '^[0-9]+$' THEN (select name from city c where c.id=u.city)
+				WHEN TRIM(u.city) = '' OR u.city = '0' THEN NULL
+				ELSE TRIM(u.city) END as city_name ,
+			CASE WHEN u.area REGEXP '^[0-9]+$' THEN (select name from area a where a.id=u.area)
+				WHEN TRIM(u.area) = '' OR u.area = '0' THEN NULL
+				ELSE TRIM(u.area) END as area_name
 			FROM users u WHERE status = '1' AND id ='$user_id'  
 			ORDER BY id ASC ";
 		$db->sql($sql_query);

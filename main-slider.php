@@ -99,9 +99,19 @@ include"header.php";?>
         <?php
             include_once('includes/functions.php');
             
+            // Zone list for the slider form. Leave "All Zones" blank to keep a
+            // slider global; picking a zone restricts it to that zone and the
+            // app shows it ahead of the global ones.
+            $sql = "SELECT id, name FROM zone WHERE status=1 ORDER BY name ASC";
+            $db->sql($sql);
+            $slider_zones = $db->getResult();
 
-            
-          
+            // Zone-scoped admins only see zones they are allowed to manage,
+            // same as delivery-boy-table.php.
+            $slider_zone_scope = $fn->get_zone_scope(isset($_SESSION['id']) ? $_SESSION['id'] : 0);
+            if(!empty($slider_zone_scope)){
+                $slider_zones = array_values(array_filter($slider_zones, function($z) use ($slider_zone_scope){ return in_array((int)$z['id'], $slider_zone_scope); }));
+            }
             ?>
             <div class="row">
                 <div class="col-md-5">
@@ -198,6 +208,16 @@ include"header.php";?>
                                     </select>
                                 </div>
                                 <div class="form-group">
+                                    <label for="zone_id">Zone :</label>
+                                    <select name="zone_id" id="zone_id" class="form-control">
+                                        <option value="">All Zones (show everywhere)</option>
+                                        <?php foreach($slider_zones as $zone){ ?>
+                                            <option value="<?=$zone['id']?>"><?=$zone['name']?></option>
+                                        <?php } ?>
+                                    </select>
+                                    <p class="help-block">Choose a zone to show this image only to customers in that zone. Zone images appear before the All Zones images.</p>
+                                </div>
+                                <div class="form-group">
                                     <label for="image">Slider Image : <small> ( Recommended Size : 1024 x 512 pixels for App Slider)</small></label>
                                     <input type='file' name="image" id="image" required/> 
                                 </div>
@@ -229,6 +249,7 @@ include"header.php";?>
                                 <th data-field="type">Type</th>
                                 <th data-field="type_id">ID</th>
                                 <th data-field="slider">Slider</th>
+                                <th data-field="zone_name">Zone</th>
                                 <th data-field="operate">Action</th>
                             </tr>
                             </thead>

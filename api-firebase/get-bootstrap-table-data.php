@@ -1439,19 +1439,39 @@
 			$sort = $_GET['sort'];
 		if(isset($_GET['order']))
 			$order = $_GET['order'];
-		
-		if(isset($_GET['search'])){
-			$search = $_GET['search'];
-			$where = " Where `id` like '%".$search."%' OR `image` like '%".$search."%' OR `date_added` like '%".$search."%' ";
+
+		// Joining zone made the bare `id` in the search clause ambiguous
+		// (both slider and zone have one), which MySQL rejects with
+		// "Column 'id' in where clause is ambiguous" and which broke the
+		// admin table whenever bootstrap-table sent its search param. Qualify
+		// every column, and whitelist the sort field so it can no longer carry
+		// raw SQL.
+		$sortable = array(
+			'id'           => 's.id',
+			'image'        => 's.image',
+			'type'         => 's.type',
+			'type_id'      => 's.type_id',
+			'slider'       => 's.slider',
+			'section_type' => 's.section_type',
+			'date_added'   => 's.date_added',
+			'zone_id'      => 's.zone_id',
+			'zone_name'    => 'z.name',
+		);
+		$sort_sql = isset($sortable[$sort]) ? $sortable[$sort] : 's.id';
+		$order_sql = (strtoupper($order) === 'ASC') ? 'ASC' : 'DESC';
+
+		if(isset($_GET['search']) && $_GET['search'] !== ''){
+			$search = $db->escapeString($_GET['search']);
+			$where = " Where `s`.`id` like '%".$search."%' OR `s`.`image` like '%".$search."%' OR `s`.`date_added` like '%".$search."%' ";
 		}
 		
-		$sql = "SELECT COUNT(*) as total FROM `slider` ".$where;
+		$sql = "SELECT COUNT(*) as total FROM `slider` s LEFT JOIN `zone` z ON z.id = s.zone_id ".$where;
 		$db->sql($sql);
 		$res = $db->getResult();
 		foreach($res as $row)
 			$total = $row['total'];
 		
-		$sql = "SELECT * FROM `slider` ".$where." ORDER BY ".$sort." ".$order." LIMIT ".$offset.", ".$limit;
+		$sql = "SELECT s.*, z.name AS zone_name FROM `slider` s LEFT JOIN `zone` z ON z.id = s.zone_id ".$where." ORDER BY ".$sort_sql." ".$order_sql." LIMIT ".$offset.", ".$limit;
 		$db->sql($sql);
 		$res = $db->getResult();
 		
@@ -1469,6 +1489,10 @@
 			$tempRow['type_id'] = $row['type_id'];
 			$tempRow['slider'] = $row['slider'];
 			$tempRow['image'] = (!empty($row['image']))?"<a data-lightbox='slider' href='".$row['image']."'><img src='".$row['image']."' width='40'/></a>" : "No Image";
+			// NULL zone_id = the slider is global and shows in every zone.
+			$tempRow['zone_name'] = (!empty($row['zone_id']) && !empty($row['zone_name']))
+				? "<label class='label label-primary'>".$row['zone_name']."</label>"
+				: "<label class='label label-default'>All Zones</label>";
 			$tempRow['operate'] = $operate;
 			$rows[] = $tempRow;
 		}
@@ -1709,6 +1733,14 @@
 			    $tempRow['status']="<label class='label label-danger'>Deactive</label>";
             else
                 $tempRow['status']="<label class='label label-success'>Active</label>";
+			// Online/offline is toggled from the delivery boy app itself: the
+			// delivery_boy_status flag in delivery-boy/api/api-v1.php flips
+			// delivery_boys.active_status between 'true' and 'false'.
+			$is_online = (isset($row['active_status']) && $row['active_status'] == 'true');
+			$tempRow['online_status'] = $is_online
+				? "<label class='label label-success'>Online</label>"
+				: "<label class='label label-default'>Offline</label>";
+			$tempRow['online_status_value'] = $is_online ? 'true' : 'false';
 			$tempRow['operate'] = $operate;
 			$rows[] = $tempRow;
 		}
@@ -2599,6 +2631,8 @@
             'id'                  => 'o.id',
             'delivery_boy_name'   => 'db.name',
             'delivery_boy_mobile' => 'db.mobile',
+            'zone_name'           => 'z.name',
+            'delivery_boy_zone_name' => 'dz.name',
             'delivery_charge'     => 'o.delivery_charge',
             'final_total'         => 'o.final_total',
             'payment_method'      => 'o.payment_method',
@@ -2626,6 +2660,17 @@
         // ================= Delivery boy filter =================
         $delivery_boy_filter_id = !empty($_GET['delivery_boy_id']) ? (int) $_GET['delivery_boy_id'] : 0;
 
+        // ================= Zone filter =================
+        // 0 is a meaningful selection ("orders with no zone recorded"), so it
+        // cannot be used as the "no filter" sentinel. Test the raw string
+        // first: (int)"abc" is also 0, which would silently turn junk into
+        // an unassigned-only report instead of ignoring the filter.
+        $zone_filter_raw = isset($_GET['zone_id']) ? trim((string) $_GET['zone_id']) : '';
+        $zone_filter_id   = -1;
+        if ($zone_filter_raw !== '' && ctype_digit($zone_filter_raw)) {
+            $zone_filter_id = (int) $zone_filter_raw;
+        }
+
         // ================= Build extra filters once, appended to whichever WHERE branch runs =================
         $extra_filters = "";
         if (!empty($payment_method_filter)) {
@@ -2634,15 +2679,27 @@
         if ($delivery_boy_filter_id > 0) {
             $extra_filters .= " AND o.delivery_boy_id = '" . $delivery_boy_filter_id . "' ";
         }
+        // Zone filter. 0 is a real selection meaning "orders with no zone
+        // recorded" (orders that predate the column), -1/absent means no filter.
+        if ($zone_filter_id === 0) {
+            $extra_filters .= " AND o.zone_id IS NULL ";
+        } elseif ($zone_filter_id > 0) {
+            $extra_filters .= " AND o.zone_id = '" . $zone_filter_id . "' ";
+        }
      
         $select_block = "
             SELECT
                 o.id,
                 db.name             AS delivery_boy_name,
                 db.mobile           AS delivery_boy_mobile,
+                db.zone_id          AS delivery_boy_zone_id,
+                dz.name             AS delivery_boy_zone_name,
+                o.zone_id,
+                z.name              AS zone_name,
                 o.date_added,
                 o.final_total,
                 o.delivery_charge,
+                o.platform_fee,
                 o.payment_method,
                 o.active_status,
      
@@ -2682,6 +2739,12 @@
      
             LEFT JOIN delivery_boys db
                 ON db.id = o.delivery_boy_id
+
+            LEFT JOIN zone z
+                ON z.id = o.zone_id
+
+            LEFT JOIN zone dz
+                ON dz.id = db.zone_id
         ";
      
      
@@ -2760,6 +2823,12 @@
             $tempRow['id']                  = $row['id'];
             $tempRow['delivery_boy_name']   = !empty($row['delivery_boy_name']) ? $row['delivery_boy_name'] : '-';
             $tempRow['delivery_boy_mobile'] = !empty($row['delivery_boy_mobile']) ? $row['delivery_boy_mobile'] : '-';
+
+            // Zone the order was delivered to, which is the same zone the
+            // fees were charged from. The delivery boy's own assigned zone is
+            // reported alongside it because the two can legitimately differ.
+            $tempRow['zone_name'] = !empty($row['zone_name']) ? $row['zone_name'] : 'Unassigned';
+            $tempRow['delivery_boy_zone_name'] = !empty($row['delivery_boy_zone_name']) ? $row['delivery_boy_zone_name'] : '-';
      
             $tempRow['product_details'] = !empty($row['product_details'])
                 ? explode('||', $row['product_details'])
@@ -2771,7 +2840,9 @@
      
             $tempRow['delivery_charge'] = !empty($row['delivery_charge']) ? $row['delivery_charge'] : '0';
             $tempRow['final_total']     = $row['final_total'];
-            $tempRow['platform_fee']    = 2; // Static platform fee value
+            // Read from the order instead of a hardcoded 2, so a zone that
+            // overrides the platform fee reports what was actually charged.
+            $tempRow['platform_fee']    = !empty($row['platform_fee']) ? $row['platform_fee'] : '0';
 
             // NOTE: payment_method used as-is (assumed already stored as
             // "Cash on Delivery" / "Online Payment"), same as sales report.
@@ -2821,6 +2892,7 @@
             'user_mobile'     => 'us.mobile',
             'address'         => 'o.address',
             'order_date'      => 'o.date_added',
+            'zone_name'       => 'z.name',
             'final_total'     => 'o.final_total',
             'payment_method'  => 'o.payment_method',
             'active_status'   => 'o.active_status',
@@ -2848,6 +2920,17 @@
         // Only meaningful for non-seller roles; a seller session is already
         // hard-scoped to their own seller_id below.
         $seller_filter_id = !empty($_GET['seller_id']) ? (int) $_GET['seller_id'] : 0;
+
+        // ================= Zone filter =================
+        // 0 is a meaningful selection ("orders with no zone recorded"), so it
+        // cannot be used as the "no filter" sentinel. Test the raw string
+        // first: (int)"abc" is also 0, which would silently turn junk into
+        // an unassigned-only report instead of ignoring the filter.
+        $zone_filter_raw = isset($_GET['zone_id']) ? trim((string) $_GET['zone_id']) : '';
+        $zone_filter_id   = -1;
+        if ($zone_filter_raw !== '' && ctype_digit($zone_filter_raw)) {
+            $zone_filter_id = (int) $zone_filter_raw;
+        }
      
         $is_seller = (isset($_SESSION['role']) && $_SESSION['role'] == 'seller');
         $seller_id = isset($_SESSION['seller_id']) ? $_SESSION['seller_id'] : 0;
@@ -2860,6 +2943,11 @@
         if (!$is_seller && $seller_filter_id > 0) {
             $extra_filters .= " AND o.seller_id = '" . $seller_filter_id . "' ";
         }
+        if ($zone_filter_id === 0) {
+            $extra_filters .= " AND o.zone_id IS NULL ";
+        } elseif ($zone_filter_id > 0) {
+            $extra_filters .= " AND o.zone_id = '" . $zone_filter_id . "' ";
+        }
      
         // ================= COMMON SELECT / JOIN BLOCK =================
      
@@ -2871,8 +2959,11 @@
                 us.name             AS user_name,
                 us.mobile           AS user_mobile,
                 o.address,
+                o.zone_id,
+                z.name              AS zone_name,
                 o.date_added,
                 o.final_total,
+                o.platform_fee,
                 o.payment_method,
                 o.active_status,
      
@@ -2922,6 +3013,9 @@
      
             LEFT JOIN users us
                 ON us.id = o.user_id
+
+            LEFT JOIN zone z
+                ON z.id = o.zone_id
         ";
      
         // ================= DATE FILTER =================
@@ -3015,6 +3109,9 @@
             $tempRow['user_name']    = !empty($row['user_name']) ? $row['user_name'] : '-';
             $tempRow['user_mobile']  = !empty($row['user_mobile']) ? $row['user_mobile'] : '-';
             $tempRow['address']      = $row['address'];
+            // Zone the order was delivered to, i.e. the zone its fees were
+            // charged from. NULL on orders placed before zones existed.
+            $tempRow['zone_name']    = !empty($row['zone_name']) ? $row['zone_name'] : 'Unassigned';
      
             // Split the combined strings back into arrays - one bullet per
             // item. Because they were built with the same ORDER BY and no
@@ -3025,7 +3122,9 @@
      
             $tempRow['order_date']     = $row['date_added'];
             $tempRow['final_total']    = $row['final_total'];
-            $tempRow['platform_fee']   = 2; // Static platform fee value
+            // Read from the order instead of a hardcoded 2, so a zone that
+            // overrides the platform fee reports what was actually charged.
+            $tempRow['platform_fee']   = !empty($row['platform_fee']) ? $row['platform_fee'] : '0';
      
             // NOTE: payment_method is used as-is (assumed to already be
             // stored/displayed as "Cash on Delivery" / "Online Payment").

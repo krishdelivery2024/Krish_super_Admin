@@ -144,6 +144,7 @@
                             <th data-field="profile">Photo</th>
                             <th data-field="aadhaar_image">Aadhaar Photo</th>
                             <th data-field="driving_license_image">DL Photo</th>
+                            <th data-field="online_status">Online Status</th>
                             <th data-field="status">Status</th>
                             <th data-field="operate" data-events="actionEvents">Action</th>
                         </tr>
