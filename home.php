@@ -116,6 +116,15 @@ if($selected_zone > 0){
 
 /* Total Orders = Food orders + Parcel orders */
 $orders_kpi = $food_kpi + $parcel_kpi;
+
+/* Delivery Boys KPI - total / online / offline (zone filtered)
+   Source of truth: delivery_boys.active_status, set by the delivery boy app
+   via delivery-boy/api/api-v1.php (accesskey=90336&id=<id>&delivery_boy_status=1) */
+$db->sql("SELECT COUNT(*) AS total_boys_kpi, COALESCE(SUM(active_status='true'),0) AS online_boys_kpi, COALESCE(SUM(active_status='false'),0) AS offline_boys_kpi FROM delivery_boys WHERE 1=1 ".$zone_where);
+$res_db_kpi = $db->getResult();
+$boys_total_kpi = isset($res_db_kpi[0]['total_boys_kpi']) ? (int)$res_db_kpi[0]['total_boys_kpi'] : 0;
+$boys_online_kpi = isset($res_db_kpi[0]['online_boys_kpi']) ? (int)$res_db_kpi[0]['online_boys_kpi'] : 0;
+$boys_offline_kpi = isset($res_db_kpi[0]['offline_boys_kpi']) ? (int)$res_db_kpi[0]['offline_boys_kpi'] : 0;
 ?>
 <style>
 .row.storeswitch {
@@ -213,9 +222,50 @@ $orders_kpi = $food_kpi + $parcel_kpi;
 			</div>
 			<!-- /.col-lg-3 col-xs-12 -->
 			<?php } ?>
+		</div>
+		<!-- /.row small-spacing (KPI Cards) -->
+
+		<?php if($_SESSION['role'] != 'seller'){ ?>
+		<div class="row small-spacing" style="display:flex;flex-wrap:wrap;">
+			<div class="col-xs-6" style="flex:1 1 0;min-width:190px;">
+				<a href="delivery-boys.php"><div class="box-content">
+					<div class="statistics-box with-icon">
+						<i class="ico ti-user text-primary"></i>
+						<h2 class="counter text-primary"><?=$boys_total_kpi;?></h2>
+						<p class="text">Total Delivery Boys</p>
+					</div>
+					<!-- .statistics-box .with-icon -->
+				</div></a>
+				<!-- /.box-content -->
 			</div>
-			<!-- /.row small-spacing (KPI Cards) -->
-			<div class="row small-spacing">
+			<div class="col-xs-6" style="flex:1 1 0;min-width:190px;">
+				<a href="delivery-boys.php"><div class="box-content">
+					<div class="statistics-box with-icon">
+						<i class="ico ti-thumb-up text-success"></i>
+						<h2 class="counter text-success"><?=$boys_online_kpi;?></h2>
+						<p class="text">Online Delivery Boys</p>
+					</div>
+					<!-- .statistics-box .with-icon -->
+				</div></a>
+				<!-- /.box-content -->
+			</div>
+			<div class="col-xs-6" style="flex:1 1 0;min-width:190px;">
+				<a href="delivery-boys.php"><div class="box-content">
+					<div class="statistics-box with-icon">
+						<i class="ico ti-thumb-down text-danger"></i>
+						<h2 class="counter text-danger"><?=$boys_offline_kpi;?></h2>
+						<p class="text">Offline Delivery Boys</p>
+					</div>
+					<!-- .statistics-box .with-icon -->
+				</div></a>
+				<!-- /.box-content -->
+			</div>
+		</div>
+		<!-- /.row small-spacing (Delivery Boys KPI Cards) -->
+		<?php } ?>
+
+		<div class="row small-spacing">
+
 			<div class="col-lg-6 col-md-6 col-sm-12 col-xs-12">
 				<div class="box box-info">
 						<div class="box-header with-border">

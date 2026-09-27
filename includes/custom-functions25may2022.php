@@ -593,7 +593,7 @@ class custom_functions{
     function GetDrivingDistance($lat1, $lat2, $long1, $long2)
     {
         //$url = "https://maps.googleapis.com/maps/api/distancematrix/json?origins=".$lat1.",".$long1."&destinations=".$lat2.",".$long2."&mode=driving&language=en&sensor=false&key=AIzaSyBRWiTFuf7Tr1mD2mGUBxqworfOuXVwYe0";
-        $url = "https://maps.googleapis.com/maps/api/distancematrix/json?units=imperial&origins=".$lat1.",".$long1."&destinations=".$lat2.",".$long2."&key=AIzaSyAGvA51e-mzbDcx4P4_gYfhLu8eli0CLF4";
+        $url = "https://maps.googleapis.com/maps/api/distancematrix/json?units=imperial&origins=".$lat1.",".$long1."&destinations=".$lat2.",".$long2."&key=AIzaSyDYXBYj5sA6nxiNvUsSrQKWSvytDzVRM7I";
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);

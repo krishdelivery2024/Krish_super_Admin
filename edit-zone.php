@@ -36,6 +36,16 @@ $polygon_value = !empty($zone['polygon']) ? $zone['polygon'] : '[]';?>
 		exit;
 	}
 	$polygon_value = !empty($zone['polygon']) ? $zone['polygon'] : '[]';
+
+	// Global fee defaults, shown so an admin knows what a blank field falls back to.
+	$sys_settings = array();
+	$db->sql("SELECT value FROM settings WHERE variable='system_timezone'");
+	$sys_res = $db->getResult();
+	if(!empty($sys_res) && !empty($sys_res[0]['value'])){ $sys_settings = json_decode($sys_res[0]['value'], true); }
+	if(!is_array($sys_settings)){ $sys_settings = array(); }
+	$global_platform_fee    = isset($sys_settings['platform_fee']) ? $sys_settings['platform_fee'] : 0;
+	$global_convenience_fee = isset($sys_settings['convenience_fee']) ? $sys_settings['convenience_fee'] : 0;
+	$currency_symbol        = isset($sys_settings['currency']) ? $sys_settings['currency'] : '&#8377;';
 ?>
 	<div class="content-wrapper">
 		<section class="content">
@@ -68,6 +78,20 @@ $polygon_value = !empty($zone['polygon']) ? $zone['polygon'] : '[]';?>
 									</div>
 								</div>
 								<div class="form-group">
+									<label class="col-sm-2 control-label">Platform Fee (<?=$currency_symbol?>)</label>
+									<div class="col-sm-8">
+										<input type="number" step="0.01" min="0" class="form-control" name="platform_fee" value="<?php echo ($zone['platform_fee']===null||$zone['platform_fee']==='') ? '' : htmlspecialchars($zone['platform_fee']);?>" placeholder="Leave blank to use the global fee (<?=$global_platform_fee?>)">
+										<span class="help-block">Flat fee added to every parcel and food order picked up in this zone. Currently <?php echo ($zone['platform_fee']===null||$zone['platform_fee']==='') ? 'inheriting the global fee' : 'overridden';?>.</span>
+									</div>
+								</div>
+								<div class="form-group">
+									<label class="col-sm-2 control-label">Convenience Fee (%)</label>
+									<div class="col-sm-8">
+										<input type="number" step="0.01" min="0" class="form-control" name="convenience_fee" value="<?php echo ($zone['convenience_fee']===null||$zone['convenience_fee']==='') ? '' : htmlspecialchars($zone['convenience_fee']);?>" placeholder="Leave blank to use the global fee (<?=$global_convenience_fee?>)">
+										<span class="help-block">Percentage of the item subtotal. Set it to 0 to charge no convenience fee in this zone. Currently <?php echo ($zone['convenience_fee']===null||$zone['convenience_fee']==='') ? 'inheriting the global fee' : 'overridden';?>.</span>
+									</div>
+								</div>
+							<div class="form-group">
 									<label class="col-sm-2 control-label">Status</label>
 									<div class="col-sm-8">
 										<select class="form-control" name="status">

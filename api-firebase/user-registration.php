@@ -304,6 +304,11 @@ if(isset($_POST['type']) && $_POST['type'] != '' && $_POST['type'] == 'edit-prof
 		$num_rows = $db->numRows($result);
 		if($num_rows == 0){
 
+			// Zone-wise service: cache the zone this address falls in so the
+			// checkout address list does not have to re-run the polygon test.
+			$signup_zone = $fn->get_zone_id_from_latlng($latitude, $longitude);
+			$signup_zone = ($signup_zone === null) ? 0 : (int)$signup_zone;
+
 			$data = array(
 				'user_id' => $id,
 				'name' => $name,
@@ -315,6 +320,7 @@ if(isset($_POST['type']) && $_POST['type'] != '' && $_POST['type'] == 'edit-prof
 				'pincode' => $pincode,
 				'latitude' => $latitude,
 				'longitude' => $longitude,
+				'zone_id' => $signup_zone,
 				'email' => $email,
 				'mobile' => $res[0]['mobile'],						
 				'is_default' => '1',
@@ -323,9 +329,12 @@ if(isset($_POST['type']) && $_POST['type'] != '' && $_POST['type'] == 'edit-prof
 			$db->insert('user_address',$data);
 
 		}else{		
-		$sql1 = 'UPDATE `user_address` SET `name`="'.$name.'",`state`="'.$state.'",`city`="'.$city.'",`area`="'.$area.'",`street`="'.$street.'",`address`="'.$address.'",`pincode`="'.$pincode.'",`latitude`="'.$latitude.'",`longitude`="'.$longitude.'" WHERE `user_id`='.$id.' AND is_default=1';
-		$db->sql($sql1);
-        $db->getResult();
+			// Re-resolve the zone because the coordinates may have changed.
+			$signup_zone = $fn->get_zone_id_from_latlng($latitude, $longitude);
+			$signup_zone = ($signup_zone === null) ? 0 : (int)$signup_zone;
+			$sql1 = 'UPDATE `user_address` SET `name`="'.$name.'",`state`="'.$state.'",`city`="'.$city.'",`area`="'.$area.'",`street`="'.$street.'",`address`="'.$address.'",`pincode`="'.$pincode.'",`latitude`="'.$latitude.'",`longitude`="'.$longitude.'",`zone_id`="'.$signup_zone.'" WHERE `user_id`='.$id.' AND is_default=1';
+			$db->sql($sql1);
+	        $db->getResult();
 		}
         
 

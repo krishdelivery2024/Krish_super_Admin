@@ -36,6 +36,8 @@ $fn = new functions;
 
 class custom_functions{
     protected $db;
+    // Why the last Google routing call failed; see get_last_maps_error()
+    protected $last_maps_error = '';
     function __construct(){
         $this->db = new Database();
         $this->db->connect();
@@ -1072,6 +1074,437 @@ class custom_functions{
         
         return $dist;
     }
+
+    /**
+     * Driving distance in km between two coordinate pairs, used for parcel
+     * billing. GetDeliveryDistance() is a straight line, which understates the
+     * real journey whenever a river, rail line or wall sits between the two
+     * points, so parcels are priced on the routed distance instead.
+     *
+     * Tries the Routes API v2 first because the legacy Distance Matrix API is
+     * deprecated, then falls back to Distance Matrix, and finally to the
+     * straight-line figure so a Google outage can never block a parcel booking.
+     *
+     * Returns array('km' => float, 'source' => 'routes'|'matrix'|'fallback').
+     * 'source' exists so the fallback rate can be audited rather than failing
+     * silently.
+     */
+    public function get_road_distance_km($lat1, $lng1, $lat2, $lng2)
+    {
+        $straight = (float)$this->GetDeliveryDistance($lat1, $lat2, $lng1, $lng2);
+
+        if (!is_numeric($lat1) || !is_numeric($lng1) || !is_numeric($lat2) || !is_numeric($lng2)) {
+            return array('km' => round($straight, 2), 'source' => 'fallback');
+        }
+
+        $api_key = $this->get_google_maps_api_key();
+        if ($api_key === false) {
+            return array('km' => round($straight, 2), 'source' => 'fallback');
+        }
+
+        // Routes API v2 - the currently supported routing endpoint
+        $body = array(
+            'origin' => array('location' => array('latLng' => array(
+                'latitude' => (float)$lat1, 'longitude' => (float)$lng1))),
+            'destination' => array('location' => array('latLng' => array(
+                'latitude' => (float)$lat2, 'longitude' => (float)$lng2))),
+            'travelMode' => 'DRIVE',
+            // Deliberately not TRAFFIC_AWARE: billing on live traffic would make
+            // the same trip cost a different amount depending on the time of
+            // day, which customers would dispute. This is the typical driving
+            // distance, which is also what Google Maps shows by default.
+            'routingPreference' => 'TRAFFIC_UNAWARE'
+        );
+        $res = $this->http_post_json(
+            'https://routes.googleapis.com/directions/v2:computeRoutes',
+            $body,
+            array('X-Goog-Api-Key: ' . $api_key, 'X-Goog-FieldMask: routes.distanceMeters')
+        );
+        $km = $this->parse_routes_distance_km($res);
+        if ($km !== false) {
+            return array('km' => round($km, 2), 'source' => 'routes');
+        }
+
+        // legacy Distance Matrix, kept for keys that still have it enabled
+        $url = 'https://maps.googleapis.com/maps/api/distancematrix/json'
+            . '?origins=' . rawurlencode($lat1 . ',' . $lng1)
+            . '&destinations=' . rawurlencode($lat2 . ',' . $lng2)
+            . '&mode=driving&units=metric&key=' . rawurlencode($api_key);
+        $km = $this->parse_matrix_distance_km($this->http_get_json($url));
+        if ($km !== false) {
+            return array('km' => round($km, 2), 'source' => 'matrix');
+        }
+
+        return array('km' => round($straight, 2), 'source' => 'fallback');
+    }
+
+    /**
+     * Pure tariff arithmetic for an in-person food delivery, with no Maps call.
+     *
+     * The tariff in delivery_method.in_persion_data is a flat amount covering the
+     * first first_km kilometres, plus rest_km_amount for every kilometre past
+     * that. The excess is NOT rounded up to whole kilometres: a 2.46 km trip is
+     * billed on 2.46 km, so the figure the customer is shown is the figure they
+     * are charged for. The previous ceil() inflated short trips - a 1.34 km
+     * straight line was reported as 2Km and billed as 2.
+     *
+     * Split out from get_food_delivery_charge() and kept free of any API call so
+     * the money can be exercised without a network round trip.
+     */
+    public function food_delivery_tariff_charge($km, $in_persion_data)
+    {
+        $tariff = is_string($in_persion_data) ? json_decode($in_persion_data, true) : $in_persion_data;
+        if (!is_array($tariff)) {
+            $tariff = array();
+        }
+        $first_km     = isset($tariff['first_km']) ? (float)$tariff['first_km'] : 0;
+        $first_amount = isset($tariff['first_km_amount']) ? (float)$tariff['first_km_amount'] : 0;
+        $rest_per_km  = isset($tariff['rest_km_amount']) ? (float)$tariff['rest_km_amount'] : 0;
+
+        $excess = ((float)$km) - $first_km;
+        if ($excess < 0) {
+            $excess = 0;
+        }
+
+        return round($first_amount + ($excess * $rest_per_km), 2);
+    }
+
+    /**
+     * Platform and convenience fees for a zone, falling back to the global
+     * settings when the zone has not overridden them.
+     *
+     * Both zone columns are nullable, and NULL means "inherit", so a zone that
+     * an admin has not touched keeps charging the global amount. That is what
+     * makes this safe to roll out: every existing zone behaves identically
+     * until a fee is actually entered for it.
+     *
+     * A zone_id of 0, NULL or '' means the order could not be attributed to a
+     * zone, which also falls back to the global fees rather than charging
+     * nothing.
+     *
+     * Returns array(
+     *   'platform_fee'    => float, in rupees,
+     *   'convenience_fee' => float, a percentage of the item subtotal,
+     *   'zone_id'         => int, 0 when unattributed,
+     *   'inherited'       => bool, true when the global values were used.
+     * ).
+     */
+    public function get_zone_fees($zone_id, $global_platform_fee, $global_convenience_fee)
+    {
+        $global_platform_fee    = (float)$global_platform_fee;
+        $global_convenience_fee = (float)$global_convenience_fee;
+
+        $result = array(
+            'platform_fee'    => $global_platform_fee,
+            'convenience_fee' => $global_convenience_fee,
+            'zone_id'         => 0,
+            'inherited'       => true,
+        );
+
+        $zone_id = is_numeric($zone_id) ? (int)$zone_id : 0;
+        if ($zone_id <= 0) {
+            return $result;
+        }
+        $result['zone_id'] = $zone_id;
+
+        $this->db->sql("SELECT platform_fee, convenience_fee FROM `zone` WHERE id=" . $zone_id . " LIMIT 1");
+        $row = $this->db->getResult();
+        if (empty($row) || !is_array($row[0])) {
+            return $result;
+        }
+
+        // A zone only overrides a fee when it actually holds a value, so the
+        // two fees can be set independently.
+        if ($row[0]['platform_fee'] !== null && $row[0]['platform_fee'] !== '') {
+            $result['platform_fee'] = (float)$row[0]['platform_fee'];
+            $result['inherited'] = false;
+        }
+        if ($row[0]['convenience_fee'] !== null && $row[0]['convenience_fee'] !== '') {
+            $result['convenience_fee'] = (float)$row[0]['convenience_fee'];
+            $result['inherited'] = false;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Split a subtotal into platform fee, convenience fee and tax using the
+     * fees that apply to a zone, so the preview and the stored order agree.
+     *
+     * platform_fee is a flat rupee amount, convenience_fee is a percentage of
+     * the subtotal, and tax is a percentage of the subtotal plus both fees -
+     * the same order the parcel endpoints have always used.
+     *
+     * Returns array with 'platform_fee', 'convenience_fee', 'gst' and
+     * 'grand_total', plus the fee inputs that produced them.
+     */
+    public function split_zone_fees($subtotal, $zone_id, $global_settings)
+    {
+        $subtotal = (float)$subtotal;
+
+        $global_platform    = isset($global_settings['platform_fee']) ? (float)$global_settings['platform_fee'] : 0;
+        $global_convenience = isset($global_settings['convenience_fee']) ? (float)$global_settings['convenience_fee'] : 0;
+        $tax_percent        = isset($global_settings['tax']) ? (float)$global_settings['tax'] : 0;
+
+        $fees = $this->get_zone_fees($zone_id, $global_platform, $global_convenience);
+
+        $platform_fee    = round($fees['platform_fee'], 2);
+        $convenience_fee = round(($subtotal * $fees['convenience_fee']) / 100, 2);
+        $gst             = round(($subtotal + $convenience_fee + $platform_fee) * $tax_percent / 100, 2);
+
+        return array(
+            'platform_fee'      => $platform_fee,
+            'convenience_fee'   => $convenience_fee,
+            'gst'               => $gst,
+            'grand_total'       => round($subtotal + $convenience_fee + $platform_fee + $gst, 2),
+            'zone_id'           => $fees['zone_id'],
+            'fees_inherited'    => $fees['inherited'],
+            'convenience_fee_percent' => $fees['convenience_fee'],
+        );
+    }
+
+    /**
+     * Delivery charge for an in-person food order, priced on the real driving
+     * distance between the store and the delivery address.
+     *
+     * The charge is worked out by food_delivery_tariff_charge() so the preview
+     * shown when an address is picked and the amount actually stored on the
+     * order come from the same code and cannot drift apart.
+     *
+     * Returns array(
+     *   'distance_km'     => float, rounded to 2dp and used for billing,
+     *   'delivery_charge' => float,
+     *   'distance_source' => 'routes'|'matrix'|'fallback',
+     *   'error'           => '' when usable, otherwise why it is not
+     * ).
+     */
+    public function get_food_delivery_charge($store_lat, $store_lng, $user_lat, $user_lng, $in_persion_data)
+    {
+        $blank = array(
+            'distance_km' => 0.0,
+            'delivery_charge' => 0.0,
+            'distance_source' => '',
+            'error' => 'Store or delivery location is missing.'
+        );
+
+        foreach (array($store_lat, $store_lng, $user_lat, $user_lng) as $coord) {
+            if (!is_numeric($coord) || (float)$coord == 0) {
+                return $blank;
+            }
+        }
+
+        $road = $this->get_road_distance_km($store_lat, $store_lng, $user_lat, $user_lng);
+        // Charge the rounded figure that the customer is shown, so the
+        // displayed distance and the billed distance are the same number.
+        $km = round((float)$road['km'], 2);
+
+        return array(
+            'distance_km' => $km,
+            'delivery_charge' => $this->food_delivery_tariff_charge($km, $in_persion_data),
+            'distance_source' => $road['source'],
+            'error' => ''
+        );
+    }
+
+    /**
+     * Pull the driving distance out of a Routes API v2 response.
+     * Returns km, or false when the response is absent or carries an error.
+     * Split out from the request so it can be exercised without a live call.
+     */
+    public function parse_routes_distance_km($res)
+    {
+        if (!is_array($res)) {
+            return false;
+        }
+        if (isset($res['error'])) {
+            $msg = isset($res['error']['message']) ? $res['error']['message'] : 'unknown Routes API error';
+            $this->last_maps_error = 'Routes API: ' . $msg;
+            return false;
+        }
+        if (empty($res['routes']) || !is_array($res['routes'])) {
+            $this->last_maps_error = 'Routes API: no routes returned';
+            return false;
+        }
+        // The shape depends on the field mask. Asking for routes.distanceMeters
+        // flattens it to routes[0].distanceMeters, while an unfiltered response
+        // puts it at routes[0].legs[0].distanceMeters. Accept either.
+        $meters = null;
+        if (isset($res['routes'][0]['legs'][0]['distanceMeters'])) {
+            $meters = $res['routes'][0]['legs'][0]['distanceMeters'];
+        } elseif (isset($res['routes'][0]['distanceMeters'])) {
+            $meters = $res['routes'][0]['distanceMeters'];
+        }
+        if ($meters === null) {
+            $this->last_maps_error = 'Routes API: response had no distance';
+            return false;
+        }
+        $km = ((float)$meters) / 1000;
+        if ($km > 0) {
+            $this->last_maps_error = '';
+            return $km;
+        }
+        $this->last_maps_error = 'Routes API: reported a zero distance';
+        return false;
+    }
+
+    /**
+     * Pull the driving distance out of a legacy Distance Matrix response.
+     * Returns km, or false when the element is missing or not OK.
+     */
+    public function parse_matrix_distance_km($res)
+    {
+        if (!is_array($res)) {
+            return false;
+        }
+        // Distance Matrix answers HTTP 200 even for refusals such as
+        // REQUEST_DENIED, so the reason has to be read out of the body.
+        if (isset($res['status']) && $res['status'] !== 'OK') {
+            $msg = isset($res['error_message']) ? $res['error_message'] : ('status ' . $res['status']);
+            $this->last_maps_error = 'Distance Matrix: ' . $res['status'] . ' - ' . $msg;
+            $this->log_maps_error($this->last_maps_error);
+            return false;
+        }
+        $el = isset($res['rows'][0]['elements'][0]) ? $res['rows'][0]['elements'][0] : null;
+        if (!is_array($el)) {
+            $this->last_maps_error = 'Distance Matrix: no rows in response';
+            return false;
+        }
+        if (!isset($el['status']) || $el['status'] !== 'OK') {
+            $this->last_maps_error = 'Distance Matrix: element status ' . (isset($el['status']) ? $el['status'] : 'missing');
+            $this->log_maps_error($this->last_maps_error);
+            return false;
+        }
+        if (!isset($el['distance']['value'])) {
+            $this->last_maps_error = 'Distance Matrix: element had no distance';
+            return false;
+        }
+        $km = ((float)$el['distance']['value']) / 1000;
+        if ($km > 0) {
+            $this->last_maps_error = '';
+            return $km;
+        }
+        $this->last_maps_error = 'Distance Matrix: reported a zero distance';
+        return false;
+    }
+
+    // The Maps key is stored alongside the other store settings in system_timezone
+    private function get_google_maps_api_key()
+    {
+        $settings = $this->get_settings('system_timezone', true);
+        if (is_array($settings) && !empty($settings['store_map_api'])) {
+            return trim($settings['store_map_api']);
+        }
+        return false;
+    }
+
+    /**
+     * Optional custom CA bundle for the Google calls, read from the
+     * store_map_ca_bundle setting.
+     *
+     * This exists because TLS-inspecting antivirus software (Avast and similar)
+     * re-signs HTTPS traffic with its own root certificate. PHP's cURL then
+     * fails with "unable to get local issuer certificate" and the distance
+     * silently falls back to a straight line. Pointing this at a bundle that
+     * includes the inspector's root makes verification succeed.
+     *
+     * Left unset on servers that are not intercepted, which is the normal case
+     * in production. Turning verification off is deliberately not supported.
+     */
+    private function get_google_maps_ca_bundle()
+    {
+        $settings = $this->get_settings('system_timezone', true);
+        if (is_array($settings) && !empty($settings['store_map_ca_bundle'])) {
+            $path = trim($settings['store_map_ca_bundle']);
+            if (is_file($path) && is_readable($path)) {
+                return $path;
+            }
+        }
+        return false;
+    }
+
+    // Bounded so a customer waiting on a quote is never stuck, but generous
+    // enough for a cold DNS lookup, which measured up to ~8s on some networks.
+    // IPv6 is left to cURL's own happy-eyeballs ordering: forcing IPv4 was tried
+    // and was slower here, not faster.
+    private function http_post_json($url, $body, $headers = array())
+    {
+        // The Routes API rejects POST bodies that are not declared as JSON.
+        // Without this the call fails and silently drops to the next provider.
+        array_unshift($headers, 'Content-Type: application/json');
+        return $this->http_json('POST', $url, json_encode($body), $headers);
+    }
+
+    private function http_get_json($url)
+    {
+        return $this->http_json('GET', $url, null, array());
+    }
+
+    /**
+     * Reason the most recent Google call failed, or '' if it succeeded.
+     * A distance call that silently falls back to a straight line looks like a
+     * pricing bug, so the cause is recorded instead of being swallowed.
+     */
+    public function get_last_maps_error()
+    {
+        return $this->last_maps_error;
+    }
+
+    private function http_json($method, $url, $payload, $headers)
+    {
+        $this->last_maps_error = '';
+        if (!function_exists('curl_init')) {
+            $this->last_maps_error = 'php cURL extension is not installed';
+            return false;
+        }
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 8);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 12);
+        $ca = $this->get_google_maps_ca_bundle();
+        if ($ca !== false) {
+            curl_setopt($ch, CURLOPT_CAINFO, $ca);
+        }
+        if (!empty($headers)) {
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        }
+        if ($method === 'POST') {
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+        }
+        $raw = curl_exec($ch);
+        $curl_error = curl_error($ch);
+        $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($raw === false) {
+            $this->last_maps_error = 'transport failure: ' . ($curl_error ? $curl_error : 'unknown');
+            $this->log_maps_error($this->last_maps_error);
+            return false;
+        }
+        if ($status < 200 || $status >= 300) {
+            $this->last_maps_error = 'HTTP ' . $status;
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded) && isset($decoded['error']['message'])) {
+                $this->last_maps_error .= ': ' . $decoded['error']['message'];
+            } elseif (is_array($decoded) && isset($decoded['error_message'])) {
+                $this->last_maps_error .= ': ' . $decoded['error_message'];
+            }
+            $this->log_maps_error($this->last_maps_error);
+            return false;
+        }
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) {
+            $this->last_maps_error = 'response was not valid JSON';
+            $this->log_maps_error($this->last_maps_error);
+            return false;
+        }
+        return $decoded;
+    }
+
+    private function log_maps_error($message)
+    {
+        error_log('[google-maps-distance] ' . $message);
+    }
    
    public function get_dunzo_delivery_charge($payload){ 
        $dunzo_data_query=$this->db->sql("SELECT * FROM delivery_method WHERE id='1'");
@@ -1194,6 +1627,53 @@ class custom_functions{
     }
 
     /**
+     * Resolve a delivery address to the zone it falls in.
+     * Prefers the stored user_address.zone_id, otherwise runs a live
+     * point-in-polygon test on the address coordinates.
+     * Returns 0 when the address cannot be resolved to any active zone
+     * (missing/zero coordinates, or outside every configured polygon).
+     */
+    public function get_address_zone($address_row) {
+        if (!empty($address_row['zone_id'])) {
+            return (int)$address_row['zone_id'];
+        }
+        $zone = $this->get_zone_id_from_latlng(
+            isset($address_row['latitude']) ? $address_row['latitude'] : 0,
+            isset($address_row['longitude']) ? $address_row['longitude'] : 0
+        );
+        return ($zone === null) ? 0 : (int)$zone;
+    }
+
+    /**
+     * Zone-wise service rule: can $seller_zone deliver to $address_zone?
+     * - Seller has no zone assigned  => no restriction (every address allowed)
+     * - Address resolves to no zone  => allowed, because we cannot prove it is
+     *   outside the seller's area and must not lock the customer out
+     * - Otherwise                   => zones must match exactly
+     */
+    public function is_address_in_seller_zone($address_zone, $seller_zone) {
+        $seller_zone = (int)$seller_zone;
+        if ($seller_zone <= 0) return true;
+        $address_zone = (int)$address_zone;
+        if ($address_zone <= 0) return true;
+        return $address_zone === $seller_zone;
+    }
+
+    /**
+     * Returns the zone a seller belongs to, or 0 when unassigned.
+     */
+    public function get_seller_zone($seller_id) {
+        $seller_id = (int)$seller_id;
+        if ($seller_id <= 0) return 0;
+        $this->db->sql("SELECT zone_id FROM seller WHERE id='".$seller_id."' LIMIT 1");
+        $res = $this->db->getResult();
+        if (!empty($res) && isset($res[0]['zone_id']) && !empty($res[0]['zone_id'])) {
+            return (int)$res[0]['zone_id'];
+        }
+        return 0;
+    }
+
+    /**
      * Returns the shortest great-circle distance (in km) from point P to the
      * line segment A-B (Haversine approximation via projected coordinates).
      */
@@ -1277,6 +1757,210 @@ class custom_functions{
             }
         }
         return $min_dist;
+    }
+
+    // target ceiling for a stored product image, in bytes
+    const PRODUCT_IMAGE_MAX_BYTES = 300024;
+
+    /**
+     * Shrink an already uploaded image until it fits inside $max_bytes.
+     *
+     * Files that are already within the limit are left completely untouched, so
+     * nothing is needlessly re-encoded. Otherwise quality is stepped down first
+     * and the dimensions are only reduced once quality has bottomed out, which
+     * keeps the picture recognisable for as long as possible. JPEG is preferred
+     * when a resize is unavoidable because it is far cheaper per pixel than PNG.
+     *
+     * Returns true when the file ends up within the limit. Returns false when it
+     * could not be processed - the original upload is then left in place rather
+     * than replaced with a broken file.
+     */
+    public function compress_image_file($file_path, $max_bytes = self::PRODUCT_IMAGE_MAX_BYTES)
+    {
+        if (!is_string($file_path) || $file_path === '' || !is_file($file_path)) {
+            return false;
+        }
+        if (filesize($file_path) <= $max_bytes) {
+            return true;
+        }
+        if (!function_exists('imagecreatetruecolor')) {
+            return false; // no GD, leave the upload untouched
+        }
+
+        $info = @getimagesize($file_path);
+        if ($info === false) {
+            return false;
+        }
+        $width = (int)$info[0];
+        $height = (int)$info[1];
+        $type = (int)$info[2];
+
+        $image = $this->gd_load_image($file_path, $type);
+        if ($image === false) {
+            return false;
+        }
+
+        // transparency has to be preserved for the formats that support it
+        if ($type === IMAGETYPE_PNG || $type === IMAGETYPE_GIF || $type === IMAGETYPE_WEBP) {
+            imagealphablending($image, false);
+            imagesavealpha($image, true);
+        }
+
+        // step_quality is off for GIF (no quality dial) and PNG (level 9 is the
+        // best it does, so walking it cannot get us to the target on its own)
+        $step_quality = ($type === IMAGETYPE_JPEG || $type === IMAGETYPE_WEBP);
+        $quality = 85;
+        $floor = 40;
+        $passes = 0;
+
+        // Every attempt is written to a scratch file and only swapped in once it
+        // is known to be good. GD can fail part way through a write (CMYK JPEG,
+        // 16 bit PNG and the like) and leave the target truncated, so the
+        // original upload must never be the thing being written to.
+        $tmp = $file_path . '.compress_tmp';
+
+        while (true) {
+            if (++$passes > 40) {
+                break; // safety net so a huge image can never spin
+            }
+            if (!$this->gd_write_image($image, $tmp, $type, $quality)) {
+                imagedestroy($image);
+                @unlink($tmp);
+                return false; // original left exactly as it was uploaded
+            }
+            // the scratch file was just rewritten, so its cached stat is stale
+            clearstatcache(true, $tmp);
+            $size = filesize($tmp);
+            if ($size !== false && $size <= $max_bytes) {
+                imagedestroy($image);
+                return $this->replace_with_compressed($tmp, $file_path);
+            }
+
+            if ($step_quality && $quality > $floor) {
+                $quality -= 15;
+                continue;
+            }
+
+            // quality exhausted - shrink by 20% and walk the quality back up
+            $new_w = (int)($width * 0.8);
+            $new_h = (int)($height * 0.8);
+            if ($new_w < 120 || $new_h < 120) {
+                break;
+            }
+            $resized = $this->gd_resize($image, $width, $height, $new_w, $new_h);
+            if ($resized === false) {
+                break;
+            }
+            imagedestroy($image);
+            $image = $resized;
+            $width = $new_w;
+            $height = $new_h;
+            $quality = 85;
+        }
+
+        imagedestroy($image);
+        clearstatcache(true, $tmp);
+        $final = filesize($tmp);
+        if ($final !== false && $final <= $max_bytes) {
+            $done = $this->replace_with_compressed($tmp, $file_path);
+            if ($done) {
+                return true;
+            }
+        }
+        @unlink($tmp);
+        return false;
+    }
+
+    /**
+     * Swap the compressed scratch file in for the original upload. rename() will
+     * not clobber an existing file on Windows, so the original is removed first.
+     * If the swap cannot be completed the original is left in place.
+     */
+    private function replace_with_compressed($tmp, $file_path)
+    {
+        if (!is_file($tmp)) {
+            return false;
+        }
+        if (!@rename($tmp, $file_path)) {
+            @unlink($file_path);
+            if (!@rename($tmp, $file_path)) {
+                @unlink($tmp);
+                return false;
+            }
+        }
+        clearstatcache(true, $file_path);
+        return true;
+    }
+
+    private function gd_load_image($path, $type)
+    {
+        switch ($type) {
+            case IMAGETYPE_JPEG:
+                return @imagecreatefromjpeg($path);
+            case IMAGETYPE_PNG:
+                return @imagecreatefrompng($path);
+            case IMAGETYPE_GIF:
+                return @imagecreatefromgif($path);
+            case IMAGETYPE_WEBP:
+                return function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($path) : false;
+            default:
+                return false;
+        }
+    }
+
+    private function gd_write_image($image, $path, $type, $quality)
+    {
+        if ($quality < 0) {
+            $quality = 0;
+        } elseif ($quality > 100) {
+            $quality = 100;
+        }
+        switch ($type) {
+            case IMAGETYPE_JPEG:
+                // JPEG has no alpha channel, so flatten onto white first -
+                // otherwise transparent source images come out with black areas
+                $flat = $this->gd_flatten($image);
+                $ok = @imagejpeg($flat, $path, $quality);
+                imagedestroy($flat);
+                return $ok;
+            case IMAGETYPE_PNG:
+                // imagepng's third argument is a 0-9 compression level, which runs
+                // opposite to jpeg's quality. 9 is the best PNG can do, so there is
+                // no useful quality walk to make here.
+                return @imagepng($image, $path, 9);
+            case IMAGETYPE_GIF:
+                return @imagegif($image, $path);
+            case IMAGETYPE_WEBP:
+                return function_exists('imagewebp') ? @imagewebp($image, $path, $quality) : false;
+            default:
+                return false;
+        }
+    }
+
+    private function gd_flatten($image)
+    {
+        $w = imagesx($image);
+        $h = imagesy($image);
+        $flat = imagecreatetruecolor($w, $h);
+        $white = imagecolorallocate($flat, 255, 255, 255);
+        imagefilledrectangle($flat, 0, 0, $w, $h, $white);
+        imagealphablending($flat, true);
+        imagecopy($flat, $image, 0, 0, 0, 0, $w, $h);
+        return $flat;
+    }
+
+    private function gd_resize($image, $old_w, $old_h, $new_w, $new_h)
+    {
+        $resized = imagecreatetruecolor($new_w, $new_h);
+        imagealphablending($resized, false);
+        imagesavealpha($resized, true);
+        $transparent = imagecolorallocatealpha($resized, 255, 255, 255, 127);
+        imagefilledrectangle($resized, 0, 0, $new_w, $new_h, $transparent);
+        if (!imagecopyresampled($resized, $image, 0, 0, 0, 0, $new_w, $new_h, $old_w, $old_h)) {
+            imagedestroy($resized);
+            return false;
+        }
+        return $resized;
     }
 }
 

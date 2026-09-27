@@ -162,19 +162,26 @@
     			
     		// upload new image
     		$upload = move_uploaded_file($_FILES['image']['tmp_name'], 'upload/images/'.$image);
+    		// seller may pick a file over 300 KB, so bring the stored copy down to size
+    		if($upload){
+    			$fn->compress_image_file('upload/images/'.$image);
+    		}
 			$other_images = '';
 			if(isset($_FILES['other_images']) && ($_FILES['other_images']['size'][0] > 0 )){
 				//Upload other images
 				$file_data = array();
 				$target_path = 'upload/other_images/';
 				for($i=0;$i<count($_FILES["other_images"]["name"]);$i++){
-					
+				
 					$filename = $_FILES["other_images"]["name"][$i];
 					$temp = explode('.',$filename);
 					$filename = microtime(true) . '.' . end($temp);
 					$file_data[] = $target_path.''.$filename;
-					if(!move_uploaded_file($_FILES["other_images"]["tmp_name"][$i], $target_path.''.$filename))
+					if(!move_uploaded_file($_FILES["other_images"]["tmp_name"][$i], $target_path.''.$filename)){
 						echo "{$_FILES['image']['name'][$i]} not uploaded<br/>";
+					}else{
+						$fn->compress_image_file($target_path.''.$filename);
+					}
 				}
 				$other_images = json_encode($file_data);
 			}
@@ -627,10 +634,12 @@
                         <div class="form-group">
                             <label for="image">Main Image :&nbsp;&nbsp;&nbsp;*Please choose square image of larger than 350px*350px & smaller than 550px*550px.</label><?php echo isset($error['image']) ? $error['image'] : '';?>
                             <input type="file" name="image" id="image" required>
+                            <div id="image_size_note" class="help-block"></div>
                         </div>
                         <div class="form-group">
                             <label for="other_images">Other Images of the Product: *Please choose square image of larger than 350px*350px & smaller than 550px*550px.</label><?php echo isset($error['other_images']) ? $error['other_images'] : '';?>
-							<input type="file" name="other_images[]" id="other_images" multiple>
+    						<input type="file" name="other_images[]" id="other_images" multiple>
+                            <div id="other_images_size_note" class="help-block"></div>
                         </div>
                         <div class="form-group">
                             <label for="description">Description :</label><?php echo isset($error['description']) ? $error['description'] : '';?>
@@ -690,20 +699,53 @@
     </div>
 <div class="separator"> </div>
 <script>
-	    var uploadField = document.getElementById("other_images");
+    // Images bigger than 300 KB are accepted here and compressed to 300 KB on the
+    // server, so the seller is only told what is going to happen to the file.
+    var IMAGE_MAX_BYTES = 300024;
 
-        uploadField.onchange = function() {
-            if(this.files[0].size > 300024){
-               alert("Allowed Max File size 300 KB");
-               this.value = "";
-            };
-        };
-        var uploadField = document.getElementById("image");
+    function describeImageSelection(input, noteId){
+        var note = document.getElementById(noteId);
+        if(!note){ return; }
+        if(!input.files || input.files.length === 0){
+            note.innerHTML = "";
+            return;
+        }
+        var over = [];
+        for(var i = 0; i < input.files.length; i++){
+            if(input.files[i].size > IMAGE_MAX_BYTES){
+                over.push(input.files[i].name + " (" + Math.round(input.files[i].size/1024) + " KB)");
+            }
+        }
+        if(over.length > 0){
+            note.innerHTML = '<span class="text-warning">' + over.length +
+                ' image(s) over 300 KB will be compressed automatically: ' +
+                over.join(", ") + '</span>';
+        }else{
+            note.innerHTML = '<span class="text-success">All images are within 300 KB.</span>';
+        }
+    }
 
-        uploadField.onchange = function() {
-            if(this.files[0].size > 300024){
-               alert("Allowed Max File size 300 KB");
-               this.value = "";
-            };
-        };
+    var otherImagesField = document.getElementById("other_images");
+    otherImagesField.onchange = function() {
+        describeImageSelection(this, "other_images_size_note");
+    };
+
+    var mainImageField = document.getElementById("image");
+    mainImageField.onchange = function() {
+        describeImageSelection(this, "image_size_note");
+    };
+</script>
+	<script src="dist/plugin/select2/js/select2.min.js"></script>
+	<script>
+		$(document).ready(function(){
+			// Select2's built-in matcher already does what we need: it lists every
+			// brand when the search box is empty, and filters as the seller types.
+			// Do NOT pass a custom matcher here - in select2 4.0.3 overriding it
+			// makes the results render blank.
+			$('#brand_id').select2({
+				width: '100%',
+				minimumResultsForSearch: 0,
+				placeholder: "type in brand name to search"
+			});
+		});
 	</script>

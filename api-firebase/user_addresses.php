@@ -28,19 +28,38 @@ if($access_key != $accesskey){
 
 if ((isset($_POST['type'])) && ($_POST['type'] == 'list_address')) {
     $user_id = $db->escapeString($_POST['user_id']);
+
+    /* Zone-wise service: when a seller is supplied, flag each address with
+       is_zone_valid (1 = selectable, 0 = greyed out). Seller without a zone
+       imposes no restriction. An address that resolves to no zone stays
+       selectable so customers are never locked out. */
+    $seller_id = isset($_POST['seller_id']) ? (int)$_POST['seller_id'] : 0;
+    $seller_zone_id = $fn->get_seller_zone($seller_id);
     
     $sql = "select u.*, u.area as area_name, u.city as city_name from user_address u where u.user_id ='$user_id' order by u.is_default desc" ;
     
     $db->sql($sql);
     $res = $db->getResult();
 	if($res){
+		$has_valid_address = 0;
+		foreach($res as $k => $row){
+			$address_zone = $fn->get_address_zone($row);
+			$is_valid = $fn->is_address_in_seller_zone($address_zone, $seller_zone_id) ? 1 : 0;
+			$res[$k]['zone_id'] = $address_zone;
+			$res[$k]['is_zone_valid'] = $is_valid;
+			if($is_valid == 1) $has_valid_address = 1;
+		}
 		$response["error"]   = false;
 		$response['data'] = $res;
+		$response['seller_zone_id'] = $seller_zone_id;
+		$response['has_valid_address'] = $has_valid_address;
 		print_r(json_encode($response));
 	    return false;
 	}else{
-	    $response["error"]   = true;
+		$response["error"]   = true;
 		$response['data'] = array();
+		$response['seller_zone_id'] = $seller_zone_id;
+		$response['has_valid_address'] = 0;
 		print_r(json_encode($response));
 	    return false;
 	}
@@ -79,6 +98,10 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'add_address')) {
 		$friends_code = '';
 	}
 	$is_default = 0;
+	/* Zone-wise service: cache the zone this address falls in so the checkout
+	   address list does not have to re-run the polygon test every time. */
+	$address_zone = $fn->get_zone_id_from_latlng($latitude, $longitude);
+	$address_zone = ($address_zone === null) ? 0 : (int)$address_zone;
 	$sql = 'select * from user_address where user_id ='.$user_id;
 	$db->sql($sql);
 	$resu = $db->getResult();
@@ -117,6 +140,7 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'add_address')) {
 	    'pincode' => $pincode,
 	    'latitude' => $latitude,
 	    'longitude' => $longitude,
+	    'zone_id' => $address_zone,
 	    'is_default' => $is_default,
 	    'status' => 1,
 'created_at' => date('Y-m-d H:i:s')
@@ -160,21 +184,25 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'update_address')) {
 	$pincode 	= (isset($_POST['pincode']))?$db->escapeString($_POST['pincode']):"";
 	$latitude 	= (isset($_POST['latitude']))?$db->escapeString($_POST['latitude']):"0";
 	$longitude 	= (isset($_POST['longitude']))?$db->escapeString($_POST['longitude']):"0";
+	/* Zone-wise service: re-resolve the zone whenever coordinates change. */
+	$address_zone = $fn->get_zone_id_from_latlng($latitude, $longitude);
+	$address_zone = ($address_zone === null) ? 0 : (int)$address_zone;
 	$data = array(
 		'address_type' => $address_type,
 	    'name' => $name,
 	    'mobile' => $mobile,
-	    'email'=>$email,
+		'email'=>$email,
 	    'state' => $state,
-	    'city' => $city,
-	    'area' => $area,
-	    'landmark' => $landmark,
-	    'flat_no' => $flat_no,
-	    'street' => $street,
-	    'address' => $address,
+		'city' => $city,
+		'area' => $area,
+		'landmark' => $landmark,
+		'flat_no' => $flat_no,
+		'street' => $street,
+		'address' => $address,
 	    'pincode' => $pincode,
 	    'latitude' => $latitude,
 	    'longitude' => $longitude,
+	    'zone_id' => $address_zone,
 	    'is_default' => 0,
 	    'status' => 1
 	);

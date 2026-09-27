@@ -237,6 +237,52 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 	
 	if($delivery_charge == 'Free'){
 	    $delivery_charge=0;
+	}elseif($delivery_method == 'storepickup'){
+	    // get_order_delivery_charge quotes store pickup as free, so the order has
+	    // to be free too, whatever the app posted. Leaving this to the client let
+	    // a tampered request store a pickup delivery fee.
+	    $delivery_charge=0;
+	}else{
+	    // The app sends delivery_charge as a plain number, so it is only ever a
+	    // preview. Recompute it from the store and the delivery coordinates so
+	    // the order is charged what the customer was quoted, and a tampered
+	    // client cannot post a smaller (or zero) amount. The branch order below
+	    // mirrors get_order_delivery_charge exactly: store pickup and the
+	    // admin's Free override are zero, Dunzo quotes itself, and everything
+	    // else uses the in-person per-km tariff.
+	    $db->sql("select value from `settings` where variable= 'system_timezone'");
+	    $dm_cfg = $db->getResult();
+	    $dm_settings = isset($dm_cfg[0]['value']) ? json_decode($dm_cfg[0]['value'], true) : array();
+
+	    $db->sql("SELECT in_persion_delivery, in_persion_data, dunzo FROM delivery_method WHERE id=1");
+	    $dm_rows = $db->getResult();
+	    $dm_dunzo_enable = isset($dm_rows[0]['dunzo']) ? $dm_rows[0]['dunzo'] : 0;
+
+	    if($dm_dunzo_enable != '1' && !empty($dm_rows[0]['in_persion_delivery'])
+	        && !empty($dm_rows[0]['in_persion_data']) && $seller_id){
+	        $db->sql("select latitude,longitude from `seller` where id = '".$db->escapeString($seller_id)."' limit 1");
+	        $dm_seller_rows = $db->getResult();
+	        $dm_store_lat = !empty($dm_seller_rows[0]['latitude'])
+	            ? (float)$dm_seller_rows[0]['latitude']
+	            : (float)(isset($dm_settings['store_lattitude']) ? $dm_settings['store_lattitude'] : 0);
+	        $dm_store_long = !empty($dm_seller_rows[0]['longitude'])
+	            ? (float)$dm_seller_rows[0]['longitude']
+	            : (float)(isset($dm_settings['store_longitude']) ? $dm_settings['store_longitude'] : 0);
+
+	        $dm_charge = $function->get_food_delivery_charge(
+	            $dm_store_lat , $dm_store_long , $latitude , $longitude , $dm_rows[0]['in_persion_data']
+	        );
+	        if($dm_charge['error'] === ''){
+	            $delivery_charge = $dm_charge['delivery_charge'];
+	            if($dm_charge['distance_source'] == 'fallback'){
+	                log_order_debug("Delivery charge for order used the straight-line fallback (" .
+	                    $dm_charge['distance_km'] . " km) because the Maps API did not respond. Seller " . $seller_id);
+	            }
+	        }else{
+	            log_order_debug("Could not verify the delivery charge for this order: " . $dm_charge['error'] .
+	                ". Keeping the quoted amount " . $delivery_charge . ".");
+	        }
+	    }
 	}
 	$total_amount=$total+$delivery_charge-$discount;
 	
@@ -264,6 +310,32 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 	
 	$order_zone_id = $function->get_zone_id_from_latlng($latitude, $longitude);
 	
+	// Platform and convenience fee come from the zone the order is delivered to.
+	// The app builds final_total from the global fee values, so only the
+	// difference between the global fee and the zone fee is applied here. While
+	// no zone has an override this difference is exactly zero and the payable
+	// amount is unchanged; once an admin configures a zone the stored total
+	// rises by precisely the extra that zone charges.
+	$db->sql("select value from `settings` where variable= 'system_timezone'");
+	$fee_cfg = $db->getResult();
+	$fee_settings = isset($fee_cfg[0]['value']) ? json_decode($fee_cfg[0]['value'], true) : array();
+	$global_platform_fee = isset($fee_settings['platform_fee']) ? (float)$fee_settings['platform_fee'] : 0;
+	$global_convenience_fee = isset($fee_settings['convenience_fee']) ? (float)$fee_settings['convenience_fee'] : 0;
+	
+	$order_zone_fees = $function->split_zone_fees((float)$total, $order_zone_id, $fee_settings);
+	$order_platform_fee = $order_zone_fees['platform_fee'];
+	$order_convenience_fee = $order_zone_fees['convenience_fee'];
+	$global_convenience_amount = round(((float)$total * $global_convenience_fee) / 100, 2);
+	$fee_delta = round(($order_platform_fee - $global_platform_fee)
+	    + ($order_convenience_fee - $global_convenience_amount), 2);
+	if($fee_delta != 0){
+		$final_total = round((float)$final_total + $fee_delta, 2);
+		log_order_debug("Order delivered to zone " . var_export($order_zone_id, true) .
+		    " adjusts the app total by " . $fee_delta . " (platform " . $order_platform_fee .
+		    " vs " . $global_platform_fee . ", convenience " . $order_convenience_fee .
+		    " vs " . $global_convenience_amount . ").");
+	}
+	
 	$data = array(
 		'user_id'=>$user_id,
 		'seller_id'=>$seller_id,
@@ -273,6 +345,8 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 		'email'=>$email,
 		'delivery_method'=>$delivery_method,
 		'delivery_charge'=>$delivery_charge,
+		'platform_fee'=>$order_platform_fee,
+		'convenience_fee'=>$order_convenience_fee,
 		'wallet_balance' => ($wallet_used)?$wallet_balance:0,
 		'total' => $total,
 		//'tax_percentage' => $tax_percentage,
@@ -520,7 +594,7 @@ if(isset($_POST['get_orders']) && isset($_POST['user_id'])) {
 	if(isset($_POST['status'])){
 	        $where1="AND o.active_status='".$_POST['status']."'";
 	}
-    $sql = "select *,(select name from users u where u.id=o.user_id) as user_name,(select email from users u where u.id=o.user_id) as user_email, (SELECT s.company_name FROM seller s WHERE s.id = o.seller_id) AS company_name,(SELECT s.image FROM seller s WHERE s.id = o.seller_id) AS company_image, (SELECT name FROM delivery_boys db WHERE db.id = o.delivery_boy_id) AS delivery_boy_name, (SELECT mobile FROM delivery_boys db WHERE db.id = o.delivery_boy_id) AS delivery_boy_mobile from orders o where user_id=".$user_id." ".$where1." ORDER BY date_added DESC LIMIT $offset,$limit";
+    $sql = "select *,(select name from users u where u.id=o.user_id) as user_name,(select email from users u where u.id=o.user_id) as user_email, (SELECT s.company_name FROM seller s WHERE s.id = o.seller_id) AS company_name,(SELECT s.image FROM seller s WHERE s.id = o.seller_id) AS company_image, (SELECT name FROM delivery_boys db WHERE db.id = o.delivery_boy_id) AS delivery_boy_name, (SELECT mobile FROM delivery_boys db WHERE db.id = o.delivery_boy_id) AS delivery_boy_mobile, (SELECT profile FROM delivery_boys db WHERE db.id = o.delivery_boy_id) AS delivery_boy_image from orders o where user_id=".$user_id." ".$where1." ORDER BY date_added DESC LIMIT $offset,$limit";
     $db->sql($sql);
     $res = $db->getResult();
     $i=0; $j=0;
@@ -534,6 +608,9 @@ if(isset($_POST['get_orders']) && isset($_POST['user_id'])) {
             $discount_in_rupees = 0;
         }
 		$res[$i]['company_image'] = (!empty($res[$i]['company_image'])) ? DOMAIN_URL . 'upload/sellers/' . $res[$i]['company_image'] : '';
+        // Delivery boy photo is sent as a path relative to the site root so the app
+        // can resolve it against its own base URL, which changes per environment.
+        $res[$i]['delivery_boy_image'] = !empty($res[$i]['delivery_boy_image']) ? $res[$i]['delivery_boy_image'] : '';
         
         $res[$i]['discount_rupees'] = "$discount_in_rupees";
         $final_total = ($res[$i]['final_total']);
@@ -2006,6 +2083,7 @@ if(isset($_POST['get_order_delivery_charge']) && !empty($_POST['user_id']) && is
 
     // Zone-wise service: delivery is only possible when the delivery address
     // falls inside one of the active zones. Store pickup is always allowed.
+    $addr_zone = null;
     if(empty($delivery_method) || $delivery_method != 'storepickup'){
         $addr_zone = $function->get_zone_id_from_latlng($user_latitude, $user_longitude);
         if($addr_zone === null){
@@ -2014,14 +2092,34 @@ if(isset($_POST['get_order_delivery_charge']) && !empty($_POST['user_id']) && is
             echo json_encode($response);
             exit;
         }
+        // The address must also sit inside this seller's own zone. A seller
+        // with no zone assigned imposes no restriction, and an address that
+        // resolves to no zone is allowed so customers are never locked out.
+        if(!$function->is_address_in_seller_zone($addr_zone, $function->get_seller_zone($seller_id))){
+            $response['error'] = true;
+            $response['message'] = "This restaurant does not deliver to your address. Please select an address inside the restaurant's service zone.";
+            echo json_encode($response);
+            exit;
+        }
     }
+
+    // Platform and convenience fee for the zone this order is delivered to. The
+    // convenience fee is returned as a percentage because the app applies it to
+    // the item total it already has, while the platform fee is a flat amount.
+    $preview_fees = $function->split_zone_fees(0, $addr_zone, $settings);
+    $preview_fee_fields = array(
+        'zone_id' => $preview_fees['zone_id'],
+        'platform_fee' => $preview_fees['platform_fee'],
+        'convenience_fee' => $preview_fees['convenience_fee_percent'],
+        'fees_inherited' => $preview_fees['fees_inherited'],
+    );
 
     if(!empty($delivery_method) && $delivery_method=='storepickup'){
 
-			$response['error'] = false;
-            $response['delivery_charge'] = 0;
-            $response['message'] = "Delivery charge";
-            echo json_encode($response);exit;
+		$response['error'] = false;
+        $response['delivery_charge'] = 0;
+        $response['message'] = "Delivery charge";
+        echo json_encode(array_merge($response,$preview_fee_fields));exit;
 
     }elseif($dunzo_enable == '1'){  //echo 'test2';die();
 	       $payload = [
@@ -2048,7 +2146,7 @@ if(isset($_POST['get_order_delivery_charge']) && !empty($_POST['user_id']) && is
 	                 $response['error'] = false;
 	                 $response['delivery_charge'] = $delivery_charge;
 	                 $response['message'] = "Dunzo Delivery charge";
-	                 echo json_encode($response);exit;
+	                 echo json_encode(array_merge($response,$preview_fee_fields));exit;
 	             }else{
 	                $response['error'] = true;
 	                $response['message'] = "Unable to get delivery charge.";
@@ -2064,39 +2162,22 @@ if(isset($_POST['get_order_delivery_charge']) && !empty($_POST['user_id']) && is
         // Purely distance-based delivery charge (in-person and courier both use
         // the in-person per-km tariff between the store and the selected location).
         if(!empty($in_persion_data)){
-            $persion_data = json_decode($in_persion_data);
-            
-            $initial_distance=isset($persion_data->first_km)?$persion_data->first_km:2;
-            $amt=isset($persion_data->first_km_amount)?$persion_data->first_km_amount:0;
-            $additional_amt=isset($persion_data->rest_km_amount)?$persion_data->rest_km_amount:0;
-        
-            if($user_latitude==0 || $user_longitude==0 || $store_lat==0 || $store_long==0){
-                $response['error'] = true;
-                $response['message'] = "Unable to get delivery charge. Store or delivery location is missing.";
-                echo json_encode($response);exit;
-            }
-        	$distance = $function->GetDeliveryDistance($store_lat , $user_latitude , $store_long , $user_longitude);
+        	$charge_info = $function->get_food_delivery_charge(
+        		$store_lat , $store_long , $user_latitude , $user_longitude , $in_persion_data
+        	);
 
-        	$distance =ceil($distance);
-        	
-        	if($distance > $initial_distance){
-        	   
-         	  $additional_dist =   $distance - $initial_distance;
-         	  $delivery_charge =  	$additional_amt *  $additional_dist;
-        	  
-         	  $total_delivery = 	$amt +  $delivery_charge;
-         	  $total_delivery =sprintf('%0.2f', $total_delivery); 
-    
-             $delivery_charge =   $total_delivery;
-        	}else{
-        	    $delivery_charge = $amt;
-        	} 
-        	
+        	if($charge_info['error'] !== ''){
+        		$response['error'] = true;
+        		$response['message'] = "Unable to get delivery charge. " . $charge_info['error'];
+        		echo json_encode($response);exit;
+        	}
+
             $response['error'] = false;
-            $response['delivery_charge'] = $delivery_charge;
-            $response['distance'] = $distance.'Km';
+            $response['delivery_charge'] = sprintf('%.2f', $charge_info['delivery_charge']);
+            $response['distance'] = $charge_info['distance_km'] . 'Km';
+            $response['distance_source'] = $charge_info['distance_source'];
             $response['message'] = "Delivery charge";
-            echo json_encode($response);exit;
+            echo json_encode(array_merge($response,$preview_fee_fields));exit;
         }else{
             $response['error'] = true;
             $response['message'] = "Enable Delivery charge in delivery method";
