@@ -103,7 +103,8 @@ include"header.php";?>
 
                                 <div class="form-group">
                                     <label for="image">Offer Image :</label>
-                                    <input type='file' name="image" id="image" required/> 
+                                    <input type='file' name="image" id="image" required/>
+                                    <p class="help-block">Images above 700 KB are compressed automatically before upload, so large photos are fine.</p>
                                 </div>
                             </div>
                             <div class="box-footer">
@@ -142,14 +143,103 @@ include"header.php";?>
                 </div>
             </div>
     <script>
+// The upload has to be shrunk in the browser: nginx rejects an oversized request
+// with 413 before the server side compression ever gets to run.
+var OFFER_MAX_BYTES = 700 * 1024;
+var OFFER_MAX_EDGE = 1600;
+
+/**
+ * Re-encodes an image file as JPEG until it fits inside maxBytes.
+ *
+ * Quality is stepped down first and the dimensions are only reduced once the
+ * quality floor is reached, which keeps the picture sharp for as long as
+ * possible. The callback always receives something usable - the original file
+ * is handed back if the browser cannot decode it or encode it.
+ */
+function compressImageToTarget(file, maxBytes, done) {
+    var reader = new FileReader();
+
+    reader.onerror = function () {
+        done(file);
+    };
+
+    reader.onload = function (e) {
+        var img = new Image();
+
+        img.onerror = function () {
+            done(file);
+        };
+
+        img.onload = function () {
+            var canvas = document.createElement('canvas');
+            var ctx = canvas.getContext('2d');
+            var scale = Math.min(1, OFFER_MAX_EDGE / Math.max(img.width, img.height));
+            var width = Math.max(1, Math.round(img.width * scale));
+            var height = Math.max(1, Math.round(img.height * scale));
+            var quality = 0.92;
+            var qualityFloor = 0.4;
+
+            function attempt() {
+                canvas.width = width;
+                canvas.height = height;
+                // Flatten transparency onto white, otherwise the png area would
+                // turn black in the jpeg.
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, width, height);
+                ctx.drawImage(img, 0, 0, width, height);
+
+                canvas.toBlob(function (blob) {
+                    if (!blob) {
+                        done(file);
+                        return;
+                    }
+
+                    if (blob.size <= maxBytes) {
+                        done(blob);
+                        return;
+                    }
+
+                    if (quality > qualityFloor) {
+                        quality -= 0.12;
+                        attempt();
+                        return;
+                    }
+
+                    // Quality exhausted, so shrink further and start over.
+                    if (width > 400 && height > 400) {
+                        width = Math.round(width * 0.8);
+                        height = Math.round(height * 0.8);
+                        quality = 0.92;
+                        attempt();
+                        return;
+                    }
+
+                    done(blob);
+                }, 'image/jpeg', quality);
+            }
+
+            attempt();
+        };
+
+        img.src = e.target.result;
+    };
+
+    reader.readAsDataURL(file);
+}
+    </script>
+    <script>
 
 
       $('#offer_form').on('submit',function(e){
         e.preventDefault();
-        var formData = new FormData(this);
+        var form = this;
+        var input = document.getElementById('image');
+        var selected = input.files && input.files[0];
+
+        function post(formData){
             $.ajax({
             type:'POST',
-            url: $(this).attr('action'),
+            url: $(form).attr('action'),
             data:formData,
             dataType:'json',
             beforeSend:function(){$('#submit_btn').val('Please wait..').attr('disabled',true);},
@@ -164,9 +254,42 @@ include"header.php";?>
                 setTimeout(function() {
                     location.reload();
                 }, 2000);
+            },
+            error:function(){
+                // nginx answers an oversized upload with a 413 html page, which
+                // cannot be parsed as json, so report it instead of hanging on a
+                // disabled button.
+                $('#submit_btn').val('Upload').attr('disabled',false);
+                $('#result').html("<p class='alert alert-danger'>Upload failed. Please try a smaller image.</p>");
+                $('#result').show().delay(4000).fadeOut();
             }
             });
-        
+        }
+
+        function upload(file){
+            var formData = new FormData(form);
+            if(file){
+                // A File chosen in the input cannot be swapped for the compressed
+                // blob, so the image part has to be set explicitly.
+                formData.set('image', file, file.name || 'offer.jpg');
+            }
+            post(formData);
+        }
+
+        if(!selected){
+            upload(null);
+            return;
+        }
+
+        if(selected.size <= OFFER_MAX_BYTES){
+            upload(selected);
+            return;
+        }
+
+        $('#submit_btn').val('Compressing..').attr('disabled',true);
+        compressImageToTarget(selected, OFFER_MAX_BYTES, function(compressed){
+            upload(compressed);
+        });
     }); 
     </script>
     <script>
@@ -194,12 +317,4 @@ include"header.php";?>
         }
     });
     </script>
-<script>
-	    var uploadField = document.getElementById("add-image");
-
-        uploadField.onchange = function() {
-            // Allow upload - image will be compressed on server
-        };
-        
-	</script>
 <?php include"footer.php"; ?>

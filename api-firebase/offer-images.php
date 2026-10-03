@@ -81,6 +81,8 @@ if ((isset($_POST['add-image'])) && ($db->escapeString($fn->xss_clean($_POST['ad
         }
 		$upload = move_uploaded_file($_FILES['image']['tmp_name'], '../upload/offers/'.$image);
 		
+		// compress image
+		$fn->compress_image_file('../upload/offers/'.$image);
 		// insert new data to menu table
 		$upload_image = 'upload/offers/'.$image;
 		$sql = "INSERT INTO `offers`(`image`) VALUES ('$upload_image')";
