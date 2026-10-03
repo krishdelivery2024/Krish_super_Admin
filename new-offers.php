@@ -198,10 +198,7 @@ include"header.php";?>
 	    var uploadField = document.getElementById("add-image");
 
         uploadField.onchange = function() {
-            if(this.files[0].size > 700024){
-               alert("Allowed Max File size 700 KB");
-               this.value = "";
-            };
+            // Allow upload - image will be compressed on server
         };
         
 	</script>

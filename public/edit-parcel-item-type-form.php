@@ -63,14 +63,16 @@
 					$function = new functions;
 					$image = $function->get_random_string($string, 4)."-".date("Y-m-d").".".$extension;
 				
-					// delete previous image
-					if(!empty($res[0]['image'])){
-					    $delete = @unlink($res[0]['image']);
-					}
 					
 					// upload new image
 					$upload = move_uploaded_file($_FILES['image']['tmp_name'], 'upload/images/'.$image);
 	  				$upload_image = 'upload/images/'.$image;
+	  				// compress image
+	  				$fn->compress_image_file($upload_image);
+	  				// delete previous image
+					if(!empty($res[0]['image'])){
+					    @unlink($res[0]['image']);
+					}
 					$sql_query = "UPDATE parcel_item_types 
 							SET name = '".$name."', image = '".$upload_image."'
 							WHERE id = ".$ID;
@@ -162,9 +164,8 @@
 	    var uploadField = document.getElementById("image");
 
         uploadField.onchange = function() {
-            if(this.files[0].size > 300024){
-               alert("Allowed Max File size 300 KB");
-               this.value = "";
+            if(this.files[0].size > 5000000){
+               // Allow large uploads; compress on server
             };
         };
 	</script>

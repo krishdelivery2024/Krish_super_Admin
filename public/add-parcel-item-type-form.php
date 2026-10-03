@@ -51,8 +51,11 @@
 				$upload = move_uploaded_file($_FILES['item_type_image']['tmp_name'], 'upload/images/'.$menu_image);
 		
                 if($upload) {
+				    // compress image if larger than 300 KB
+				    $image_path = 'upload/images/'.$menu_image;
+				    $fn->compress_image_file($image_path);
 				    // insert new data to menu table
-				    $upload_image = 'upload/images/'.$menu_image;
+				    $upload_image = $image_path;
 				    $sql_query = "INSERT INTO parcel_item_types (name,image)
 						    VALUES('$item_type_name', '$upload_image')";
 					    // Execute query
@@ -119,13 +122,12 @@
 	<div class="separator"> </div>
 	
 <?php $db->disconnect(); ?>
-	<script>
+ 	<script>
 	    var uploadField = document.getElementById("item_type_image");
 
         uploadField.onchange = function() {
-            if(this.files[0].size > 300024){
-               alert("Allowed Max File size 300 KB");
-               this.value = "";
+            if(this.files[0].size > 5000000){
+               // Allow large uploads; compress on server
             };
         };
 	</script>

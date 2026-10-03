@@ -110,6 +110,8 @@ if ((isset($_POST['add-image'])) && ($_POST['add-image'] == 1)) {
 		// upload new image
 		$upload = move_uploaded_file($_FILES['image']['tmp_name'], '../upload/slider/'.$image);
 		
+		// compress image
+		$fn->compress_image_file('../upload/slider/'.$image);
 		// insert new data to menu table
 		$upload_image = 'upload/slider/'.$image;
 		$sql = "INSERT INTO `slider`(`image`,`type`, `type_id`,`slider`,`section_type`,`zone_id`) VALUES ('$upload_image','".$type."','".$id."','".$slider."','".$section_type."',".$zone_column.")";

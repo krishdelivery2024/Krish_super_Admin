@@ -78,7 +78,7 @@ function upload_compressed_image($file, $prefix, $max_width = 800){
     }
     $filename = $prefix.'_'.time().'_'.rand(1000, 9999).'.jpg';
     $path = $dir.$filename;
-    imagejpeg($dst, $path, 70);
+    imagejpeg($dst, $path, 65);
     imagedestroy($src);
     imagedestroy($dst);
     if (!file_exists($path)) {
@@ -486,10 +486,17 @@ if(isset($_POST['add_delivery_boy']) && $_POST['add_delivery_boy']==1){
        return false; 
     }
     $name = $db->escapeString($fn->xss_clean($_POST['name']));
-    $mobile = $db->escapeString($fn->xss_clean($_POST['mobile']));
-    $address = $db->escapeString($fn->xss_clean($_POST['address']));
-    $bonus = $db->escapeString($fn->xss_clean($_POST['bonus']));
-    $zone_id = $db->escapeString($fn->xss_clean(!empty($_POST['zone_id']) ? $_POST['zone_id'] : '0'));
+$mobile = $db->escapeString($fn->xss_clean($_POST['mobile']));
+$address = $db->escapeString($fn->xss_clean($_POST['address']));
+$bonus = $db->escapeString($fn->xss_clean($_POST['bonus']));
+
+$store_id = !empty($_POST['store_id1'])
+    ? (int)$fn->xss_clean($_POST['store_id1'])
+    : 0;
+
+$zone_id = $db->escapeString(
+    $fn->xss_clean(!empty($_POST['zone_id']) ? $_POST['zone_id'] : '0')
+);
     $service_type = (!empty($_POST['service_type']) && in_array($_POST['service_type'], array('food','parcel','both'))) ? $_POST['service_type'] : 'both';
     $aadhaar = $db->escapeString($fn->xss_clean(!empty($_POST['aadhaar']) ? $_POST['aadhaar'] : ''));
     $driving_license = $db->escapeString($fn->xss_clean(!empty($_POST['driving_license']) ? $_POST['driving_license'] : ''));
@@ -522,8 +529,8 @@ if(isset($_POST['add_delivery_boy']) && $_POST['add_delivery_boy']==1){
             echo '<label class="alert alert-danger">Mobile Number Already Exists!</label>';
             return false;
         }
-    $sql = "INSERT INTO delivery_boys (name,mobile,password,address,bonus,service_type,aadhaar,driving_license,profile,aadhaar_image,driving_license_image,zone_id)
-                        VALUES('$name', '$mobile', '$password', '$address','$bonus','$service_type','$aadhaar','$driving_license','$profile','$aadhaar_image','$driving_license_image','$zone_id')";
+    $sql = "INSERT INTO delivery_boys (name,mobile,otp,password,store_id,address,bonus,service_type,aadhaar,driving_license,profile,aadhaar_image,driving_license_image,zone_id,fcm_id)
+VALUES('$name', '$mobile', '', '$password', '$store_id', '$address','$bonus','$service_type','$aadhaar','$driving_license','$profile','$aadhaar_image','$driving_license_image','$zone_id','')";
     if($db->sql($sql)){
         echo '<label class="alert alert-success">Delivery Boy Added Successfully!</label>';
     }else{
