@@ -1760,7 +1760,7 @@ class custom_functions{
     }
 
     // target ceiling for a stored product image, in bytes
-    const PRODUCT_IMAGE_MAX_BYTES = 300024;
+    const PRODUCT_IMAGE_MAX_BYTES = 250000;
 
     /**
      * Shrink an already uploaded image until it fits inside $max_bytes.
@@ -1809,8 +1809,8 @@ class custom_functions{
         // step_quality is off for GIF (no quality dial) and PNG (level 9 is the
         // best it does, so walking it cannot get us to the target on its own)
         $step_quality = ($type === IMAGETYPE_JPEG || $type === IMAGETYPE_WEBP);
-        $quality = 85;
-        $floor = 40;
+        $quality = 80;
+        $floor = 30;
         $passes = 0;
 
         // Every attempt is written to a scratch file and only swapped in once it
@@ -1837,14 +1837,14 @@ class custom_functions{
             }
 
             if ($step_quality && $quality > $floor) {
-                $quality -= 15;
+                $quality -= 10;
                 continue;
             }
 
             // quality exhausted - shrink by 20% and walk the quality back up
-            $new_w = (int)($width * 0.8);
-            $new_h = (int)($height * 0.8);
-            if ($new_w < 120 || $new_h < 120) {
+            $new_w = (int)($width * 0.75);
+            $new_h = (int)($height * 0.75);
+            if ($new_w < 100 || $new_h < 100) {
                 break;
             }
             $resized = $this->gd_resize($image, $width, $height, $new_w, $new_h);
@@ -1855,7 +1855,7 @@ class custom_functions{
             $image = $resized;
             $width = $new_w;
             $height = $new_h;
-            $quality = 85;
+            $quality = 80;
         }
 
         imagedestroy($image);
