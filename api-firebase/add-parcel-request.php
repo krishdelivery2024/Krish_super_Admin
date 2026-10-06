@@ -75,8 +75,8 @@ if(empty($pickup_location) || empty($drop_location)){
 	return false;
 }
 
-// Zone-wise service: pickup must be inside an active zone.
-// Drop location may be inside or outside zones, so it is not restricted.
+// Zone-wise service: pickup must be inside an active zone, and the whole
+// service area is defined by that pickup zone.
 if(empty($pickup_lat) || empty($pickup_lng)){
 	$response['error'] = true;
 	$response['message'] = "Pickup location coordinates are required. Please select the pickup point on the map.";
@@ -91,24 +91,25 @@ if($pickup_zone === null){
 	return false;
 }
 
-// Parcel drop validation: drop can be inside OR outside a zone, but if outside,
-// it must be within the admin-configured maximum km from the nearest zone boundary.
+// Parcel drop validation: the drop is judged against the pickup's zone only.
+// It may sit inside that zone or just outside its boundary, but it must be
+// within the admin-configured maximum km of the pickup zone's edge. Measuring
+// against "any zone" instead would accept a drop in a far-away zone simply
+// because that other zone has a polygon of its own.
 if(!empty($drop_lat) && !empty($drop_lng) && is_numeric($drop_lat) && is_numeric($drop_lng)){
-	$drop_zone = $fn->get_zone_id_from_latlng($drop_lat, $drop_lng);
-	if($drop_zone === null){
-		// Outside all zones – check distance from nearest zone boundary
-		$drop_dist = $fn->get_nearest_zone_distance($drop_lat, $drop_lng);
-		// Fetch configured max allowed distance (default 5 km)
-		$max_km_setting = $fn->get_settings('system_timezone', true);
-		$max_km = (isset($max_km_setting['parcel_zone_drop_max_km']) && is_numeric($max_km_setting['parcel_zone_drop_max_km']))
-			? (float)$max_km_setting['parcel_zone_drop_max_km']
-			: 5.0;
-		if($drop_dist > $max_km){
-			$response['error'] = true;
-			$response['message'] = "Drop location is too far from our service area. Maximum allowed distance from zone boundary is " . $max_km . " km. Your drop is approximately " . round($drop_dist, 1) . " km away.";
-			print_r(json_encode($response));
-			return false;
-		}
+	$drop_dist = $fn->get_zone_boundary_distance($drop_lat, $drop_lng, $pickup_zone);
+	// Fetch configured max allowed distance (default 5 km)
+	$max_km_setting = $fn->get_settings('system_timezone', true);
+	$max_km = (isset($max_km_setting['parcel_zone_drop_max_km']) && is_numeric($max_km_setting['parcel_zone_drop_max_km']))
+		? (float)$max_km_setting['parcel_zone_drop_max_km']
+		: 5.0;
+	if($drop_dist > $max_km){
+		$pickup_zone_name = $fn->get_zone_name($pickup_zone);
+		$zone_label = ($pickup_zone_name !== '') ? $pickup_zone_name : ('zone #' . (int)$pickup_zone);
+		$response['error'] = true;
+		$response['message'] = "Drop location is too far from the service area of " . $zone_label . ". Maximum allowed distance from that zone's boundary is " . $max_km . " km. Your drop is approximately " . round($drop_dist, 1) . " km away.";
+		print_r(json_encode($response));
+		return false;
 	}
 }
 

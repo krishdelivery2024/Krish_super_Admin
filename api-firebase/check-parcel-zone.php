@@ -44,21 +44,25 @@ if($pickup_zone === null){
 }
 
 if(!empty($drop_lat) && !empty($drop_lng) && is_numeric($drop_lat) && is_numeric($drop_lng)){
-	$drop_zone = $fn->get_zone_id_from_latlng($drop_lat, $drop_lng);
-	if($drop_zone === null){
-		// Outside all zones – check distance from nearest zone boundary
-		$drop_dist = $fn->get_nearest_zone_distance($drop_lat, $drop_lng);
-		// Fetch configured max allowed distance (default 5 km)
-		$max_km_setting = $fn->get_settings('system_timezone', true);
-		$max_km = (isset($max_km_setting['parcel_zone_drop_max_km']) && is_numeric($max_km_setting['parcel_zone_drop_max_km']))
-			? (float)$max_km_setting['parcel_zone_drop_max_km']
-			: 5.0;
-		if($drop_dist > $max_km){
-			$response['error'] = true;
-			$response['message'] = "Drop location is too far from our service area. Maximum allowed distance from zone boundary is " . $max_km . " km. Your drop is approximately " . round($drop_dist, 1) . " km away.";
-			print_r(json_encode($response));
-			return false;
-		}
+	// Serviceability is measured against the zone the PICKUP sits in, and only
+	// that zone. Testing the drop against "any zone" is what let a pickup in
+	// zone A be accepted for a drop sitting inside a far-away zone B: B's own
+	// polygon made the measured distance read zero even though B is nowhere
+	// near A. Distance to the pickup zone's boundary rejects that case while
+	// still allowing a drop just outside its edge, up to the km allowance.
+	$drop_dist = $fn->get_zone_boundary_distance($drop_lat, $drop_lng, $pickup_zone);
+	// Fetch configured max allowed distance (default 5 km)
+	$max_km_setting = $fn->get_settings('system_timezone', true);
+	$max_km = (isset($max_km_setting['parcel_zone_drop_max_km']) && is_numeric($max_km_setting['parcel_zone_drop_max_km']))
+		? (float)$max_km_setting['parcel_zone_drop_max_km']
+		: 5.0;
+	if($drop_dist > $max_km){
+		$pickup_zone_name = $fn->get_zone_name($pickup_zone);
+		$zone_label = ($pickup_zone_name !== '') ? $pickup_zone_name : ('zone #' . (int)$pickup_zone);
+		$response['error'] = true;
+		$response['message'] = "Drop location is too far from the service area of " . $zone_label . ". Maximum allowed distance from that zone's boundary is " . $max_km . " km. Your drop is approximately " . round($drop_dist, 1) . " km away.";
+		print_r(json_encode($response));
+		return false;
 	}
 }
 

@@ -66,6 +66,33 @@ if (!empty($settings_res)) {
 // the same zone that is stored on the parcel request. A zone with no override
 // falls back to the global setting.
 $quote_zone = $fn->get_zone_id_from_latlng($pickup_lat, $pickup_lng);
+if ($quote_zone === null) {
+    $response['error'] = "true";
+    $response['message'] = "Pickup is only available inside our service zones. Please move the pickup point inside a zone.";
+    print_r(json_encode($response));
+    $db->disconnect();
+    return false;
+}
+
+// Serviceability, enforced here as well so the preview can never disagree with
+// check-parcel-zone.php. The drop is measured against the pickup zone only -
+// checking "any zone" would let a drop sitting inside a far-away zone pass,
+// because that other zone's own polygon reads as a hit. The quote API used to
+// skip this entirely and would happily price a route the gate had rejected.
+$drop_dist = $fn->get_zone_boundary_distance($drop_lat, $drop_lng, $quote_zone);
+$max_km_setting = $fn->get_settings('system_timezone', true);
+$max_km = (isset($max_km_setting['parcel_zone_drop_max_km']) && is_numeric($max_km_setting['parcel_zone_drop_max_km']))
+    ? (float)$max_km_setting['parcel_zone_drop_max_km']
+    : 5.0;
+if ($drop_dist > $max_km) {
+    $pickup_zone_name = $fn->get_zone_name($quote_zone);
+    $zone_label = ($pickup_zone_name !== '') ? $pickup_zone_name : ('zone #' . (int)$quote_zone);
+    $response['error'] = "true";
+    $response['message'] = "Drop location is too far from the service area of " . $zone_label . ". Maximum allowed distance from that zone's boundary is " . $max_km . " km. Your drop is approximately " . round($drop_dist, 1) . " km away.";
+    print_r(json_encode($response));
+    $db->disconnect();
+    return false;
+}
 
 // Driving distance. Identical call to the one used when the parcel is finally
 // booked, so the preview and the charge are produced by the same code path.

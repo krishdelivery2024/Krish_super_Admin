@@ -1228,6 +1228,108 @@ class custom_functions{
     }
 
     /**
+     * Delivery method flags and the per-km tariff that apply to a zone.
+     *
+     * Mirrors get_zone_fees(): every tariff column is nullable and NULL means
+     * "inherit the global value from delivery_method id=1", so a zone an admin
+     * has not configured behaves exactly as it did before zone-wise delivery
+     * existed. That is what makes this safe to roll out.
+     *
+     * The method flags are per zone but default to the global flags when the
+     * zone has no row at all, so a newly created zone is never left with
+     * delivery switched off.
+     *
+     * A zone_id of 0, NULL or '' means the address could not be attributed to a
+     * zone, which also falls back to the global configuration.
+     *
+     * Returns array(
+     *   'storepickup'        => int,
+     *   'in_person_delivery' => int,
+     *   'in_persion_data'    => array, the tariff to hand to
+     *                           food_delivery_tariff_charge(),
+     *   'zone_id'            => int, 0 when unattributed,
+     *   'inherited'          => bool, true when the global tariff was used,
+     * ).
+     *
+     * There is no per-zone courier flag on purpose. Courier has no charge path of
+     * its own - courier orders are priced on the in-person per-km tariff - so a
+     * courier switch would only look like it does something.
+     */
+    public function get_zone_delivery_config($zone_id, $global_dm_row)
+    {
+        $global = is_array($global_dm_row) ? $global_dm_row : array();
+        $global_tariff = array();
+        if (isset($global['in_persion_data'])) {
+            $decoded = is_string($global['in_persion_data'])
+                ? json_decode($global['in_persion_data'], true)
+                : $global['in_persion_data'];
+            if (is_array($decoded)) {
+                $global_tariff = $decoded;
+            }
+        }
+
+        $result = array(
+            'storepickup'        => isset($global['storepickup']) ? (int)$global['storepickup'] : 0,
+            'in_person_delivery' => isset($global['in_persion_delivery']) ? (int)$global['in_persion_delivery'] : 0,
+            'in_persion_data'    => $global_tariff,
+            'zone_id'            => 0,
+            'inherited'          => true,
+        );
+
+        $zone_id = is_numeric($zone_id) ? (int)$zone_id : 0;
+        if ($zone_id <= 0) {
+            return $result;
+        }
+        $result['zone_id'] = $zone_id;
+
+        $this->db->sql(
+            "SELECT storepickup, in_person_delivery, is_active,
+                    first_km, first_km_amount, rest_km_amount
+             FROM `zone_delivery_method` WHERE zone_id=" . $zone_id . " LIMIT 1"
+        );
+        $row = $this->db->getResult();
+        if (empty($row) || !is_array($row[0])) {
+            return $result;
+        }
+
+        $row = $row[0];
+
+        // A zone row that has been switched off is not serviceable, whatever the
+        // global setting says.
+        if (isset($row['is_active']) && (int)$row['is_active'] !== 1) {
+            $result['storepickup']        = 0;
+            $result['in_person_delivery'] = 0;
+            $result['zone_id']            = $zone_id;
+            $result['inherited']          = false;
+            return $result;
+        }
+
+        $result['storepickup']        = (int)$row['storepickup'];
+        $result['in_person_delivery'] = (int)$row['in_person_delivery'];
+
+        // Each tariff column overrides independently, so a zone can override
+        // only the per-km rate and keep the global first-km slab.
+        $tariff = $global_tariff;
+        $overrode = false;
+        if ($row['first_km'] !== null && $row['first_km'] !== '') {
+            $tariff['first_km'] = (float)$row['first_km'];
+            $overrode = true;
+        }
+        if ($row['first_km_amount'] !== null && $row['first_km_amount'] !== '') {
+            $tariff['first_km_amount'] = (float)$row['first_km_amount'];
+            $overrode = true;
+        }
+        if ($row['rest_km_amount'] !== null && $row['rest_km_amount'] !== '') {
+            $tariff['rest_km_amount'] = (float)$row['rest_km_amount'];
+            $overrode = true;
+        }
+        $result['in_persion_data'] = $tariff;
+        $result['inherited']       = !$overrode;
+
+        return $result;
+    }
+
+    /**
      * Split a subtotal into platform fee, convenience fee and tax using the
      * fees that apply to a zone, so the preview and the stored order agree.
      *
@@ -1701,6 +1803,56 @@ class custom_functions{
     }
 
     /**
+     * Measures a point against ONE zone polygon.
+     * Returns null   when the polygon is missing or unusable.
+     * Returns 0.0    when the point falls inside the polygon.
+     * Otherwise the shortest straight-line distance in km to its edges.
+     */
+    private function polygon_boundary_distance($lat, $lng, $polygon_raw) {
+        $polygon = json_decode($polygon_raw, true);
+        if (!is_array($polygon) || count($polygon) < 3) {
+            return null;
+        }
+        $vertices = array();
+        foreach ($polygon as $point) {
+            if (!isset($point['lat']) || !isset($point['lng'])) {
+                return null;
+            }
+            $vertices[] = array((float)$point['lat'], (float)$point['lng']);
+        }
+        $n = count($vertices);
+        // Ray-casting: is the point inside this zone?
+        $inside = false;
+        $j = $n - 1;
+        for ($i = 0; $i < $n; $i++) {
+            $xi = $vertices[$i][1]; $yi = $vertices[$i][0];
+            $xj = $vertices[$j][1]; $yj = $vertices[$j][0];
+            if ((($yi > $lat) != ($yj > $lat)) &&
+                ($lng < ($xj - $xi) * ($lat - $yi) / ($yj - $yi) + $xi)) {
+                $inside = !$inside;
+            }
+            $j = $i;
+        }
+        if ($inside) {
+            return 0.0;
+        }
+        // Measure shortest distance to each edge
+        $min_dist = 999999;
+        for ($i = 0; $i < $n; $i++) {
+            $j2 = ($i + 1) % $n;
+            $d = $this->point_to_segment_distance(
+                $lat, $lng,
+                $vertices[$i][0], $vertices[$i][1],
+                $vertices[$j2][0], $vertices[$j2][1]
+            );
+            if ($d < $min_dist) {
+                $min_dist = $d;
+            }
+        }
+        return $min_dist;
+    }
+
+    /**
      * Returns the minimum straight-line distance in km from a lat/lng point
      * to the nearest boundary of any active zone.
      * Returns 0.0   if the point is already inside a zone.
@@ -1719,44 +1871,66 @@ class custom_functions{
         }
         $min_dist = 999999;
         foreach ($zones as $zone) {
-            $polygon = json_decode($zone['polygon'], true);
-            if (!is_array($polygon) || count($polygon) < 3) {
+            $d = $this->polygon_boundary_distance($lat, $lng, $zone['polygon']);
+            if ($d === null) {
                 continue;
             }
-            $vertices = array();
-            foreach ($polygon as $point) {
-                $vertices[] = array((float)$point['lat'], (float)$point['lng']);
-            }
-            // Ray-casting: is the point inside this zone?
-            $inside = false;
-            $n = count($vertices);
-            $j = $n - 1;
-            for ($i = 0; $i < $n; $i++) {
-                $xi = $vertices[$i][1]; $yi = $vertices[$i][0];
-                $xj = $vertices[$j][1]; $yj = $vertices[$j][0];
-                if ((($yi > $lat) != ($yj > $lat)) &&
-                    ($lng < ($xj - $xi) * ($lat - $yi) / ($yj - $yi) + $xi)) {
-                    $inside = !$inside;
-                }
-                $j = $i;
-            }
-            if ($inside) {
+            if ($d <= 0.0) {
                 return 0.0; // Inside a zone: zero distance to boundary
             }
-            // Measure shortest distance to each edge
-            for ($i = 0; $i < $n; $i++) {
-                $j2 = ($i + 1) % $n;
-                $d = $this->point_to_segment_distance(
-                    $lat, $lng,
-                    $vertices[$i][0], $vertices[$i][1],
-                    $vertices[$j2][0], $vertices[$j2][1]
-                );
-                if ($d < $min_dist) {
-                    $min_dist = $d;
-                }
+            if ($d < $min_dist) {
+                $min_dist = $d;
             }
         }
         return $min_dist;
+    }
+
+    /**
+     * Distance in km from a point to the boundary of ONE named zone, ignoring
+     * every other zone.
+     *
+     * Parcel serviceability has to be judged this way. Measuring against "the
+     * nearest zone of any kind" lets a pickup in zone A be paired with a drop
+     * that sits inside some far-away zone B, because B's own polygon makes the
+     * measured distance zero even though B is nowhere near A.
+     *
+     * Returns 0.0    when the point is inside the given zone.
+     * Returns 999999 when the zone is unknown/inactive or the point cannot be
+     *                shown to be near it, so callers fail closed.
+     */
+    public function get_zone_boundary_distance($latitude, $longitude, $zone_id) {
+        $zone_id = (int)$zone_id;
+        if ($zone_id <= 0) {
+            return 999999;
+        }
+        if (empty($latitude) || empty($longitude) || !is_numeric($latitude) || !is_numeric($longitude)) {
+            return 999999;
+        }
+        $lat = (float)$latitude;
+        $lng = (float)$longitude;
+        $this->db->sql("SELECT polygon FROM zone WHERE id = '".$zone_id."' AND status = 1 LIMIT 1");
+        $zones = $this->db->getResult();
+        if (empty($zones)) {
+            return 999999;
+        }
+        $d = $this->polygon_boundary_distance($lat, $lng, $zones[0]['polygon']);
+        return ($d === null) ? 999999 : $d;
+    }
+
+    /**
+     * Display name of a zone, or an empty string when it cannot be resolved.
+     */
+    public function get_zone_name($zone_id) {
+        $zone_id = (int)$zone_id;
+        if ($zone_id <= 0) {
+            return '';
+        }
+        $this->db->sql("SELECT name FROM zone WHERE id = '".$zone_id."' LIMIT 1");
+        $res = $this->db->getResult();
+        if (!empty($res) && isset($res[0]['name'])) {
+            return (string)$res[0]['name'];
+        }
+        return '';
     }
 
     // target ceiling for a stored product image, in bytes

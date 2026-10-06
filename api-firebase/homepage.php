@@ -85,7 +85,7 @@ if(isset($_POST['accesskey'])) {
 			$slider_order = " ORDER BY id DESC";
 		}
 
-                $sql = 'select * from slider where '.`$slider_where_1.`$slider_order;
+                $sql = 'select * from slider where '.$slider_where_1.$slider_order;
     	$db->sql($sql);
     	$result =$db->getResult();
     	$temp = $temp1 = array();
