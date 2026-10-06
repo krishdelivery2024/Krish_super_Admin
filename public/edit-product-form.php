@@ -1095,9 +1095,87 @@
 </div>
 <div class="separator"> </div>
 <script>
-    // Images bigger than 300 KB are accepted here and compressed to 300 KB on the
-    // server, so the seller is only told what is going to happen to the file.
-    var IMAGE_MAX_BYTES = 300024;
+    // nginx rejects the whole request before PHP ever runs once it passes 1 MB,
+    // and compress_image_file() only shrinks what is already on disk, so the
+    // images have to be small before they leave the browser. The budget is split
+    // across every image in the post, so a main image plus several others still
+    // arrives under the limit instead of failing on the count alone.
+    var IMAGE_MAX_BYTES = 250000;
+    var TOTAL_IMAGE_BYTES = 700 * 1024;
+    var IMAGE_FIELDS = ['image', 'other_images[]'];
+
+    function compressImageToTarget(file, maxBytes, done) {
+        if (file.size <= maxBytes) {
+            done(file);
+            return;
+        }
+
+        var reader = new FileReader();
+
+        reader.onerror = function () {
+            done(file);
+        };
+
+        reader.onload = function (e) {
+            var img = new Image();
+
+            img.onerror = function () {
+                done(file);
+            };
+
+            img.onload = function () {
+                var canvas = document.createElement('canvas');
+                var ctx = canvas.getContext('2d');
+                var scale = Math.min(1, 1600 / Math.max(img.width, img.height));
+                var width = Math.max(1, Math.round(img.width * scale));
+                var height = Math.max(1, Math.round(img.height * scale));
+                var quality = 0.85;
+                var qualityFloor = 0.4;
+
+                function attempt() {
+                    canvas.width = width;
+                    canvas.height = height;
+                    // Flatten transparency onto white, otherwise png transparency
+                    // would come through as black in the jpeg.
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fillRect(0, 0, width, height);
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    canvas.toBlob(function (blob) {
+                        if (!blob) {
+                            done(file);
+                            return;
+                        }
+                        if (blob.size <= maxBytes) {
+                            done(blob);
+                            return;
+                        }
+                        if (quality > qualityFloor) {
+                            quality -= 0.1;
+                            attempt();
+                            return;
+                        }
+                        // Quality exhausted: shrink and start over, so the budget is
+                        // a guarantee rather than a best effort for wide images.
+                        if (width > 160 || height > 160) {
+                            width = Math.max(64, Math.round(width * 0.8));
+                            height = Math.max(64, Math.round(height * 0.8));
+                            quality = 0.85;
+                            attempt();
+                            return;
+                        }
+                        done(blob);
+                    }, 'image/jpeg', quality);
+                }
+
+                attempt();
+            };
+
+            img.src = e.target.result;
+        };
+
+        reader.readAsDataURL(file);
+    }
 
     function describeImageSelection(input, noteId){
         var note = document.getElementById(noteId);
@@ -1106,19 +1184,131 @@
             note.innerHTML = "";
             return;
         }
-        var over = [];
+        var total = 0;
         for(var i = 0; i < input.files.length; i++){
-            if(input.files[i].size > IMAGE_MAX_BYTES){
-                over.push(input.files[i].name + " (" + Math.round(input.files[i].size/1024) + " KB)");
-            }
+            total += input.files[i].size;
         }
-        if(over.length > 0){
-            note.innerHTML = '<span class="text-warning">' + over.length +
-                ' image(s) over 300 KB will be compressed automatically: ' +
-                over.join(", ") + '</span>';
+        if(total > TOTAL_IMAGE_BYTES){
+            note.innerHTML = '<span class="text-warning">' + input.files.length +
+                ' image(s), ' + Math.round(total/1024) +
+                ' KB - will be compressed before uploading.</span>';
         }else{
-            note.innerHTML = '<span class="text-success">All images are within 300 KB.</span>';
+            note.innerHTML = '<span class="text-success">' + input.files.length +
+                ' image(s), ' + Math.round(total/1024) + ' KB.</span>';
         }
+    }
+
+    function collectImages(form, done){
+        // CKEditor only flushes into its textarea from its own submit handler,
+        // which this deferred submit never reaches, so pull it out first.
+        if (window.CKEDITOR && CKEDITOR.instances && CKEDITOR.instances.description) {
+            CKEDITOR.instances.description.updateElement();
+        }
+
+        var snapshot = new FormData(form);
+        var jobs = [];
+
+        IMAGE_FIELDS.forEach(function (name) {
+            var files = snapshot.getAll(name).filter(function (f) {
+                return f instanceof File && f.size > 0 && /^image\//.test(f.type);
+            });
+            if (files.length) {
+                jobs.push({ name: name, files: files });
+            }
+        });
+
+        if (!jobs.length) {
+            done({});
+            return;
+        }
+
+        var count = jobs.reduce(function (n, job) { return n + job.files.length; }, 0);
+        var budget = Math.min(IMAGE_MAX_BYTES, Math.floor(TOTAL_IMAGE_BYTES / count));
+        var pending = jobs.length;
+        var packed = {};
+
+        jobs.forEach(function (job) {
+            var out = [];
+            var left = job.files.length;
+
+            job.files.forEach(function (file, index) {
+                compressImageToTarget(file, budget, function (blob) {
+                    var result = blob;
+                    // The server derives the stored extension from the file name,
+                    // so a jpeg that was just encoded has to be named .jpg.
+                    if (blob !== file) {
+                        var base = (file.name || 'image').replace(/\.[^.]+$/, '') || 'image';
+                        result = new File([blob], base + '.jpg', { type: 'image/jpeg' });
+                    }
+                    out[index] = result;
+
+                    console.log(job.name + ' #' + index + ': ' + file.size + ' -> '
+                        + result.size + ' bytes (budget ' + budget + ')');
+
+                    if (--left === 0) {
+                        packed[job.name] = out;
+                        if (--pending === 0) {
+                            done(packed);
+                        }
+                    }
+                });
+            });
+        });
+    }
+
+    function applyImages(form, packed){
+        IMAGE_FIELDS.forEach(function (name) {
+            var value = packed[name];
+            if (!value) { return; }
+            var input = form.querySelector('[name="' + name + '"]');
+            if (!input) { return; }
+            var transfer = new DataTransfer();
+            value.forEach(function (f) { transfer.items.add(f); });
+            input.files = transfer.files;
+        });
+    }
+
+    var addProductForm = document.getElementById('edit_product_form');
+    var imagesReady = false;
+
+    if (addProductForm) {
+        addProductForm.addEventListener('submit', function (e) {
+            // Second pass, once the compressed files are back on the inputs.
+            if (imagesReady) { return; }
+
+            e.preventDefault();
+
+            var btn = addProductForm.querySelector('input[type="submit"]');
+            var label = btn ? btn.value : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.value = 'Preparing images...';
+            }
+
+            collectImages(addProductForm, function (packed) {
+                applyImages(addProductForm, packed);
+
+                if (btn) {
+                    btn.disabled = false;
+                    btn.value = label;
+                }
+
+                imagesReady = true;
+
+                // requestSubmit keeps the submit button on the post; plain form.submit()
+                // path would drop the submitter and the handler would never run.
+                if (btn && typeof addProductForm.requestSubmit === 'function') {
+                    addProductForm.requestSubmit(btn);
+                } else {
+                    var marker = document.createElement('input');
+                    marker.type = 'hidden';
+                    marker.name = 'btnEdit';
+                    marker.value = 'Update';
+                    addProductForm.appendChild(marker);
+                    addProductForm.submit();
+                }
+            });
+        });
     }
 
     var otherImagesField = document.getElementById("other_images");

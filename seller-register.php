@@ -414,25 +414,179 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <script src="dist/plugin/waves/waves.min.js"></script>
 <script src="dist/scripts/main.min.js"></script>
 <script>
+// Shrink large images before they leave the browser. The request body is capped
+// by the web server in front of the application, and a 413 is returned before PHP
+// ever runs, so this is the only reliable place to control the size. Anything
+// already within budget is sent untouched.
+var SELLER_MAX_BYTES = 300 * 1024;
+var SELLER_MAX_EDGE = 1600;
+
+function compressImageToTarget(file, maxBytes, done) {
+    if (file.size <= maxBytes) {
+        done(file);
+        return;
+    }
+
+    var reader = new FileReader();
+
+    reader.onerror = function () {
+        done(file);
+    };
+
+    reader.onload = function (e) {
+        var img = new Image();
+
+        img.onerror = function () {
+            done(file);
+        };
+
+        img.onload = function () {
+            var canvas = document.createElement('canvas');
+            var ctx = canvas.getContext('2d');
+            var scale = Math.min(1, SELLER_MAX_EDGE / Math.max(img.width, img.height));
+            var width = Math.max(1, Math.round(img.width * scale));
+            var height = Math.max(1, Math.round(img.height * scale));
+            var quality = 0.85;
+            var qualityFloor = 0.4;
+
+            function attempt() {
+                canvas.width = width;
+                canvas.height = height;
+                // Flatten transparency onto white, otherwise png transparency
+                // would come through as black in the jpeg.
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, width, height);
+                ctx.drawImage(img, 0, 0, width, height);
+
+                canvas.toBlob(function (blob) {
+                    if (!blob) {
+                        done(file);
+                        return;
+                    }
+                    if (blob.size <= maxBytes) {
+                        done(blob);
+                        return;
+                    }
+                    if (quality > qualityFloor) {
+                        quality -= 0.1;
+                        attempt();
+                        return;
+                    }
+                    // Quality exhausted: shrink and start over. This keeps going
+                    // until the image is tiny, so the 300 KB budget is a hard
+                    // guarantee rather than a best effort - otherwise a wide
+                    // banner would stall as soon as its height dropped and
+                    // could still be over budget when given up on.
+                    if (width > 160 || height > 160) {
+                        width = Math.max(64, Math.round(width * 0.8));
+                        height = Math.max(64, Math.round(height * 0.8));
+                        quality = 0.85;
+                        attempt();
+                        return;
+                    }
+                    done(blob);
+                }, 'image/jpeg', quality);
+            }
+
+            attempt();
+        };
+
+        img.src = e.target.result;
+    };
+
+    reader.readAsDataURL(file);
+}
+
+function prepareFormData(form, done) {
+    var formData = new FormData(form);
+    var fields = ['image', 'banner'].filter(function (name) {
+        var value = formData.get(name);
+        return value instanceof File && value.size > 0 && /^image\//.test(value.type);
+    });
+
+    if (!fields.length) {
+        done(formData);
+        return;
+    }
+
+    var pending = fields.length;
+
+    fields.forEach(function (fieldName) {
+        var original = formData.get(fieldName);
+
+        compressImageToTarget(original, SELLER_MAX_BYTES, function (blob) {
+            // The server takes the stored extension from the uploaded file name,
+            // so a jpeg that was just encoded has to be named .jpg to match.
+            if (blob === original) {
+                formData.set(fieldName, blob, original.name);
+            } else {
+                var base = original.name.replace(/\.[^.]+$/, '') || fieldName;
+                formData.set(fieldName, blob, base + '.jpg');
+            }
+
+            console.log(fieldName + ': ' + original.size + ' -> ' + blob.size + ' bytes'
+                + (blob.size > SELLER_MAX_BYTES ? '  OVER BUDGET' : ''));
+
+            if (--pending === 0) {
+                done(formData);
+            }
+        });
+    });
+}
+
 document.getElementById('registerForm').addEventListener('submit', function (e) {
     e.preventDefault();
 
     const form = document.getElementById('registerForm');
-    const formData = new FormData(form);
+    const msgEl = document.getElementById('message');
+    const btn = document.getElementById('registerBtn');
+    const btnLabel = btn.innerHTML;
 
-    fetch('seller-register.php', {
-        method: 'POST',
-        body: formData
-    })
-    .then(resp => resp.json())
-    .then(data => {
-        const msgEl = document.getElementById('message');
-        msgEl.innerText = data.message;
-        msgEl.style.color = data.error ? 'red' : 'green';
-        if (!data.error) form.reset();
-    })
-    .catch(() => {
-        document.getElementById('message').innerText = "Something went wrong. Try again later.";
+    msgEl.innerText = '';
+    btn.disabled = true;
+    btn.innerHTML = 'Preparing images...';
+
+    prepareFormData(form, function (formData) {
+        btn.innerHTML = 'Registering...';
+
+        var bytes = 0;
+        for (var i = 0; i < formData.length; i++) {
+            var value = formData.get(i);
+            if (value && typeof value.size === 'number') bytes += value.size;
+        }
+        console.log('seller registration payload: ' + bytes + ' bytes');
+        msgEl.style.color = '#777';
+        msgEl.innerText = 'Uploading ' + (bytes / 1024).toFixed(0) + ' KB...';
+
+        fetch('seller-register.php', {
+            method: 'POST',
+            body: formData
+        })
+        .then(resp => {
+            if (resp.status === 413) {
+                const err = new Error('413');
+                err.tooLarge = true;
+                throw err;
+            }
+            return resp.json();
+        })
+        .then(data => {
+            msgEl.innerText = data.message;
+            msgEl.style.color = data.error ? 'red' : 'green';
+            if (!data.error) form.reset();
+        })
+        .catch(err => {
+            if (err && err.tooLarge) {
+                msgEl.innerText = "Images are still too large. Please upload smaller photos.";
+            } else {
+                msgEl.innerText = "Something went wrong. Try again later.";
+            }
+            msgEl.style.color = 'red';
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = btnLabel;
+        });
     });
 });
 </script>

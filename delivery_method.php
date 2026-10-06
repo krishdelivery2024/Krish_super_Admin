@@ -8,37 +8,62 @@ $db_con->sql("SET NAMES 'utf8'");
 $sql="SELECT * FROM settings WHERE  variable='system_timezone'";
 $db_con->sql($sql);
 $res_time = $db_con->getResult();
+$data = array();
 if(!empty($res_time)){
     foreach ($res_time as $row){
         $data = json_decode($row['value'], true);
     }
 }
 
+// These ids come from the settings row and can point at a zone/state/city that no
+// longer exists, so every lookup is treated as optional.
+$state_name = $city_name = $zone_name = '';
+
 if(!empty($data['store_state'])){
     $sql = "SELECT * FROM state WHERE id='".$data['store_state']."'";
     $db_con->sql($sql);
     $res1 = $db_con->getResult();  
-    $state_name = $res1[0]['name'];
+    $state_name = !empty($res1[0]['name']) ? $res1[0]['name'] : '';
 }
 
 if(!empty($data['store_city'])){
     $sql = "SELECT * FROM city WHERE id='".$data['store_city']."'";
     $db_con->sql($sql);
     $res = $db_con->getResult(); 
-    $city_name = $res[0]['name'];
+    $city_name = !empty($res[0]['name']) ? $res[0]['name'] : '';
 }
 if(!empty($data['store_zone'])){
     $sql = "SELECT * FROM zone WHERE id='".$data['store_zone']."'";
     $db_con->sql($sql);
     $res = $db_con->getResult(); 
-    $zone_name = $res[0]['name'];
+    $zone_name = !empty($res[0]['name']) ? $res[0]['name'] : '';
 }
 
 $sql = "SELECT * FROM delivery_method WHERE id=1";
 $db_con->sql($sql);
 $res = $db_con->getResult(); 
-//echo '<pre>'; print_r($res);
-// exit;
+
+// Every active zone is listed here and can be configured. To take a zone out of
+// service, untick "Service Enabled" in its row rather than hiding it: the row stays
+// visible, the setting is auditable, and it can be switched back on at any time.
+
+// Per-zone delivery configuration. A zone with no row here inherits the global
+// settings above, which is also what an address that cannot be attributed to a
+// zone falls back to.
+$sql = "SELECT z.id AS zone_id, z.name AS zone_name, z.status AS zone_status,
+               zdm.storepickup, zdm.in_person_delivery, zdm.courier,
+               zdm.first_km, zdm.first_km_amount, zdm.rest_km_amount, zdm.is_active
+        FROM zone z
+        LEFT JOIN zone_delivery_method zdm ON zdm.zone_id = z.id
+        WHERE z.status = 1
+        ORDER BY z.name";
+$db_con->sql($sql);
+$zone_delivery_rows = $db_con->getResult();
+if (!is_array($zone_delivery_rows)) {
+    $zone_delivery_rows = array();
+}
+
+//echo '<pre>'; print_r($zone_delivery_rows);
 
 $first_km=$first_km_amount=$rest_km_amount=null;
 if(!empty($res[0]['in_persion_data'])){
@@ -194,6 +219,89 @@ width: 50px;
     </div>
 </div>
 
+<hr>
+<h4>ZONE WISE DELIVERY</h4>
+<p class="text-muted">
+    One row per zone. Leave a charge blank to inherit the default set above; untick a
+    method to stop that delivery type in that zone only. Orders are matched to a zone
+    by the delivery pin, so a zone with no method ticked will not accept orders.
+</p>
+
+<?php if (empty($zone_delivery_rows)) { ?>
+    <div class="alert alert-warning">No active zones found. Add a zone first.</div>
+<?php } else { ?>
+<div class="table-responsive">
+<table class="table table-bordered table-condensed" id="zoneTable" style="margin-bottom:5px;">
+    <thead>
+        <tr style="background:#f5f5f5;">
+            <th style="min-width:120px;">Zone</th>
+            <th style="text-align:center;">Store<br>Pickup</th>
+            <th style="text-align:center;">In/Person<br>Delivery</th>
+            <th style="text-align:center;">Service<br>Enabled</th>
+            <th style="text-align:center;" title="Blank inherits the default">First<br>KM</th>
+            <th style="text-align:center;" title="Blank inherits the default">First KM<br>Charge</th>
+            <th style="text-align:center;" title="Blank inherits the default">Per KM<br>Charge</th>
+        </tr>
+    </thead>
+    <tbody>
+<?php
+$def_fkm  = !empty($first_km)     ? $first_km     : '';
+$def_famt = isset($first_km_amount) ? $first_km_amount : '';
+$def_ramt = isset($rest_km_amount)  ? $rest_km_amount  : '';
+
+foreach ($zone_delivery_rows as $zrow) {
+    $zid   = (int)$zrow['zone_id'];
+    $zname = htmlspecialchars($zrow['zone_name'], ENT_QUOTES, 'UTF-8');
+    // No row for the zone means it inherits the global switches.
+    $z_sp  = $zrow['storepickup'] !== null
+        ? (int)$zrow['storepickup'] : (int)$res[0]['storepickup'];
+    $z_ipd = $zrow['in_person_delivery'] !== null
+        ? (int)$zrow['in_person_delivery'] : (int)$res[0]['in_persion_delivery'];
+    $z_on  = $zrow['is_active'] !== null ? (int)$zrow['is_active'] : 1;
+
+    $z_fkm  = ($zrow['first_km']         === null || $zrow['first_km']         === '') ? '' : $zrow['first_km'];
+    $z_famt = ($zrow['first_km_amount'] === null || $zrow['first_km_amount'] === '') ? '' : $zrow['first_km_amount'];
+    $z_ramt = ($zrow['rest_km_amount']   === null || $zrow['rest_km_amount']   === '') ? '' : $zrow['rest_km_amount'];
+?>
+        <tr>
+            <td>
+                <input type="hidden" name="zone_id[]" value="<?= $zid; ?>">
+                <?= $zname; ?>
+            </td>
+            <td style="text-align:center;">
+                <input type="checkbox" class="zm-service" name="z_storepickup[<?= $zid; ?>]" value="1" <?= $z_sp == 1 ? 'checked' : ''; ?>>
+            </td>
+            <td style="text-align:center;">
+                <input type="checkbox" class="zm-service" name="z_inperson[<?= $zid; ?>]" value="1" <?= $z_ipd == 1 ? 'checked' : ''; ?>>
+            </td>
+            <td style="text-align:center;">
+                <input type="checkbox" class="zm-active" name="z_active[<?= $zid; ?>]" value="1" <?= $z_on == 1 ? 'checked' : ''; ?>>
+            </td>
+            <td style="text-align:center;">
+                <input type="text" class="form-control input-sm" style="width:70px;display:inline-block;" name="z_first_km[<?= $zid; ?>]" value="<?= htmlspecialchars($z_fkm, ENT_QUOTES, 'UTF-8'); ?>" placeholder="<?= htmlspecialchars($def_fkm, ENT_QUOTES, 'UTF-8'); ?>">
+            </td>
+            <td style="text-align:center;">
+                <input type="text" class="form-control input-sm" style="width:80px;display:inline-block;" name="z_first_km_amount[<?= $zid; ?>]" value="<?= htmlspecialchars($z_famt, ENT_QUOTES, 'UTF-8'); ?>" placeholder="<?= htmlspecialchars($def_famt, ENT_QUOTES, 'UTF-8'); ?>">
+            </td>
+            <td style="text-align:center;">
+                <input type="text" class="form-control input-sm" style="width:80px;display:inline-block;" name="z_rest_km_amount[<?= $zid; ?>]" value="<?= htmlspecialchars($z_ramt, ENT_QUOTES, 'UTF-8'); ?>" placeholder="<?= htmlspecialchars($def_ramt, ENT_QUOTES, 'UTF-8'); ?>">
+            </td>
+        </tr>
+<?php } ?>
+    </tbody>
+</table>
+</div>
+<p class="text-muted" style="font-size:11px;">
+    Grey figures are placeholders, not saved values - a blank box inherits the default.
+</p>
+<?php } ?>
+
+<div class="row">
+    <div class="col-md-3">
+        <input type="button" class="btn btn-primary sbtn" value="Update">
+    </div>
+</div>
+
 </form>
 
 
@@ -240,13 +348,21 @@ width: 50px;
                 success: function(result){
                     if(result.message == 'Weight required'){
                         alert('Error!, Weight required for all products');
+                    }else if(result.error){
+                        alert('Error!, ' + (result.message ? result.message : 'could not save'));
                     }else{
                         alert('Data updated successfully');
                     }
-                    
+                },
+                error: function(){
+                    alert('Error!, the server did not respond');
                 }
-                
             });
+        });
+
+        // Any zone change means there is something to save.
+        $("body").on('change', '#zoneTable input', function(){
+            $('.sbtn').show();
         });
 
     });

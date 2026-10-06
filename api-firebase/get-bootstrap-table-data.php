@@ -1702,12 +1702,26 @@
         		//echo $sql;
         		$db->sql($sql);
         		$res1 = $db->getResult();
+			$esc = function($v){ return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); };
+			$doc_thumb = function($path, $label, $rounded) use ($esc) {
+				if(empty($path)) return '<span class="text-muted" style="font-size:12px;">Not uploaded</span>';
+				$url = DOMAIN_URL.$path;
+				$shape = $rounded ? 'width:40px;height:40px;border-radius:50%;' : 'height:40px;width:40px;';
+				$style = $shape.'object-fit:cover;border:1px solid #ddd;cursor:pointer;';
+				return '<a class="view-doc" data-doc="'.$esc($label).'" data-src="'.$esc($url).'" title="Click to view '.$esc($label).'">'
+					. '<img src="'.$esc($url).'" style="'.$style.'"></a>';
+			};
+			$profile_url = (!empty($row['profile'])) ? DOMAIN_URL.$row['profile'] : '';
+			$aadhaar_url = (!empty($row['aadhaar_image'])) ? DOMAIN_URL.$row['aadhaar_image'] : '';
+			$licence_url = (!empty($row['driving_license_image'])) ? DOMAIN_URL.$row['driving_license_image'] : '';
 			//$operate = '<a href="view-subcategory.php?id='.$row['id'].'"><i class="fa fa-folder-open-o"></i>View Subcategories</a>';
 			$operate = "<a class='btn btn-xs btn-primary edit-delivery-boy' data-id='".$row['id']."' data-toggle='modal' data-target='#editDeliveryBoyModal' title='Edit'><i class='fa fa-pencil-square-o'></i></a>";
 
 			$operate .= " <a class='btn btn-xs btn-danger delete-delivery-boy' data-id='".$row['id']."' title='Delete'><i class='fa fa-trash-o'></i></a>";
 
 			$operate .= " <a class='btn btn-xs btn-primary transfer-fund' data-id='".$row['id']."' data-name='".$row['name']."' data-mobile='".$row['mobile']."' data-address='".$row['address']."' data-balance='".$row['balance']."' data-toggle='modal' data-target='#fundTransferModal' title='Fund Transfer'><i class='fa fa-chevron-circle-right'></i></a>";
+
+			$operate .= " <a class='btn btn-xs btn-info view-all-docs' data-id='".$row['id']."' data-name='".$esc($row['name'])."' data-profile='".$esc($profile_url)."' data-aadhaar='".$esc($aadhaar_url)."' data-licence='".$esc($licence_url)."' title='View Documents'><i class='fa fa-file-text-o'></i></a>";
 			// $operate .= "<a class='btn btn-xs btn-danger delete-district' data-id='".$row['id']."' title='Delete'><i class='fas fa-trash'></i></a>";
 			
 			$tempRow['id'] = $row['id'];
@@ -1721,10 +1735,9 @@
 			$tempRow['balance'] = $row['balance'];
 			$tempRow['aadhaar'] = $row['aadhaar'];
 			$tempRow['driving_license'] = $row['driving_license'];
-			$tempRow['profile'] = (!empty($row['profile'])) ? '<img src="'.DOMAIN_URL.$row['profile'].'" style="width:40px;height:40px;border-radius:50%;object-fit:cover;">' : '';
-			$thumb = "height:40px;width:40px;object-fit:cover;border:1px solid #ddd;";
-			$tempRow['aadhaar_image'] = (!empty($row['aadhaar_image'])) ? '<img src="'.DOMAIN_URL.$row['aadhaar_image'].'" style="'.$thumb.'">' : '';
-			$tempRow['driving_license_image'] = (!empty($row['driving_license_image'])) ? '<img src="'.DOMAIN_URL.$row['driving_license_image'].'" style="'.$thumb.'">' : '';
+			$tempRow['profile'] = $doc_thumb($row['profile'], 'Photo', true);
+			$tempRow['aadhaar_image'] = $doc_thumb($row['aadhaar_image'], 'Aadhaar Card', false);
+			$tempRow['driving_license_image'] = $doc_thumb($row['driving_license_image'], 'Driving License', false);
 			$service_labels = array('food' => 'Food', 'parcel' => 'Parcel', 'both' => 'Both');
 			$service_key = (!empty($row['service_type']) && isset($service_labels[$row['service_type']])) ? $row['service_type'] : 'both';
 			$tempRow['service_type'] = "<label class='label label-primary'>".$service_labels[$service_key]."</label>";

@@ -289,6 +289,23 @@
                     </div>
                 </div>
             </div>
+                        <div class="modal fade" id='docPreviewModal' tabindex="-1" role="dialog" aria-labelledby="docPreviewTitle">
+                <div class="modal-dialog modal-lg" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                            <h4 class="modal-title" id="docPreviewTitle">Documents</h4>
+                        </div>
+                        <div class="modal-body">
+                            <div id="docPreviewContent"></div>
+                        </div>
+                        <div class="modal-footer">
+                            <a href="#" id="docFullLink" target="_blank" rel="noopener" class="btn btn-primary"><i class="fa fa-search-plus"></i> Open Full Size</a>
+                            <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
 <?php } ?>
 <?php if($page=="Payment Requests"){ ?>
 	<div class="modal fade" id='editPaymentRequestModal' tabindex="-1" role="dialog" aria-labelledby="myLargeModalLabel">
@@ -2789,8 +2806,8 @@ window.actionEvents = {
                 		$('#is-refer-earn-on').val(0);
                 	}
                 };
-    
-            </script>
+</script>
+
 <?php } ?>
 <?php if($page=="Return Requests"){?>
 	  <script>
@@ -4044,6 +4061,49 @@ $(document).on('change','#loose',function(){
         });
   </script>
 
+  <script>
+    function delivery_boy_doc_grid(items){
+        var html = '<div class="row">';
+        $.each(items, function(i, it){
+            html += '<div class="col-md-4">';
+            if(it.url){
+                html += '<a class="view-doc" data-doc="'+it.label+'" data-src="'+it.url+'">'
+                     +  '<img src="'+it.url+'" style="width:100%;height:230px;object-fit:contain;border:1px solid #ddd;background:#fff;">'
+                     +  '</a><div style="text-align:center;padding-top:6px;"><strong>'+it.label+'</strong></div>';
+            }else{
+                html += '<div style="height:230px;border:1px dashed #ccc;background:#f7f7f7;"></div>'
+                     +  '<div style="text-align:center;padding-top:6px;color:#999;">'+it.label+' - not uploaded</div>';
+            }
+            html += '</div>';
+        });
+        html += '</div><div class="clearfix"></div>';
+        return html;
+    }
+
+    $(document).on('click', '.view-all-docs', function(){
+        var btn = $(this);
+        var name = btn.attr('data-name') || '';
+        $('#docPreviewTitle').html('Documents' + (name !== '' ? ' - ' + name : ''));
+        $('#docPreviewContent').html(delivery_boy_doc_grid([
+            { label: 'Photo', url: btn.attr('data-profile') },
+            { label: 'Aadhaar Card', url: btn.attr('data-aadhaar') },
+            { label: 'Driving License', url: btn.attr('data-licence') }
+        ]));
+        $('#docFullLink').hide();
+        $('#docPreviewModal').modal('show');
+    });
+
+    $(document).on('click', '.view-doc', function(e){
+        e.preventDefault();
+        var url = $(this).attr('data-src');
+        if(!url) return;
+        $('#docPreviewTitle').html($(this).attr('data-doc') || 'Document');
+        $('#docPreviewContent').html('<img src="'+url+'" style="width:100%;max-height:70vh;object-fit:contain;">');
+        $('#docFullLink').attr('href', url).show();
+        $('#docPreviewModal').modal('show');
+    });
+  </script>
+
 <?php } ?>
 
 
@@ -4362,5 +4422,216 @@ function queryParams_1(p){
 <?php }
 ?>
 
+<script>
+/* Client-side image compression for uploads.
+ *
+ * nginx refuses any request over 1 MB before PHP sees it, and the server-side
+ * compress_image_file() only runs after move_uploaded_file(), so images have to
+ * be brought down before they leave the browser.
+ *
+ * Compression runs when a file is chosen rather than at submit time, which
+ * keeps it working regardless of how a form is submitted (plain post, jQuery
+ * ajax, fetch). The submit gate below blocks the post while that work is still
+ * in flight so a quick click cannot send the original file.
+ */
+(function (global) {
+    'use strict';
+
+    var MAX_PER_IMAGE = 250000;   // matches PRODUCT_IMAGE_MAX_BYTES on the server
+    var MAX_TOTAL = 700 * 1024;   // whole form stays under nginx's 1 MB
+    var pending = 0;
+    var waiters = [];
+
+    function release() {
+        pending -= 1;
+        if (pending > 0) { return; }
+        pending = 0;
+        var queue = waiters.slice();
+        waiters.length = 0;
+        queue.forEach(function (fn) { fn(); });
+    }
+
+    function compress(file, maxBytes, done) {
+        if (file.size <= maxBytes) {
+            done(file);
+            return;
+        }
+
+        var reader = new FileReader();
+
+        reader.onerror = function () { done(file); };
+
+        reader.onload = function (e) {
+            var img = new Image();
+
+            img.onerror = function () { done(file); };
+
+            img.onload = function () {
+                var canvas = document.createElement('canvas');
+                var ctx = canvas.getContext('2d');
+                var scale = Math.min(1, 1600 / Math.max(img.width, img.height));
+                var width = Math.max(1, Math.round(img.width * scale));
+                var height = Math.max(1, Math.round(img.height * scale));
+                var quality = 0.85;
+                var qualityFloor = 0.4;
+
+                function attempt() {
+                    canvas.width = width;
+                    canvas.height = height;
+                    // Flatten transparency onto white, otherwise png transparency
+                    // would come through as black in the jpeg.
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fillRect(0, 0, width, height);
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    canvas.toBlob(function (blob) {
+                        if (!blob) { done(file); return; }
+                        if (blob.size <= maxBytes) { done(blob); return; }
+                        if (quality > qualityFloor) {
+                            quality -= 0.1;
+                            attempt();
+                            return;
+                        }
+                        // Quality exhausted: shrink and restart so the budget stays
+                        // a guarantee rather than a best effort for wide images.
+                        if (width > 160 || height > 160) {
+                            width = Math.max(64, Math.round(width * 0.8));
+                            height = Math.max(64, Math.round(height * 0.8));
+                            quality = 0.85;
+                            attempt();
+                            return;
+                        }
+                        done(blob);
+                    }, 'image/jpeg', quality);
+                }
+
+                attempt();
+            };
+
+            img.src = e.target.result;
+        };
+
+        reader.readAsDataURL(file);
+    }
+
+    function formScale(form) {
+        if (!form || !form.querySelectorAll) { return 1; }
+        var fields = form.querySelectorAll('input[type="file"]');
+        var files = 0;
+        for (var i = 0; i < fields.length; i++) {
+            files += fields[i].files ? fields[i].files.length : 0;
+        }
+        // Counting the inputs as well as the files keeps the total under budget
+        // when a seller fills several inputs one after another, since each
+        // selection is budgeted before the later ones exist.
+        return Math.max(files, fields.length, 1);
+    }
+
+    function prepare(input) {
+        if (!input || !input.files || !input.files.length || typeof DataTransfer === 'undefined') {
+            return;
+        }
+
+        var images = [];
+        for (var i = 0; i < input.files.length; i++) {
+            var file = input.files[i];
+            if (file && file.size > 0 && /^image\//.test(file.type)) {
+                images.push(file);
+            }
+        }
+        if (!images.length) { return; }
+
+        var scale = Math.max(formScale(input.form), images.length);
+        var budget = Math.min(MAX_PER_IMAGE, Math.floor(MAX_TOTAL / scale));
+
+        var token = (input.__kcompressToken || 0) + 1;
+        input.__kcompressToken = token;
+        pending += 1;
+
+        var left = images.length;
+        var out = new Array(images.length);
+
+        images.forEach(function (file, index) {
+            compress(file, budget, function (blob) {
+                var result = blob;
+                // The server derives the stored extension from the file name, so a
+                // jpeg that was just encoded has to be named .jpg to match.
+                if (blob !== file) {
+                    var base = (file.name || input.name || 'image').replace(/\.[^.]+$/, '') || 'image';
+                    result = new File([blob], base + '.jpg', { type: 'image/jpeg' });
+                }
+                out[index] = result;
+
+                if (--left > 0) { return; }
+
+                try {
+                    if (input.__kcompressToken === token) {
+                        var transfer = new DataTransfer();
+                        out.forEach(function (f) { transfer.items.add(f); });
+                        input.files = transfer.files;
+                    }
+                    console.log('image-compress: ' + (input.name || 'file') + ' budget=' + budget
+                        + ' bytes=' + out.map(function (f) { return f.size; }).join(','));
+                } catch (err) {
+                    console.warn('image-compress skipped', err);
+                }
+                release();
+            });
+        });
+    }
+
+    // Capture phase so this runs ahead of any jQuery submit handler.
+    document.addEventListener('change', function (e) {
+        var target = e.target;
+        if (target && target.tagName === 'INPUT' && target.type === 'file') {
+            prepare(target);
+        }
+    }, true);
+
+    // e.submitter is missing in older browsers; remember the button that was
+    // actually clicked so a deferred submit still carries btnAdd/btnEdit.
+    var lastSubmitter = null;
+    document.addEventListener('click', function (e) {
+        var node = e.target;
+        while (node && node.nodeType === 1) {
+            if ((node.tagName === 'INPUT' && node.type === 'submit')
+                || (node.tagName === 'BUTTON' && node.type !== 'button' && node.type !== 'reset')) {
+                lastSubmitter = node;
+                return;
+            }
+            node = node.parentNode;
+        }
+    }, true);
+
+    // Block the post until in-flight compression finishes, then replay it with
+    // the submitter intact so buttons like btnAdd still reach PHP.
+    global.addEventListener('submit', function (e) {
+        if (pending === 0) { return; }
+        var form = e.target;
+        if (!form || typeof form.requestSubmit !== 'function') { return; }
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        var submitter = e.submitter;
+        if (!submitter && lastSubmitter && lastSubmitter.form === form) {
+            submitter = lastSubmitter;
+        }
+
+        waiters.push(function () {
+            try {
+                form.requestSubmit(submitter || undefined);
+            } catch (err) {
+                form.requestSubmit();
+            }
+        });
+    }, true);
+
+    global.KrishImages = {
+        bind: function (input) { prepare(input); },
+        pending: function () { return pending; }
+    };
+})(window);
+</script>
 </body>
 </html>

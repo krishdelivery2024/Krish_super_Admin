@@ -235,6 +235,10 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 	    }
 	}
 	
+	// Resolved up front because both the delivery charge and the platform /
+    // convenience fees depend on which zone the order is delivered to.
+	$order_zone_id = $function->get_zone_id_from_latlng($latitude, $longitude);
+
 	if($delivery_charge == 'Free'){
 	    $delivery_charge=0;
 	}elseif($delivery_method == 'storepickup'){
@@ -254,12 +258,18 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 	    $dm_cfg = $db->getResult();
 	    $dm_settings = isset($dm_cfg[0]['value']) ? json_decode($dm_cfg[0]['value'], true) : array();
 
-	    $db->sql("SELECT in_persion_delivery, in_persion_data, dunzo FROM delivery_method WHERE id=1");
-	    $dm_rows = $db->getResult();
-	    $dm_dunzo_enable = isset($dm_rows[0]['dunzo']) ? $dm_rows[0]['dunzo'] : 0;
+$db->sql("SELECT * FROM delivery_method WHERE id=1");
+    $dm_rows = $db->getResult();
+    $dm_row = $dm_rows[0];
+    $dm_dunzo_enable = isset($dm_row['dunzo']) ? $dm_row['dunzo'] : 0;
 
-	    if($dm_dunzo_enable != '1' && !empty($dm_rows[0]['in_persion_delivery'])
-	        && !empty($dm_rows[0]['in_persion_data']) && $seller_id){
+    // The tariff has to be the one configured for the zone the order is actually
+    // delivered to, otherwise a zone rate entered by the admin would be charged
+    // at the global rate here. Reuses the zone resolved further down for fees.
+    $dm_zone_cfg = $function->get_zone_delivery_config($order_zone_id, $dm_row);
+
+    if($dm_dunzo_enable != '1' && $dm_zone_cfg['in_person_delivery']
+        && !empty($dm_zone_cfg['in_persion_data']) && $seller_id){
 	        $db->sql("select latitude,longitude from `seller` where id = '".$db->escapeString($seller_id)."' limit 1");
 	        $dm_seller_rows = $db->getResult();
 	        $dm_store_lat = !empty($dm_seller_rows[0]['latitude'])
@@ -270,7 +280,7 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 	            : (float)(isset($dm_settings['store_longitude']) ? $dm_settings['store_longitude'] : 0);
 
 	        $dm_charge = $function->get_food_delivery_charge(
-	            $dm_store_lat , $dm_store_long , $latitude , $longitude , $dm_rows[0]['in_persion_data']
+	            $dm_store_lat , $dm_store_long , $latitude , $longitude , $dm_zone_cfg['in_persion_data']
 	        );
 	        if($dm_charge['error'] === ''){
 	            $delivery_charge = $dm_charge['delivery_charge'];
@@ -307,8 +317,6 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 	}else{
 	    $wallet_used = false;
 	}
-	
-	$order_zone_id = $function->get_zone_id_from_latlng($latitude, $longitude);
 	
 	// Platform and convenience fee come from the zone the order is delivered to.
 	// The app builds final_total from the global fee values, so only the
@@ -2061,6 +2069,9 @@ if(isset($_POST['get_order_delivery_charge']) && !empty($_POST['user_id']) && is
     $sql = "SELECT * FROM delivery_method WHERE id=1";
     $db->sql($sql);
     $res = $db->getResult(); 
+    // Kept because $res is reused by the queries below, and the zone-wise lookup
+    // needs the global settings to fall back to.
+    $dm_row = $res[0];
     $in_persion_delivery = $res[0]['in_persion_delivery'];
     $Delivery_by_courier = $res[0]['Delivery_by_courier'];
     $in_persion_data = $res[0]['in_persion_data'];
@@ -2101,6 +2112,26 @@ if(isset($_POST['get_order_delivery_charge']) && !empty($_POST['user_id']) && is
             echo json_encode($response);
             exit;
         }
+    }
+
+    // Zone-wise delivery method. The tariff and the on/off switches are read from
+    // the zone the address falls in, and fall back to the global settings when a
+    // zone has not overridden them, so this changes nothing until a zone is
+    // actually configured.
+    $zone_dm = $function->get_zone_delivery_config($addr_zone, $dm_row);
+
+    if($addr_zone !== null
+        && $zone_dm['storepickup'] == 0
+        && $zone_dm['in_person_delivery'] == 0){
+        $response['error'] = true;
+        $response['message'] = "Delivery is not available in this zone.";
+        echo json_encode($response);
+        exit;
+    }
+
+    // Store pickup is charged nothing regardless of the zone tariff.
+    if(empty($delivery_method) || $delivery_method != 'storepickup'){
+        $in_persion_data = $zone_dm['in_persion_data'];
     }
 
     // Platform and convenience fee for the zone this order is delivered to. The
