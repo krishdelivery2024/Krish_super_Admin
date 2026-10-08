@@ -1187,13 +1187,71 @@ if (isset($_POST['get_parcel_orders'])) {
 		$rows1[] = $tempRow;
 	}
 
+	// ================= TODAY EARNINGS (parcels) =================
+	// These used to be hardcoded to '0', so a boy who delivered parcels all day
+	// still read as earning nothing. Everything below is scoped to this boy,
+	// the same way the food block scopes its queries (api-v1.php today_earnings).
+
+	$today_earn_cod = 0;
+	$today_earn_online = 0;
+	$today_delivery_charge = 0;
+	$today_parcel_orders = 0;
+	$sub_amount = 0;
+	$platform_charges = 0;
+	$gst_amount = 0;
+
+	if (!empty($boy_id)) {
+		$boy_scope = " WHERE p.delivery_boy_id = '" . $boy_id . "'";
+
+		// Parcels delivered today - this is what the boy actually earned today.
+		$sql_today = "
+			SELECT
+				COUNT(p.id) AS cnt,
+				IFNULL(SUM(CASE WHEN p.payment_status = 'paid' THEN p.total_price ELSE 0 END),0) AS total_online,
+				IFNULL(SUM(CASE WHEN p.payment_status != 'paid' THEN p.total_price ELSE 0 END),0) AS total_cod,
+				IFNULL(SUM(p.base_price + p.per_km_price),0) AS total_delivery_charge
+			FROM parcel_requests p" . $boy_scope . "
+			AND p.status = 'delivered'
+			AND DATE(p.created_at) = CURDATE()
+		";
+		$db->sql($sql_today);
+		$today_result = $db->getResult();
+		if (!empty($today_result)) {
+			$today_parcel_orders = (int) $today_result[0]['cnt'];
+			$today_earn_online = floatval($today_result[0]['total_online']);
+			$today_earn_cod = floatval($today_result[0]['total_cod']);
+			$today_delivery_charge = floatval($today_result[0]['total_delivery_charge']);
+		}
+
+		// Today's parcels regardless of status - mirrors the food block's sub_amount
+		// scope so settlement figures line up with what the list shows.
+		$sql_sub_amount = "
+			SELECT
+				IFNULL(SUM(p.total_price),0) AS sub_amount,
+				IFNULL(SUM(p.platform_fee),0) AS platform_charges,
+				IFNULL(SUM(p.gst),0) AS gst_amount
+			FROM parcel_requests p" . $boy_scope . "
+			AND DATE(p.created_at) = CURDATE()
+		";
+		$db->sql($sql_sub_amount);
+		$sub_result = $db->getResult();
+		if (!empty($sub_result)) {
+			$sub_amount = floatval($sub_result[0]['sub_amount']);
+			$platform_charges = floatval($sub_result[0]['platform_charges']);
+			$gst_amount = floatval($sub_result[0]['gst_amount']);
+		}
+	}
+
+	$total_deduction = $platform_charges + $gst_amount;
+	$total_payable = $sub_amount - $total_deduction;
+
 	$response_data['error'] = false;
 	$response_data['data'] = $rows1;
 	$response_data['total'] = (string) $total;
-	$response_data['today_earn'] = '0';
-	$response_data['today_earn_cod'] = '0';
-	$response_data['today_earn_online'] = '0';
-	$response_data['today_delivery_charge'] = '0';
+	$response_data['today_earn'] = (string) ($today_earn_cod + $today_earn_online);
+	$response_data['today_earn_cod'] = (string) $today_earn_cod;
+	$response_data['today_earn_online'] = (string) $today_earn_online;
+	$response_data['today_delivery_charge'] = (string) $today_delivery_charge;
 	$response_data['today_food_orders'] = '0';
 	$response_data['today_food_cod'] = '0';
 	$response_data['today_food_online'] = '0';
@@ -1202,6 +1260,12 @@ if (isset($_POST['get_parcel_orders'])) {
 	$response_data['today_pickup_cod'] = '0';
 	$response_data['today_pickup_online'] = '0';
 	$response_data['today_pickup_delivery_charge'] = '0';
+	$response_data['today_parcel_orders'] = (string) $today_parcel_orders;
+	$response_data['sub_amount'] = number_format($sub_amount, 2, '.', '');
+	$response_data['platform_charges'] = number_format($platform_charges, 2, '.', '');
+	$response_data['gst_amount'] = number_format($gst_amount, 2, '.', '');
+	$response_data['total_deduction'] = number_format($total_deduction, 2, '.', '');
+	$response_data['total_payable'] = number_format($total_payable, 2, '.', '');
 	print_r(json_encode($response_data));
 	die;
 }
