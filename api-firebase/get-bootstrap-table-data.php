@@ -1662,19 +1662,57 @@
 	}
 		// data of 'Delivery Boy' table goes here
 	if(isset($_GET['table']) && $_GET['table'] == 'delivery-boys'){
+		                $role = isset($_SESSION['role']) ? (string)$_SESSION['role'] : '';
+
+                if ($role === '' || $role === 'seller') {
+                    http_response_code(403);
+                    echo json_encode(array(
+                        'error' => true,
+                        'message' => 'Access denied.'
+                    ));
+                    exit;
+                }
+
+                $permissions = $fn->get_permissions(
+                    isset($_SESSION['id']) ? (int)$_SESSION['id'] : 0
+                );
+
+                if (
+                    $role !== 'super admin' &&
+                    (
+                        !isset($permissions['delivery_boys']['read']) ||
+                        (int)$permissions['delivery_boys']['read'] !== 1
+                    )
+                ) {
+                    http_response_code(403);
+                    echo json_encode(array(
+                        'error' => true,
+                        'message' => 'You do not have permission to view delivery boys.'
+                    ));
+                    exit;
+                }
 		
-		$offset = 0; $limit = 10;
-		$sort = 'id'; $order = 'DESC';
-		$where = '';
-		if(isset($_GET['offset']))
-			$offset = $_GET['offset'];
-		if(isset($_GET['limit']))
-			$limit = $_GET['limit'];
 		
-		if(isset($_GET['sort']))
-			$sort = $_GET['sort'];
-		if(isset($_GET['order']))
-			$order = $_GET['order'];
+$offset = isset($_GET['offset']) ? max(0, (int)$_GET['offset']) : 0;
+$limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
+$limit = max(1, min(200, $limit));
+$where = '';
+
+$allowed_sort_columns = array(
+    'id', 'name', 'mobile', 'store_id', 'address',
+    'bonus', 'balance', 'active_status', 'status',
+    'zone_id', 'service_type'
+);
+
+$requested_sort = isset($_GET['sort']) ? (string)$_GET['sort'] : 'id';
+$sort = in_array($requested_sort, $allowed_sort_columns, true)
+    ? $requested_sort : 'id';
+
+$requested_order = isset($_GET['order'])
+    ? strtoupper((string)$_GET['order']) : 'DESC';
+$order = in_array($requested_order, array('ASC', 'DESC'), true)
+    ? $requested_order : 'DESC';
+
 		
 		if(isset($_GET['search']) && $_GET['search'] !=''){
 			$search = $db->escapeString($_GET['search']);
@@ -1702,6 +1740,33 @@
 				}
 			}
 		}
+
+
+if ($role === 'sub admin') {
+    $zone_ids = array();
+
+    if (is_array($my_zone_scope)) {
+        foreach ($my_zone_scope as $zone_id) {
+            $zone_id = (int)$zone_id;
+            if ($zone_id > 0) {
+                $zone_ids[] = $zone_id;
+            }
+        }
+    }
+
+    $zone_ids = array_values(array_unique($zone_ids));
+
+    $zone_condition = empty($zone_ids)
+        ? '1 = 0'
+        : '`zone_id` IN (' . implode(',', $zone_ids) . ')';
+
+    if ($where === '') {
+        $where = ' WHERE ' . $zone_condition;
+    } else {
+        $where .= ' AND ' . $zone_condition;
+    }
+}
+
 		
 		$sql = "SELECT COUNT(*) as total FROM `delivery_boys` ".$where;
 		$db->sql($sql);

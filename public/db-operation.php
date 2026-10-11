@@ -1,9 +1,54 @@
+
 <?php
 session_start();
+
+if (
+    !isset($_SESSION['id'], $_SESSION['user'], $_SESSION['role']) ||
+    (int) $_SESSION['id'] <= 0 ||
+    trim((string) $_SESSION['user']) === '' ||
+    trim((string) $_SESSION['role']) === ''
+) {
+    http_response_code(401);
+    exit('Not authenticated.');
+}
+
 include('../includes/crud.php');
+
 include('../api-firebase/send-email.php');
 $db = new Database();
 $db->connect();
+
+if (
+    !isset($_SESSION['secretkey']) ||
+    (int) $_SESSION['secretkey'] <= 0
+) {
+    $db->disconnect();
+    http_response_code(401);
+    exit('Invalid session. Please log in again.');
+}
+
+$sessionId = (int) $_SESSION['id'];
+$sessionUser = $db->escapeString((string) $_SESSION['user']);
+$sessionRole = $db->escapeString((string) $_SESSION['role']);
+$sessionKey = (int) $_SESSION['secretkey'];
+
+$db->sql(
+    "SELECT id FROM admin
+     WHERE id = " . $sessionId . "
+       AND username = '" . $sessionUser . "'
+       AND role = '" . $sessionRole . "'
+       AND web_login = " . $sessionKey . "
+     LIMIT 1"
+);
+
+$validSession = $db->getResult();
+
+if (empty($validSession)) {
+    $db->disconnect();
+    http_response_code(401);
+    exit('Session is no longer valid. Please log in again.');
+}
+
 $db->sql("SET NAMES 'utf8'");
 $auth_username = $db->escapeString($_SESSION["user"]);
 
@@ -506,10 +551,19 @@ if(isset($_POST['add_delivery_boy']) && $_POST['add_delivery_boy']==1){
         echo "<label class='alert alert-danger'>Access denied - You are not authorized to access this page.</label>";
         return false;
     }
-    if($permissions['delivery_boys']['create']==0){
-       echo '<label class="alert alert-danger">You have no permission to create delivery boy</label>';
-       return false; 
-    }
+  $is_super_admin = isset($_SESSION['role']) && $_SESSION['role'] === 'super admin';
+
+if (
+    !$is_super_admin &&
+    (
+        !isset($permissions['delivery_boys']['create']) ||
+        (int)$permissions['delivery_boys']['create'] !== 1
+    )
+) {
+    http_response_code(403);
+    echo '<label class="alert alert-danger">You do not have permission to create delivery boys.</label>';
+    return false;
+}
     $name = $db->escapeString($fn->xss_clean($_POST['name']));
 $mobile = $db->escapeString($fn->xss_clean($_POST['mobile']));
 $address = $db->escapeString($fn->xss_clean($_POST['address']));
@@ -519,9 +573,36 @@ $store_id = !empty($_POST['store_id1'])
     ? (int)$fn->xss_clean($_POST['store_id1'])
     : 0;
 
-$zone_id = $db->escapeString(
-    $fn->xss_clean(!empty($_POST['zone_id']) ? $_POST['zone_id'] : '0')
-);
+$zone_id = isset($_POST['zone_id']) ? (int)$_POST['zone_id'] : 0;
+$is_sub_admin = isset($_SESSION['role']) && $_SESSION['role'] === 'sub admin';
+
+if ($is_sub_admin) {
+    $allowed_zone_ids = $fn->get_zone_scope(
+        isset($_SESSION['id']) ? (int)$_SESSION['id'] : 0
+    );
+
+    $allowed_zone_ids = is_array($allowed_zone_ids)
+        ? array_map('intval', $allowed_zone_ids)
+        : array();
+
+    if ($zone_id <= 0 || !in_array($zone_id, $allowed_zone_ids, true)) {
+        http_response_code(403);
+        echo '<label class="alert alert-danger">Select a valid zone assigned to your account.</label>';
+        return false;
+    }
+}
+
+if ($zone_id > 0) {
+    $db->sql("SELECT id FROM zone WHERE id = " . $zone_id . " AND status = 1");
+    $valid_zone = $db->getResult();
+
+    if (empty($valid_zone)) {
+        echo '<label class="alert alert-danger">Please select a valid active zone.</label>';
+        return false;
+    }
+}
+
+$zone_id = $db->escapeString((string)$zone_id);
     $service_type = (!empty($_POST['service_type']) && in_array($_POST['service_type'], array('food','parcel','both'))) ? $_POST['service_type'] : 'both';
     $aadhaar = $db->escapeString($fn->xss_clean(!empty($_POST['aadhaar']) ? $_POST['aadhaar'] : ''));
     $driving_license = $db->escapeString($fn->xss_clean(!empty($_POST['driving_license']) ? $_POST['driving_license'] : ''));
@@ -569,11 +650,58 @@ if(isset($_POST['update_delivery_boy']) && $_POST['update_delivery_boy']==1){
         echo "<label class='alert alert-danger'>Access denied - You are not authorized to access this page.</label>";
         return false;
     }
-    if($permissions['delivery_boys']['update']==0){
-       echo '<label class="alert alert-danger">You have no permission to update delivery boy</label>';
-       return false; 
-    }
+  $is_super_admin = isset($_SESSION['role']) && $_SESSION['role'] === 'super admin';
+
+if (
+    !$is_super_admin &&
+    (
+        !isset($permissions['delivery_boys']['update']) ||
+        (int)$permissions['delivery_boys']['update'] !== 1
+    )
+) {
+    http_response_code(403);
+    echo '<label class="alert alert-danger">You do not have permission to update delivery boys.</label>';
+    return false;
+}
     $id = $db->escapeString($fn->xss_clean($_POST['delivery_boy_id']));
+    $id = (int)$id;
+
+if ($id <= 0) {
+    http_response_code(400);
+    echo '<label class="alert alert-danger">Invalid delivery boy.</label>';
+    return false;
+}
+
+$is_sub_admin = isset($_SESSION['role']) && $_SESSION['role'] === 'sub admin';
+
+$db->sql("SELECT id, zone_id FROM delivery_boys WHERE id = " . $id . " LIMIT 1");
+$existing_delivery_boy = $db->getResult();
+
+if (empty($existing_delivery_boy)) {
+    echo '<label class="alert alert-danger">Delivery boy not found.</label>';
+    return false;
+}
+
+$existing_zone_id = (int)$existing_delivery_boy[0]['zone_id'];
+
+if ($is_sub_admin) {
+    $allowed_zone_ids = $fn->get_zone_scope(
+        isset($_SESSION['id']) ? (int)$_SESSION['id'] : 0
+    );
+
+    $allowed_zone_ids = is_array($allowed_zone_ids)
+        ? array_values(array_unique(array_map('intval', $allowed_zone_ids)))
+        : array();
+
+    if (
+        $existing_zone_id <= 0 ||
+        !in_array($existing_zone_id, $allowed_zone_ids, true)
+    ) {
+        http_response_code(403);
+        echo '<label class="alert alert-danger">You cannot update a delivery boy outside your assigned zones.</label>';
+        return false;
+    }
+}
     if($id==104){
        echo '<label class="alert alert-danger">Sorry u can not update this delivery boy</label>';
        return false; 
@@ -583,7 +711,34 @@ if(isset($_POST['update_delivery_boy']) && $_POST['update_delivery_boy']==1){
     $store_id = !empty($_POST['store_id1']) ? $db->escapeString($fn->xss_clean($_POST['store_id1'])) : '0';
     $address = $db->escapeString($fn->xss_clean($_POST['update_address']));
     $bonus = $db->escapeString($fn->xss_clean($_POST['update_bonus']));
-    $update_zone_id = $db->escapeString($fn->xss_clean(!empty($_POST['update_zone_id']) ? $_POST['update_zone_id'] : '0'));
+   $update_zone_id = isset($_POST['update_zone_id'])
+    ? (int)$_POST['update_zone_id']
+    : 0;
+
+if ($is_sub_admin) {
+    if (
+        $update_zone_id <= 0 ||
+        !in_array($update_zone_id, $allowed_zone_ids, true)
+    ) {
+        http_response_code(403);
+        echo '<label class="alert alert-danger">Select a valid zone assigned to your account.</label>';
+        return false;
+    }
+}
+
+if ($update_zone_id > 0) {
+    $db->sql(
+        "SELECT id FROM zone WHERE id = " . $update_zone_id . " AND status = 1 LIMIT 1"
+    );
+    $valid_update_zone = $db->getResult();
+
+    if (empty($valid_update_zone)) {
+        echo '<label class="alert alert-danger">Please select a valid active zone.</label>';
+        return false;
+    }
+}
+
+$update_zone_id = $db->escapeString((string)$update_zone_id);
     $service_type = (!empty($_POST['update_service_type']) && in_array($_POST['update_service_type'], array('food','parcel','both'))) ? $_POST['update_service_type'] : 'both';
     $aadhaar = $db->escapeString($fn->xss_clean(!empty($_POST['update_aadhaar']) ? $_POST['update_aadhaar'] : ''));
     $driving_license = $db->escapeString($fn->xss_clean(!empty($_POST['update_driving_license']) ? $_POST['update_driving_license'] : ''));
@@ -627,23 +782,87 @@ if(isset($_POST['update_delivery_boy']) && $_POST['update_delivery_boy']==1){
 
     }
 }
-if(isset($_GET['delete_delivery_boy']) && $_GET['delete_delivery_boy']==1){
-    if($permissions['delivery_boys']['delete']==0){
+if (
+    $_SERVER['REQUEST_METHOD'] === 'POST' &&
+    isset($_POST['delete_delivery_boy']) &&
+    $_POST['delete_delivery_boy'] == 1
+) {
+    if (
+        !isset($_SESSION['csrf_token'], $_POST['csrf_token']) ||
+        !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])
+    ) {
+        http_response_code(403);
+        exit('Invalid security token.');
+    }
+    if (!checkadmin($auth_username)) {
+        http_response_code(403);
         echo 2;
         return false;
     }
-    $id=$db->escapeString($_GET['id']);
-    if($id==104){
+
+    $is_super_admin = isset($_SESSION['role']) && $_SESSION['role'] === 'super admin';
+
+    if (
+        !$is_super_admin &&
+        (
+            !isset($permissions['delivery_boys']['delete']) ||
+            (int)$permissions['delivery_boys']['delete'] !== 1
+        )
+    ) {
+        http_response_code(403);
+        echo 2;
+        return false;
+    }
+
+   $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+
+    if ($id <= 0) {
+        http_response_code(400);
+        echo 1;
+        return false;
+    }
+
+    if ($id == 104) {
         echo 3;
         return false;
     }
-    $sql = "DELETE FROM `delivery_boys` WHERE id=".$id;
-    if($db->sql($sql)){
-        echo 0;
-    }else{
+
+    $db->sql("SELECT id, zone_id FROM delivery_boys WHERE id = " . $id . " LIMIT 1");
+    $delivery_boy = $db->getResult();
+
+    if (empty($delivery_boy)) {
         echo 1;
+        return false;
     }
 
+    if (isset($_SESSION['role']) && $_SESSION['role'] === 'sub admin') {
+        $allowed_zone_ids = $fn->get_zone_scope(
+            isset($_SESSION['id']) ? (int)$_SESSION['id'] : 0
+        );
+
+        $allowed_zone_ids = is_array($allowed_zone_ids)
+            ? array_values(array_unique(array_map('intval', $allowed_zone_ids)))
+            : array();
+
+        $delivery_boy_zone_id = (int)$delivery_boy[0]['zone_id'];
+
+        if (
+            $delivery_boy_zone_id <= 0 ||
+            !in_array($delivery_boy_zone_id, $allowed_zone_ids, true)
+        ) {
+            http_response_code(403);
+            echo 2;
+            return false;
+        }
+    }
+
+    $sql = "DELETE FROM `delivery_boys` WHERE id = " . $id;
+
+    if ($db->sql($sql)) {
+        echo 0;
+    } else {
+        echo 1;
+    }
 }
 if(isset($_POST['update_payment_request']) && $_POST['update_payment_request']==1){
     if(!checkadmin($auth_username)){
