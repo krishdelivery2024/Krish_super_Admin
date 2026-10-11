@@ -419,20 +419,22 @@ session_start();
 			<?php endif; ?>				
 				
 				<?php if(!$is_sub_admin || !empty($permissions['settings']['read'])): ?>
-				<li <?php if($page=="Store Settings" || $page=="Payment Methods Settings" || $page=="Time Slots" || $page=="Notification Settings" || $page=="Contact Us" || $page=="Privacy Policy" || $page=="About US"){?>class="active"<?php } ?>>
+				<li <?php if($page=="Store Settings" || $page=="Payment Methods Settings" || $page=="Time Slots" || $page=="Notification Settings" || $page=="Contact Us" || $page=="Privacy Policy" || $page=="About US" || $page=="Zone Settings"){?>class="active"<?php } ?>>
 					<a class="waves-effect parent-item js__control" href="#"><i class="menu-icon ti-settings"></i><span>System</span><span class="menu-arrow fa fa-angle-down"></span></a>
-					<ul class="sub-menu js__content" <?php if($page=="Store Settings" || $page=="Payment Methods Settings" || $page=="Time Slots" || $page=="Notification Settings" || $page=="Contact Us" || $page=="Privacy Policy" || $page=="About US"){?>style="display: block;"<?php } ?>>
+					<ul class="sub-menu js__content" <?php if($page=="Store Settings" || $page=="Payment Methods Settings" || $page=="Time Slots" || $page=="Notification Settings" || $page=="Contact Us" || $page=="Privacy Policy" || $page=="About US" || $page=="Zone Settings"){?>style="display: block;"<?php } ?>>
 						<li <?php if($page=="Store Settings"){?>class="current"<?php } ?>><a <?php if($page=="Store Settings"){?>class="active"<?php } ?> href="settings.php">Store Settings</a></li>
 						<li <?php if($page=="Payment Methods Settings"){?>class="current"<?php } ?>><a <?php if($page=="Payment Methods Settings"){?>class="active"<?php } ?> href="payment-methods-setting.php">Payment Methods</a></li>
 						<li <?php if($page=="Time Slots"){?>class="current"<?php } ?>><a <?php if($page=="Time Slots"){?>class="active"<?php } ?> href="time-slots.php">Time slots</a></li>
 						<li <?php if($page=="Notification Settings"){?>class="current"<?php } ?>><a <?php if($page=="Notification Settings"){?>class="active"<?php } ?> href="notification-settings.php">Notification Settings</a></li>
 						<li <?php if($page=="Contact Us"){?>class="current"<?php } ?>><a <?php if($page=="Contact Us"){?>class="active"<?php } ?> href="contact-us.php">Contact Us</a></li>
 						<li <?php if($page=="Privacy Policy"){?>class="current"<?php } ?>><a <?php if($page=="Privacy Policy"){?>class="active"<?php } ?> href="privacy-policy.php">Privacy Policy</a></li>
-						<li <?php if($page=="About US"){?>class="current"<?php } ?>><a <?php if($page=="About US"){?>class="active"<?php } ?> href="about-us.php">About Us</a></li>
+<li <?php if($page=="About US"){?>class="current"<?php } ?>><a <?php if($page=="About US"){?>class="active"<?php } ?> href="about-us.php">About Us</a></li>
+						<?php if(!$is_sub_admin || !empty($permissions['zones']['read'])): ?>
+						<li <?php if($page=="Zone Settings"){?>class="current"<?php } ?>><a <?php if($page=="Zone Settings"){?>class="active"<?php } ?> href="zone-settings.php">Zone Settings</a></li>
+						<?php endif; ?>
 					</ul>
 				</li>
-				<?php endif; ?>
-				
+				<?php endif; ?>				
 				<?php if(!$is_sub_admin || !empty($permissions['locations']['read']) || !empty($permissions['zones']['read'])): ?>
 				<li <?php if($page=="Cities" || $page=="Areas" || $page=="State" || $page=="Routes" || $page=="Zones"){?>class="active"<?php } ?>>
 					<a class="waves-effect parent-item js__control" href="#"><i class="menu-icon ti-location-pin"></i><span>Location</span><span class="menu-arrow fa fa-angle-down"></span></a>

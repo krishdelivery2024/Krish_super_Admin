@@ -134,10 +134,21 @@ include"header.php";?>
                                     </select>
                                 </div>
                                 <div class="form-group">
+                                    <label for="zone_id">Zone :</label>
+                                    <select name="zone_id" id="zone_id" class="form-control">
+                                        <option value="">All Zones (show everywhere)</option>
+                                        <?php foreach($slider_zones as $zone){ ?>
+                                            <option value="<?=$zone['id']?>"><?=$zone['name']?></option>
+                                        <?php } ?>
+                                    </select>
+                                    <p class="help-block">Choose a zone to show this image only to customers in that zone. Zone images appear before the All Zones images.</p>
+                                </div>
+                                <div class="form-group">
                                     <label for="type">Type :</label>
                                     <select name="type" id="type" class="form-control" required>
                                         <option value="default">Default</option>
                                         <option value="main_category">Main Category</option>
+                                        <option value="seller">Seller</option>
                                         <!-- <option value="category">Category</option>
                                         <option value="product">Product</option> -->
                                     </select>
@@ -156,6 +167,22 @@ include"header.php";?>
                                             <option value="<?=$value['id']?>"><?=$value['name']?></option>
                                             <?php } ?>
                                     </select>
+                                </div>
+
+                                <div class="form-group" id="sellers" style="display:none;">
+                                    <label for="seller">Seller :</label>
+                                    <select name="seller" id="seller" class="form-control">
+                                        <?php
+                                            $sql = "SELECT `id`, `name`, `zone_id` FROM `seller` WHERE `status` = 1 order by name ASC";
+                                            $db->sql($sql);
+                                            $slider_sellers_result = $db->getResult();
+                                        ?>
+                                        <option value="">Select Seller</option>
+                                        <?php foreach($slider_sellers_result as $value){?>
+                                            <option value="<?=$value['id']?>" data-zone="<?=($value['zone_id']===null)?'':(int)$value['zone_id']?>"><?=$value['name']?></option>
+                                            <?php } ?>
+                                    </select>
+                                    <p class="help-block">Tapping this banner in the app opens the selected seller's restaurant (food) screen. The list is limited to the selected zone's sellers (all sellers for "All Zones").</p>
                                 </div>
 
 
@@ -206,16 +233,6 @@ include"header.php";?>
                                         <option value="1">Section One</option>
                                         <option value="2">Section two</option>
                                     </select>
-                                </div>
-                                <div class="form-group">
-                                    <label for="zone_id">Zone :</label>
-                                    <select name="zone_id" id="zone_id" class="form-control">
-                                        <option value="">All Zones (show everywhere)</option>
-                                        <?php foreach($slider_zones as $zone){ ?>
-                                            <option value="<?=$zone['id']?>"><?=$zone['name']?></option>
-                                        <?php } ?>
-                                    </select>
-                                    <p class="help-block">Choose a zone to show this image only to customers in that zone. Zone images appear before the All Zones images.</p>
                                 </div>
                                 <div class="form-group">
                                     <label for="image">Slider Image : <small> ( Recommended Size : 1024 x 512 pixels for App Slider)</small></label>
@@ -363,26 +380,71 @@ function compressImageToTarget(file, maxBytes, done) {
             $("#categories").hide();
             $("#products").hide();
             $("#main_categories").hide();
+            $("#sellers").hide();
             
         }
         if(type == "main_category"){
             $("#categories").hide();
             $("#products").hide();
             $("#main_categories").show();
+            $("#sellers").hide();
+        }
+        if(type == "seller"){
+            $("#categories").hide();
+            $("#products").hide();
+            $("#main_categories").hide();
+            $("#sellers").show();
         }
         if(type == "category"){
             $("#categories").show();
             $("#products").hide();
             $("#main_categories").hide();
+            $("#sellers").hide();
         }
         if(type == "product"){
             $("#categories").hide();
             $("#products").show();
             $("#main_categories").hide();
+            $("#sellers").hide();
         }
     });
+
+    // The seller list follows the chosen zone: "All Zones" (blank) lists every
+    // seller, while a specific zone lists only the sellers assigned to it. The
+    // zone is matched against the option's data-zone (seller.zone_id). Options
+    // are disabled as well as hidden, so a seller from another zone can never be
+    // submitted even if it is still the current selection.
+    function filterSellersByZone(){
+        var zone = $("#zone_id").val();
+        var $seller = $("#seller");
+        var current = $seller.val();
+        $seller.find("option").each(function(){
+            if(this.value === ''){ return; }
+            var optionZone = $(this).attr("data-zone") || '';
+            if(zone === ''){
+                $(this).prop('disabled', false).show();
+            }else{
+                var match = (optionZone === zone);
+                $(this).prop('disabled', !match).toggle(match);
+            }
+        });
+        // Drop a previously picked seller that is not part of the new zone.
+        var $picked = $seller.find('option[value="'+current+'"]');
+        if($picked.length && ($picked.is(':hidden') || $picked.prop('disabled'))){
+            $seller.val('');
+        }
+    }
+    $("#zone_id").change(filterSellersByZone);
+    filterSellersByZone();
       $('#slider_form').on('submit',function(e){
         e.preventDefault();
+        // A seller banner has to point at a seller, otherwise tapping it opens
+        // nothing in the app. The select is hidden until "Seller" is chosen, so
+        // the browser's own required check cannot cover it.
+        if($('#type').val() == 'seller' && !$('#seller').val()){
+            $('#result').html("<p class='alert alert-danger'>Please select a seller for this banner.</p>").show().delay(3000).fadeOut();
+            return;
+        }
         var form = this;
         var input = document.getElementById('image');
         var selected = input.files && input.files[0];

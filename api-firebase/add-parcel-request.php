@@ -91,6 +91,28 @@ if($pickup_zone === null){
 	return false;
 }
 
+// Per-zone parcel tariff & availability. A NULL zone column inherits the
+// global parcel_settings value, so zones with no override are unaffected.
+$effective_parcel = $fn->get_effective_parcel_settings($pickup_zone);
+if((int)$effective_parcel['is_service_available'] !== 1){
+	$response['error'] = true;
+	$response['message'] = "Parcel service is not available in this pickup zone right now. Please try again later.";
+	print_r(json_encode($response));
+	return false;
+}
+
+// Daily operating window: a pickup can only be booked between the configured
+// opening and closing times (store timezone). No window configured = 24 hours.
+if(!$fn->is_parcel_service_open_now($effective_parcel['opening_time'], $effective_parcel['closing_time'])){
+	$hours_label = $fn->get_parcel_operating_hours_label();
+	$response['error'] = true;
+	$response['message'] = ($hours_label !== '')
+		? ("Parcel service is currently closed. Pickup is available daily from " . $hours_label . ". Please try again during operating hours.")
+		: "Parcel service is currently closed. Please try again later.";
+	print_r(json_encode($response));
+	return false;
+}
+
 // Parcel drop validation: the drop is judged against the pickup's zone only.
 // It may sit inside that zone or just outside its boundary, but it must be
 // within the admin-configured maximum km of the pickup zone's edge. Measuring
@@ -142,13 +164,10 @@ if(empty($drop_lat) || empty($drop_lng) || !is_numeric($drop_lat) || !is_numeric
 	return false;
 }
 
-$sql_parcel_pricing = "SELECT per_km_price, base_price FROM parcel_settings ORDER BY id ASC LIMIT 1";
-$db->sql($sql_parcel_pricing);
-$parcel_pricing_res = $db->getResult();
-$per_km_price_db = (isset($parcel_pricing_res[0]['per_km_price']) && is_numeric($parcel_pricing_res[0]['per_km_price']))
-	? (float)$parcel_pricing_res[0]['per_km_price'] : 0;
-$base_price_db = (isset($parcel_pricing_res[0]['base_price']) && is_numeric($parcel_pricing_res[0]['base_price']))
-	? (float)$parcel_pricing_res[0]['base_price'] : 0;
+// Zone override for the pickup zone (already resolved above) wins over the
+// global tariff. Same values the quote endpoint priced with.
+$per_km_price_db = $effective_parcel['per_km_price'];
+$base_price_db = $effective_parcel['base_price'];
 
 // Driving distance, not straight line. Falls back to haversine if Google is
 // unreachable, which is why distance_source is kept for auditing.
@@ -241,10 +260,11 @@ if (!empty($last_id) && $last_id > 0 && $payment_status == 'paid' && !empty($pay
 }
 
 if (!empty($last_id) && $last_id > 0) {
-	// Notify all online delivery boys about the new parcel request
+	// Two-stage dispatch: Phase-1 notifies only online boys in this pickup
+	// zone within 4 km of the pickup point; Phase-2 broadcasts to all online
+	// boys across the service area after 60 seconds.
 	$message = "New parcel delivery request #" . $last_id . " is ready. Open the app to view the details.";
-	$fn->send_notification_to_delivery_boy(0, "New Parcel Order", $message, 'delivery_boys', $last_id, 'parcel');
-	$fn->store_delivery_boy_notification(0, $last_id, "New Parcel Order", $message, 'parcel');
+	$fn->dispatch_new_order('parcel', $last_id, 'New Parcel Order', $message);
 }
 
 $response["error"] 	= false;

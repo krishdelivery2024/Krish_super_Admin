@@ -115,16 +115,42 @@
                 </form>
               </div><!-- /.box -->
              </div>
+        <!-- Live delivery boy locations (OpenStreetMap) -->
+        <div class="col-md-12">
+            <div class="box box-primary">
+                <div class="box-header with-border">
+                    <h3 class="box-title">Live Delivery Boy Locations</h3>
+                    <div class="box-tools pull-right">
+                        <span class="label label-success" id="db-live-count">0 online</span>
+                        <button type="button" class="btn btn-default btn-sm" id="db-live-refresh" title="Refresh now">
+                            <i class="fa fa-refresh"></i>
+                        </button>
+                    </div>
+                </div><!-- /.box-header -->
+                <div class="box-body">
+                    <div id="delivery-boys-live-map" style="height:500px; width:100%;"></div>
+                    <p class="help-block" id="delivery-boys-live-status" style="margin-top:8px;">Loading online delivery boy locations&hellip;</p>
+                </div>
+            </div><!-- /.box -->
+        </div>
         <!-- Left col -->
         <div class="col-md-12">
             <?php if($permissions['delivery_boys']['read']==1){?>
             <div class="box">
                 <div class="box-header">
                     <h3 class="box-title">Delivery Boys</h3>
+                    <div class="box-tools pull-right">
+                        <select id="online_filter" class="form-control input-sm" style="width:150px;">
+                            <option value="">All (Online &amp; Offline)</option>
+                            <option value="online">Online</option>
+                            <option value="offline">Offline</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="box-body table-responsive">
                     <table class="table table-hover" data-toggle="table" id="delivery-boys"
                         data-url="api-firebase/get-bootstrap-table-data.php?table=delivery-boys"
+                        data-query-params="deliveryBoyQueryParams"
                         data-page-list="[5, 10, 20, 50, 100, 200]"
                         data-show-refresh="true" data-show-columns="true"
                         data-side-pagination="server" data-pagination="true"
@@ -158,3 +184,139 @@
         </div>
         <div class="separator"> </div>
     </div>
+    <script>
+    // Sends the selected online/offline filter along with each table request.
+    // bootstrap-table resolves the data-query-params attribute to this global
+    // function, so the filter survives paging, sorting and refreshing.
+    window.deliveryBoyQueryParams = function (p) {
+        var online = $('#online_filter').val();
+        if (online) {
+            p.online = online;
+        }
+        return p;
+    };
+    $(document).on('change', '#online_filter', function () {
+        $('#delivery-boys').bootstrapTable('refresh');
+    });
+    </script>
+
+    <!-- OpenStreetMap (Leaflet) - served locally -->
+    <link rel="stylesheet" href="dist/plugin/leaflet/leaflet.css" />
+    <script src="dist/plugin/leaflet/leaflet.js"></script>
+
+    <!-- Live online delivery boy markers, refreshed every 20 seconds -->
+    <script>
+    (function () {
+        var mapEl = document.getElementById('delivery-boys-live-map');
+        if (!mapEl || typeof L === 'undefined') { return; }
+
+        var fallbackLat = 20.5937, fallbackLng = 78.9629;
+        var map = L.map('delivery-boys-live-map').setView([fallbackLat, fallbackLng], 5);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        var markers = {};      // delivery boy id -> L.Marker
+        var statusEl = document.getElementById('delivery-boys-live-status');
+        var countEl = document.getElementById('db-live-count');
+        var fitted = false;
+
+        function esc(s) {
+            return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+            });
+        }
+
+        function popupHtml(boy) {
+            var seen = (boy.age_seconds <= 5) ? 'just now' : (boy.age_seconds + 's ago');
+            return '<strong>' + esc(boy.name) + '</strong><br>' +
+                   'Mobile: ' + esc(boy.mobile) + '<br>' +
+                   'Updated: ' + esc(seen);
+        }
+
+        function refresh() {
+            fetch('api-firebase/get-delivery-boy-locations.php', { credentials: 'same-origin' })
+                .then(function (r) {
+                    if (!r.ok) {
+                        throw new Error('HTTP ' + r.status);
+                    }
+                    return r.json();
+                })
+                .then(function (res) {
+                    if (!res || res.error) {
+                        console.warn('Live location endpoint error:', res);
+                        if (statusEl) { statusEl.innerHTML = 'Could not load live locations.'; }
+                        return;
+                    }
+                    var boys = res.data || [];
+                    var seenIds = {};
+
+                    boys.forEach(function (boy) {
+                        seenIds[boy.id] = true;
+                        var latlng = [boy.latitude, boy.longitude];
+                        if (markers[boy.id]) {
+                            markers[boy.id].setLatLng(latlng);
+                            markers[boy.id].setPopupContent(popupHtml(boy));
+                        } else {
+                            markers[boy.id] = L.marker(latlng).addTo(map).bindPopup(popupHtml(boy));
+                        }
+                    });
+
+                    // Remove markers for boys who went offline or stopped reporting.
+                    Object.keys(markers).forEach(function (id) {
+                        if (!seenIds[id]) {
+                            map.removeLayer(markers[id]);
+                            delete markers[id];
+                        }
+                    });
+
+                    if (countEl) { countEl.innerHTML = boys.length + ' online'; }
+
+                    if (statusEl) {
+                        statusEl.innerHTML = boys.length
+                            ? ('Showing ' + boys.length + ' online delivery boy' + (boys.length === 1 ? '' : 's') + '. Refreshes every 20 seconds.')
+                            : 'No online delivery boys are reporting a location right now.';
+                    }
+
+                    // Fit the view to the markers the first time we actually can.
+                    // If invalidateSize/fitBounds throws (container not sized yet)
+                    // we keep fitted=false so the next refresh retries.
+                    if (boys.length && !fitted) {
+                        try {
+                            map.invalidateSize();
+                            var pts = boys.map(function (b) { return [b.latitude, b.longitude]; });
+                            map.fitBounds(pts, { padding: [30, 30], maxZoom: 15 });
+                            fitted = true;
+                        } catch (e) {
+                            console.warn('Live map not ready yet, retrying on next refresh', e);
+                        }
+                    }
+                })
+                .catch(function (err) {
+                    console.error('Live delivery boy locations failed:', err);
+                    if (statusEl) {
+                        statusEl.innerHTML = 'Could not load live locations. If this persists, open the browser console (F12) for details.';
+                    }
+                });
+        }
+
+        refresh();
+        setInterval(refresh, 20000);
+        document.getElementById('db-live-refresh').addEventListener('click', function () {
+            refresh();
+        });
+        window.addEventListener('load', function () { map.invalidateSize(); });
+        // Absorbs slow layouts (fonts, AdminLTE) that can size the box late.
+        var sizeTimer = 0;
+        var fixSize = function () {
+            map.invalidateSize();
+            if (!fitted) { refresh(); }
+        };
+        while (sizeTimer <= 3) {
+            setTimeout(fixSize, sizeTimer * 1000);
+            sizeTimer += 1;
+        }
+    })();
+    </script>

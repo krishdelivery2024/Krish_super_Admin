@@ -44,6 +44,10 @@
                             <th data-field="order_id" data-sortable="true">Parcel ID</th>
                             <th data-field="type" data-sortable="true">Method</th>
                             <th data-field="txn_id" data-sortable="false">TX N ID</th>
+                            <th data-field="delivery_charge" data-sortable="false">Delivery Charge</th>
+                            <th data-field="platform_fee" data-sortable="false">Platform Fee</th>
+                            <th data-field="convenience_fee" data-sortable="false">Convenience Fee</th>
+                            <th data-field="gst" data-sortable="false">GST</th>
                             <th data-field="amount" data-sortable="true">Amount</th>
                             <th data-field="status" data-sortable="false">Status</th>
                             <th data-field="transaction_date" data-sortable="true">Date</th>
@@ -57,6 +61,40 @@
         <div class="separator"> </div>
     </div>
 
+    <div class="modal fade" id="parcelFeeModal" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                    <h4 class="modal-title">Parcel Fee Breakdown</h4>
+                </div>
+                <div class="modal-body">
+                    <table class="table table-striped table-bordered" style="margin-bottom:10px;">
+                        <tbody>
+                            <tr><th style="width:65%;">Distance</th><td id="pf_distance">&mdash;</td></tr>
+                            <tr><th>Per KM price</th><td id="pf_perkm">&mdash;</td></tr>
+                            <tr><th>Base fare</th><td id="pf_base">&mdash;</td></tr>
+                            <tr><th>Parcel weight</th><td id="pf_weight">&mdash;</td></tr>
+                            <tr><th>Delivery charge <small class="text-muted">(base fare + distance &times; per KM)</small></th><td id="pf_delivery">&mdash;</td></tr>
+                            <tr><th>Platform fee</th><td id="pf_platform">&mdash;</td></tr>
+                            <tr><th>Convenience fee</th><td id="pf_convenience">&mdash;</td></tr>
+                            <tr><th>GST</th><td id="pf_gst">&mdash;</td></tr>
+                            <tr class="active"><th>Grand total</th><td id="pf_grand">&mdash;</td></tr>
+                            <tr class="active"><th>Amount paid</th><td id="pf_amount">&mdash;</td></tr>
+                        </tbody>
+                    </table>
+                    <p class="text-muted" style="margin:0;">
+                        Delivery charge = base fare + (distance &times; per KM).<br>
+                        Grand total = delivery charge + platform fee + convenience fee + GST.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 <script>
 function parcelTxnParams(p){
     return {
@@ -68,7 +106,26 @@ function parcelTxnParams(p){
         search:p.search
     };
 }
+function pfMoney(v){
+    return '\u20B9 ' + (parseFloat(v) || 0).toFixed(2);
+}
 $(document).ready(function(){
+    $('#parcelFeeModal').appendTo('body');
+    $(document).on('click', '.parcel-fee-breakdown', function(){
+        var b = $(this);
+        var dist = parseFloat(b.data('distance')) || 0;
+        var weight = parseFloat(b.data('weight')) || 0;
+        $('#pf_distance').text(dist.toFixed(2) + ' km');
+        $('#pf_perkm').text(pfMoney(b.data('perkm')));
+        $('#pf_base').text(pfMoney(b.data('base')));
+        $('#pf_weight').text(weight > 0 ? weight.toFixed(2) + ' kg' : '\u2014');
+        $('#pf_delivery').text(pfMoney(b.data('delivery')));
+        $('#pf_platform').text(pfMoney(b.data('platform')));
+        $('#pf_convenience').text(pfMoney(b.data('convenience')));
+        $('#pf_gst').text(pfMoney(b.data('gst')));
+        $('#pf_grand').html('<strong>' + pfMoney(b.data('grand')) + '</strong>');
+        $('#pf_amount').html('<strong>' + pfMoney(b.data('amount')) + '</strong>');
+    });
     $('#filter_zone').on('change', function(){
         $('#parcel_transactions_list').bootstrapTable('refresh');
     });

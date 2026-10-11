@@ -446,17 +446,42 @@ if(isset($_POST['update_zone']) && $_POST['update_zone']==1){
         return false;
     }
     $polygon = $db->escapeString(json_encode($decoded_poly));
-    $fee_problems = array();
-    $zone_fees = zn_read_fee_inputs($_POST, $fee_problems);
-    if (!empty($fee_problems)) {
-        echo '<label class="alert alert-danger">Zone fees must be zero or a positive number. The zone was saved using the global fees.</label>';
-    }
 
-    $sql = "UPDATE zone SET name='$name', polygon='$polygon', status='$status', platform_fee=".$zone_fees['platform_fee'].", convenience_fee=".$zone_fees['convenience_fee']." WHERE id=".$id;
+    // Fees are managed from Zone Settings, so editing the boundary/name/status
+    // here must never overwrite a zone's stored fee values.
+    $sql = "UPDATE zone SET name='$name', polygon='$polygon', status='$status' WHERE id=".$id;
     if($db->sql($sql)){
         echo '<label class="alert alert-success">Zone Updated Successfully!</label>';
     }else{
         echo '<label class="alert alert-danger">Some Error Occurred! Please try again.</label>';
+    }
+}
+if(isset($_POST['update_zone_settings']) && $_POST['update_zone_settings']==1){
+    if(!checkadmin($auth_username)){
+        echo '<label class="alert alert-danger">Access denied - You are not authorized to access this page.</label>';
+        return false;
+    }
+    if($permissions['zones']['update']==0){
+        echo '<label class="alert alert-danger">You have no permission to update zones</label>';
+        return false;
+    }
+    $id = (int)$db->escapeString($fn->xss_clean($_POST['zone_id']));
+    if($id <= 0){
+        echo '<label class="alert alert-danger">Invalid zone selected!</label>';
+        return false;
+    }
+    $text = $db->escapeString($fn->xss_clean(!empty($_POST['announcement_text']) ? $_POST['announcement_text'] : ''));
+    $enabled = (!empty($_POST['announcement_enabled']) && $_POST['announcement_enabled']==1) ? 1 : 0;
+    $auto = (!empty($_POST['announcement_auto_weather']) && $_POST['announcement_auto_weather']==1) ? 1 : 0;
+
+    $fee_problems = array();
+    $zone_fees = zn_read_fee_inputs($_POST, $fee_problems);
+
+    $sql = "UPDATE zone SET announcement_text='".$text."', announcement_enabled=".$enabled.", announcement_auto_weather=".$auto.", platform_fee=".$zone_fees['platform_fee'].", convenience_fee=".$zone_fees['convenience_fee']." WHERE id=".$id;
+    if($db->sql($sql)){
+        echo '<label class="alert alert-success">Zone settings updated!'.(!empty($fee_problems) ? ' (Invalid values were ignored for: '.implode(', ', $fee_problems).')' : '').'</label>';
+    }else{
+        echo '<label class="alert alert-danger">Some Error Occurred! Please Try Again.</label>';
     }
 }
 if(isset($_GET['delete_zone']) && $_GET['delete_zone']==1){

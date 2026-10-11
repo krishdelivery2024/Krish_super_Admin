@@ -352,6 +352,76 @@ if (isset($_POST['delivery_boy_status'])) {
 /* 
 ---------------------------------------------------------------------------------------------------------
 */
+if (isset($_POST['update_delivery_boy_location'])) {
+	/*
+		accesskey:90336
+		id:1
+		latitude:13.0827
+		longitude:80.2707
+		update_delivery_boy_location:1
+
+		Called by the delivery boy app every 20 seconds while the boy is Online.
+		Only the last known point is stored; the admin live map reads it. Updates
+		are accepted only while active_status = 'true', so a boy who has gone
+		Offline stops appearing on the map even if a late request arrives.
+	*/
+	$id = (isset($_POST['id'])) ? $db->escapeString(trim($fn->xss_clean($_POST['id']))) : '';
+	$latitude = (isset($_POST['latitude'])) ? trim($fn->xss_clean($_POST['latitude'])) : '';
+	$longitude = (isset($_POST['longitude'])) ? trim($fn->xss_clean($_POST['longitude'])) : '';
+
+	if ($id === '' || $latitude === '' || $longitude === '' || !is_numeric($latitude) || !is_numeric($longitude)) {
+		$response['error'] = true;
+		$response['message'] = "Delivery boy id, latitude and longitude are required.";
+		print_r(json_encode($response));
+		die;
+	}
+
+	$sql = "SELECT id, active_status FROM delivery_boys WHERE id = '" . $id . "'";
+	$db->sql($sql);
+	$res = $db->getResult();
+
+	if (empty($res)) {
+		$response['error'] = true;
+		$response['message'] = "Invalid delivery boy id.";
+		print_r(json_encode($response));
+		die;
+	}
+
+	if ($res[0]['active_status'] !== 'true') {
+		// Not online: ignore the update so a stale point can't be plotted.
+		$response['error'] = false;
+		$response['message'] = "Delivery boy is offline. Location not stored.";
+		$response['stored'] = false;
+		print_r(json_encode($response));
+		die;
+	}
+
+	$lat = (float) $latitude;
+	$lng = (float) $longitude;
+	if ($lat < -90 || $lat > 90 || $lng < -180 || $lng > 180) {
+		$response['error'] = true;
+		$response['message'] = "Coordinates out of range.";
+		print_r(json_encode($response));
+		die;
+	}
+
+	$sql1 = "UPDATE delivery_boys SET latitude = '" . $lat . "', longitude = '" . $lng . "', location_updated_at = NOW() WHERE id = '" . $id . "'";
+	$db->sql($sql1);
+
+	$response['error'] = false;
+	$response['message'] = "Location updated successfully.";
+	$response['stored'] = true;
+	$response['latitude'] = $lat;
+	$response['longitude'] = $lng;
+	print_r(json_encode($response));
+	die;
+} else {
+	$response['error'] = true;
+	$response['message'] = "Invalid Call of API!";
+}
+/* 
+---------------------------------------------------------------------------------------------------------
+*/
 if (isset($_POST['get_delivery_boy_by_id'])) {
 
 	/* 
@@ -556,6 +626,17 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 
 	$db->sql($sql);
 	$res = $db->getResult();
+
+	// Opportunistic Phase-2 escalation: any unassigned order that has been in
+	// Phase-1 for 60+ seconds is broadcast to the whole network while the boy
+	// is already polling. The guarded transition fires the push only once.
+	if (isset($_POST['status']) && $_POST['status'] == 'new') {
+		foreach ($res as $row_dispatch) {
+			if (isset($row_dispatch['delivery_boy_id']) && (int)$row_dispatch['delivery_boy_id'] === 0) {
+				$fn->escalate_due_dispatch('food', (int)$row_dispatch['id']);
+			}
+		}
+	}
 
 	for ($i = 0; $i < count($res); $i++) {
 		$sql = "select oi.*,p.name as name, v.measurement,p.image, (SELECT short_code FROM unit un where un.id=v.measurement_unit_id)as mesurement_unit_name from `order_items` oi 
@@ -969,30 +1050,38 @@ if (isset($_POST['accept_order_delivery_boy'])) {
 	$res = $db->getResult();
 	$num = $db->numRows($res);
 	if ($num == 1) {
-		$sql = "SELECT * FROM orders WHERE id = '$order_id' AND active_status!= 'delivered' AND active_status!= 'cancelled' AND active_status!= 'returned' AND delivery_boy_id ='0'";
-		$db->sql($sql);
-		$res = $db->getResult();
-		$num = $db->numRows($res);
-		if ($num == 1) {
 
-			if ($status == "yes") {
-				$sql1 = "update orders set `delivery_boy_id` ='$id', `accept_status` ='$status'  where id = '" . $order_id . "'";
-				$db->sql($sql1);
+		if ($status == "yes") {
+			// Atomic first-come-first-served claim. Only the single statement
+			// that sees delivery_boy_id = '0' can win, even when two boys tap
+			// Accept at the same instant.
+			$db->update('orders',
+				array('delivery_boy_id' => $id, 'accept_status' => $status, 'dispatch_stage' => 'assigned'),
+				"id = '$order_id' AND active_status NOT IN ('delivered','cancelled','returned') AND delivery_boy_id = '0'");
+			$aff = $db->getResult();
+			$affected = (!empty($aff)) ? (int)$aff[0] : 0;
+			if ($affected === 1) {
 				$response['error'] = false;
 				$response['message'] = "Order Accepted Susseccfully";
 			} else {
-				// Record the rejection so this delivery boy won't see this order again
-				$sql_rejected = "UPDATE orders SET rejected_by = IF(rejected_by IS NULL OR rejected_by = '', '$id', CONCAT(rejected_by, ',$id')) WHERE id = '$order_id'";
-				$db->sql($sql_rejected);
-				$response['error'] = false;
-				$response['message'] = "Order Rejected Susseccfully";
+				$db->sql("SELECT delivery_boy_id FROM orders WHERE id = '$order_id'");
+				$res_taken = $db->getResult();
+				if (!empty($res_taken) && isset($res_taken[0]['delivery_boy_id']) && (int)$res_taken[0]['delivery_boy_id'] !== 0) {
+					$response['error'] = true;
+					$response['message'] = "Order already accepted by another partner.";
+				} else {
+					$response['error'] = true;
+					$response['message'] = "Invalid Order ID!";
+				}
 			}
-
-
 		} else {
-			$response['error'] = true;
-			$response['message'] = "Invalid Order ID!";
+			// Record the rejection so this delivery boy won't see this order again
+			$sql_rejected = "UPDATE orders SET rejected_by = IF(rejected_by IS NULL OR rejected_by = '', '$id', CONCAT(rejected_by, ',$id')) WHERE id = '$order_id'";
+			$db->sql($sql_rejected);
+			$response['error'] = false;
+			$response['message'] = "Order Rejected Susseccfully";
 		}
+
 
 	} else {
 		$response['error'] = true;
@@ -1107,6 +1196,15 @@ if (isset($_POST['get_parcel_orders'])) {
 	$sql = "SELECT p.* FROM `parcel_requests` p" . $where . " ORDER BY p.id DESC LIMIT " . $offset . ", " . $limit;
 	$db->sql($sql);
 	$res = $db->getResult();
+
+	// Opportunistic Phase-2 escalation for parcels (see food block above).
+	if ($status == 'new') {
+		foreach ($res as $row_dispatch) {
+			if (isset($row_dispatch['delivery_boy_id']) && (int)$row_dispatch['delivery_boy_id'] === 0) {
+				$fn->escalate_due_dispatch('parcel', (int)$row_dispatch['id']);
+			}
+		}
+	}
 
 	$rows1 = array();
 	foreach ($res as $row) {
@@ -1303,26 +1401,33 @@ if (isset($_POST['accept_parcel_order'])) {
 	$res = $db->getResult();
 	$num = $db->numRows($res);
 	if ($num == 1) {
-		$sql = "SELECT * FROM parcel_requests WHERE id = '$order_id' AND status != 'delivered' AND status != 'cancelled' AND delivery_boy_id = '0'";
-		$db->sql($sql);
-		$res = $db->getResult();
-		$num = $db->numRows($res);
-		if ($num == 1) {
-			if ($status == "yes") {
-				$sql1 = "UPDATE parcel_requests SET delivery_boy_id = '$id', accept_status = '$status', status = 'accepted' WHERE id = '$order_id'";
-				$db->sql($sql1);
+		if ($status == "yes") {
+			// Atomic first-come-first-served claim; see accept_order_delivery_boy.
+			$db->update('parcel_requests',
+				array('delivery_boy_id' => $id, 'accept_status' => $status, 'status' => 'accepted', 'dispatch_stage' => 'assigned'),
+				"id = '$order_id' AND status != 'delivered' AND status != 'cancelled' AND delivery_boy_id = '0'");
+			$aff = $db->getResult();
+			$affected = (!empty($aff)) ? (int)$aff[0] : 0;
+			if ($affected === 1) {
 				$response['error'] = false;
 				$response['message'] = "Parcel Order Accepted Successfully";
 			} else {
-				// Record the rejection so this delivery boy won't see this parcel order again
-				$sql_rejected = "UPDATE parcel_requests SET rejected_by = IF(rejected_by IS NULL OR rejected_by = '', '$id', CONCAT(rejected_by, ',$id')) WHERE id = '$order_id'";
-				$db->sql($sql_rejected);
-				$response['error'] = false;
-				$response['message'] = "Parcel Order Rejected Successfully";
+				$db->sql("SELECT delivery_boy_id FROM parcel_requests WHERE id = '$order_id'");
+				$res_taken = $db->getResult();
+				if (!empty($res_taken) && isset($res_taken[0]['delivery_boy_id']) && (int)$res_taken[0]['delivery_boy_id'] !== 0) {
+					$response['error'] = true;
+					$response['message'] = "Order already accepted by another partner.";
+				} else {
+					$response['error'] = true;
+					$response['message'] = "Invalid Parcel Order ID!";
+				}
 			}
 		} else {
-			$response['error'] = true;
-			$response['message'] = "Invalid Parcel Order ID!";
+			// Record the rejection so this delivery boy won't see this parcel order again
+			$sql_rejected = "UPDATE parcel_requests SET rejected_by = IF(rejected_by IS NULL OR rejected_by = '', '$id', CONCAT(rejected_by, ',$id')) WHERE id = '$order_id'";
+			$db->sql($sql_rejected);
+			$response['error'] = false;
+			$response['message'] = "Parcel Order Rejected Successfully";
 		}
 	} else {
 		$response['error'] = true;
