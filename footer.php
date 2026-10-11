@@ -4039,8 +4039,12 @@ $(document).on('change','#loose',function(){
                 // image = $(this).data("image");
                 $.ajax({
                     url : 'public/db-operation.php',
-                    type: "get",
-                    data: 'id='+id+'&delete_delivery_boy=1',
+                    type: "POST",
+                    data: {
+    id: id,
+    delete_delivery_boy: 1,
+    csrf_token: '<?= htmlspecialchars($_SESSION["csrf_token"], ENT_QUOTES, "UTF-8") ?>'
+},
                     success: function(result){
                         if(result==0){
                             $('#delivery-boys').bootstrapTable('refresh');

@@ -1,83 +1,179 @@
+
 <?php
 /**
- * Live delivery boy locations for the admin OpenStreetMap.
- *
- * Returns every delivery boy who is currently Online (active_status='true')
- * and whose position was refreshed within the last few minutes, together with
- * the boy's name so the admin map can label each marker. Boys who go Offline,
- * or whose app stopped reporting, simply drop out of the list and their marker
- * is removed by the polling script on the next refresh.
+ * Live delivery-boy locations for authorized admin users.
  */
 session_start();
 
-$currentTime = time() + 25200;
-$expired = 3600;
-
-if (!isset($_SESSION['user'])) {
-	header('Content-Type: application/json');
-	echo json_encode(array('error' => true, 'message' => 'Not authenticated.'));
-	exit;
-}
-if (isset($_SESSION['timeout']) && $currentTime > $_SESSION['timeout']) {
-	session_destroy();
-	header('Content-Type: application/json');
-	echo json_encode(array('error' => true, 'message' => 'Session expired.'));
-	exit;
-}
-unset($_SESSION['timeout']);
-$_SESSION['timeout'] = $currentTime + $expired;
-
-header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
+header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
+header('Pragma: no-cache');
 
-include_once('../includes/custom-functions.php');
-include_once('../includes/crud.php');
-include_once('../includes/variables.php');
+function location_error($status, $message) {
+    http_response_code($status);
+    echo json_encode(array(
+        'error' => true,
+        'message' => $message
+    ));
+    exit;
+}
+
+if (
+    empty($_SESSION['user']) ||
+    empty($_SESSION['id']) ||
+    empty($_SESSION['role'])
+) {
+    location_error(401, 'Not authenticated.');
+}
+
+$currentTime = time() + 25200;
+
+if (isset($_SESSION['timeout']) && $currentTime > $_SESSION['timeout']) {
+    session_destroy();
+    location_error(401, 'Session expired.');
+}
+
+$_SESSION['timeout'] = $currentTime + 3600;
+
+$role = (string) $_SESSION['role'];
+
+if ($role === 'seller') {
+    location_error(403, 'Access denied.');
+}
+
+require_once('../includes/crud.php');
+require_once('../includes/custom-functions.php');
+require_once('../includes/variables.php');
+
+
 $fn = new custom_functions;
 $db = new Database();
 $db->connect();
-$config = $fn->get_configurations();
 
-if (isset($config['system_timezone']) && isset($config['system_timezone_gmt'])) {
-	date_default_timezone_set($config['system_timezone']);
-	$db->sql("SET `time_zone` = '" . $config['system_timezone_gmt'] . "'");
-} else {
-	date_default_timezone_set('Asia/Kolkata');
-	$db->sql("SET `time_zone` = '+05:30'");
+/* Validate the active admin session against the database. */
+if (
+    !isset($_SESSION['secretkey']) ||
+    (int) $_SESSION['secretkey'] <= 0
+) {
+    $db->disconnect();
+    location_error(401, 'Invalid session. Please log in again.');
 }
 
-// A position older than this is treated as stopped reporting.
+$sessionId = (int) $_SESSION['id'];
+$sessionUser = $db->escapeString((string) $_SESSION['user']);
+$sessionRole = $db->escapeString((string) $_SESSION['role']);
+$sessionKey = (int) $_SESSION['secretkey'];
+
+$db->sql(
+    "SELECT id FROM admin
+     WHERE id = " . $sessionId . "
+       AND username = '" . $sessionUser . "'
+       AND role = '" . $sessionRole . "'
+       AND web_login = " . $sessionKey . "
+     LIMIT 1"
+);
+
+$validSession = $db->getResult();
+
+if (empty($validSession)) {
+    $db->disconnect();
+    location_error(401, 'Session is no longer valid. Please log in again.');
+}
+
+$permissions = $fn->get_permissions($sessionId);
+
+
+/*
+ * Super admins retain access.
+ * Other admin roles must explicitly have delivery_boys.read permission.
+ */
+if (
+    $role !== 'super admin' &&
+    (
+        !isset($permissions['delivery_boys']['read']) ||
+        (int) $permissions['delivery_boys']['read'] !== 1
+    )
+) {
+    $db->disconnect();
+    location_error(403, 'You do not have permission to view delivery-boy locations.');
+}
+
+$config = $fn->get_configurations();
+
+if (isset($config['system_timezone'], $config['system_timezone_gmt'])) {
+    date_default_timezone_set($config['system_timezone']);
+    $db->sql("SET `time_zone` = '" .
+        $db->escapeString($config['system_timezone_gmt']) . "'");
+} else {
+    date_default_timezone_set('Asia/Kolkata');
+    $db->sql("SET `time_zone` = '+05:30'");
+}
+
 $fresh_seconds = 120;
 
-// NOTE: deliberately NOT scoped to the admin's zones, matching the delivery
-// boys list itself (which shows every boy to every admin). Otherwise a boy
-// without a zone id (zone_id 0/NULL) would disappear from the live map for
-// zone-scoped sub-admins while still appearing in the list.
-$where = " WHERE active_status = 'true' AND status = 1 AND latitude IS NOT NULL AND longitude IS NOT NULL"
-	. " AND location_updated_at IS NOT NULL AND location_updated_at >= (NOW() - INTERVAL " . (int) $fresh_seconds . " SECOND)";
+$where = " WHERE active_status = 'true'
+    AND status = 1
+    AND latitude IS NOT NULL
+    AND longitude IS NOT NULL
+    AND location_updated_at IS NOT NULL
+    AND location_updated_at >= (NOW() - INTERVAL " .
+    (int) $fresh_seconds . " SECOND)";
 
-$sql = "SELECT id, name, mobile, zone_id, latitude, longitude, location_updated_at,"
-	. " TIMESTAMPDIFF(SECOND, location_updated_at, NOW()) AS age_seconds"
-	. " FROM delivery_boys" . $where . " ORDER BY location_updated_at DESC";
+/*
+ * A sub-admin may see only delivery boys in assigned zones.
+ * An empty or invalid zone assignment must never mean "all zones".
+ */
+
+if ($role === 'sub admin') {
+    $zoneIds = $fn->get_zone_scope((int) $_SESSION['id']);
+    $zoneIds = is_array($zoneIds)
+        ? array_values(array_unique(array_filter(
+            array_map('intval', $zoneIds),
+            function ($zoneId) {
+                return $zoneId > 0;
+            }
+        )))
+        : array();
+
+    if (empty($zoneIds)) {
+        $where .= " AND 1 = 0";
+    } else {
+        $where .= " AND zone_id IN (" . implode(',', $zoneIds) . ")";
+    }
+}
+
+
+$sql = "SELECT id, name, mobile, zone_id, latitude, longitude,
+        location_updated_at,
+        TIMESTAMPDIFF(SECOND, location_updated_at, NOW()) AS age_seconds
+        FROM delivery_boys" . $where . "
+        ORDER BY location_updated_at DESC";
+
 $db->sql($sql);
 $res = $db->getResult();
 
 $data = array();
+
 if (!empty($res)) {
-	foreach ($res as $row) {
-		$data[] = array(
-			'id'                  => (int) $row['id'],
-			'name'                => $row['name'],
-			'mobile'              => $row['mobile'],
-			'zone_id'             => ($row['zone_id'] === null ? null : (int) $row['zone_id']),
-			'latitude'            => (float) $row['latitude'],
-			'longitude'           => (float) $row['longitude'],
-			'location_updated_at' => $row['location_updated_at'],
-			'age_seconds'         => (int) $row['age_seconds'],
-		);
-	}
+    foreach ($res as $row) {
+        $data[] = array(
+            'id' => (int) $row['id'],
+            'name' => $row['name'],
+            'mobile' => $row['mobile'],
+            'zone_id' => ($row['zone_id'] === null
+                ? null : (int) $row['zone_id']),
+            'latitude' => (float) $row['latitude'],
+            'longitude' => (float) $row['longitude'],
+            'location_updated_at' => $row['location_updated_at'],
+            'age_seconds' => (int) $row['age_seconds']
+        );
+    }
 }
 
-echo json_encode(array('error' => false, 'count' => count($data), 'data' => $data));
 $db->disconnect();
+
+echo json_encode(array(
+    'error' => false,
+    'count' => count($data),
+    'data' => $data
+));

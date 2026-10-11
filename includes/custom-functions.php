@@ -162,8 +162,13 @@ class custom_functions{
     }
 
     public function get_zone_scope($id){
-        if(isset($_SESSION['id']) && $_SESSION['role'] == 'sub admin'){
-            $this->db->sql("SELECT zone_ids FROM admin WHERE id=".(int)$id);
+       if (
+    isset($_SESSION['id'], $_SESSION['role']) &&
+    $_SESSION['role'] === 'sub admin'
+) {
+            $this->db->sql(
+    "SELECT zone_ids FROM admin WHERE id=" . (int) $_SESSION['id']
+);
             $res = $this->db->getResult();
             if(!empty($res) && !empty($res[0]['zone_ids'])){
                 $zones = json_decode($res[0]['zone_ids'], true);
@@ -1177,20 +1182,48 @@ class custom_functions{
         }
     }
     
-    public function get_permissions($id){
-        if($_SESSION['role'] == 'seller'){
+   
+public function get_permissions($id){
+    if (isset($_SESSION['role']) && $_SESSION['role'] == 'seller') {
         $sql = "SELECT permissions FROM admin WHERE id=30";
-        }else{
+    } else {
+        $id = (int) $id;
         $sql = "SELECT permissions FROM admin WHERE id=".$id;
-        }
-        $this->db->sql($sql);
-        $res = $this->db->getResult();
-        if(!empty($res) && isset($res[0]['permissions'])){
-            return json_decode($res[0]['permissions'],true);
-        }else{
-            return 0;
-        }
     }
+
+    $this->db->sql($sql);
+    $res = $this->db->getResult();
+
+    if (empty($res) || !isset($res[0]['permissions'])) {
+        return 0;
+    }
+
+    $permissions = json_decode($res[0]['permissions'], true);
+
+    if (!is_array($permissions)) {
+        return 0;
+    }
+
+    // Missing zone permissions must remain denied by default.
+    $zoneDefaults = [
+        'create' => 0,
+        'read'   => 0,
+        'update' => 0,
+        'delete' => 0
+    ];
+
+    if (!isset($permissions['zones']) || !is_array($permissions['zones'])) {
+        $permissions['zones'] = [];
+    }
+
+    $permissions['zones'] = array_merge(
+        $zoneDefaults,
+        $permissions['zones']
+    );
+
+    return $permissions;
+}
+
     
     public function add_delivery_boy_commission($id,$type,$amount,$message,$status = "SUCCESS"){
         $balance=$this->get_balance($id);

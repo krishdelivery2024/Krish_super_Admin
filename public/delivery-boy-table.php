@@ -15,17 +15,29 @@
     $db->sql($sql);
     $zones = $db->getResult();
 
-    $my_zone_scope = $fn->get_zone_scope(isset($_SESSION['id']) ? $_SESSION['id'] : 0);
-    if(!empty($my_zone_scope)){
-        $zones = array_values(array_filter($zones, function($z) use ($my_zone_scope){ return in_array((int)$z['id'], $my_zone_scope); }));
-    }
+
+$my_zone_scope = $fn->get_zone_scope(isset($_SESSION['id']) ? $_SESSION['id'] : 0);
+
+$is_super_admin = isset($_SESSION['role']) && $_SESSION['role'] === 'super admin';
+$is_sub_admin = isset($_SESSION['role']) && $_SESSION['role'] === 'sub admin';
+
+$can_create_delivery_boys = $is_super_admin ||
+    (isset($permissions['delivery_boys']['create']) && (int)$permissions['delivery_boys']['create'] === 1);
+
+$can_read_delivery_boys = $is_super_admin ||
+    (isset($permissions['delivery_boys']['read']) && (int)$permissions['delivery_boys']['read'] === 1);
+
+if ($is_sub_admin) {
+    $zones = array_values(array_filter($zones, function($z) use ($my_zone_scope) {
+        return is_array($my_zone_scope) && in_array((int)$z['id'], array_map('intval', $my_zone_scope), true);
+    }));
+}
+
     ?>
     <!-- Main row -->
     <div class="row">
         <div class="col-md-6">
-            <?php if($permissions['delivery_boys']['create']==0){?>
-                <div class="alert alert-danger">You have no permission to create delivery boy</div>
-            <?php } ?>
+    <?php if ($can_create_delivery_boys) { ?>
               <!-- general form elements -->
               <div class="box box-primary">
                 <div class="box-header with-border">
@@ -113,9 +125,13 @@
                       <div id="result" style="display: none;"></div>
                     </div>
                 </form>
-              </div><!-- /.box -->
-             </div>
+</div><!-- /.box -->
+<?php } else { ?>
+    <div class="alert alert-danger">You do not have permission to create delivery boys.</div>
+<?php } ?>
+</div>
         <!-- Live delivery boy locations (OpenStreetMap) -->
+         <?php if ($can_read_delivery_boys) { ?>
         <div class="col-md-12">
             <div class="box box-primary">
                 <div class="box-header with-border">
@@ -133,9 +149,10 @@
                 </div>
             </div><!-- /.box -->
         </div>
+        <?php } ?>
         <!-- Left col -->
         <div class="col-md-12">
-            <?php if($permissions['delivery_boys']['read']==1){?>
+            <?php if ($can_read_delivery_boys) { ?>
             <div class="box">
                 <div class="box-header">
                     <h3 class="box-title">Delivery Boys</h3>

@@ -5,7 +5,9 @@ $db=new Database();
 $db->connect();
 include_once('includes/custom-functions.php');
 $fn=new custom_functions;
-$permissions=$fn->get_permissions();
+$permissions = $fn->get_permissions(
+    isset($_SESSION['id']) ? (int)$_SESSION['id'] : 0
+);
 $zones=array();
 $db->sql("SELECT * FROM zone ORDER BY id DESC");
 $zones=$db->getResult();

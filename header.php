@@ -1,6 +1,9 @@
 <?php 
 ob_start();
 session_start();
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
 // print_r($_SESSION);
 	include_once('includes/crud.php');
     $db = new Database();
