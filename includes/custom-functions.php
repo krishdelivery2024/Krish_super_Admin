@@ -896,7 +896,7 @@ class custom_functions{
         // Claimed '' -> 'phase1'. Fresh row data is refetched because the claim
         // happened after get_dispatch_context() read the stage.
         $row = $this->get_dispatch_context($order_type, $order_id);
-        $count = ($row !== null) ? $this->dispatch_phase1_nearby($order_type, $row, $title, $message) : 0;
+        $count = ($row !== null) ? $this->dispatch_phase1_nearby($order_type, $order_id, $row, $title, $message) : 0;
         $result['stage'] = 'phase1';
         $result['notified'] = (int)$count;
         return $result;
@@ -1001,7 +1001,7 @@ class custom_functions{
      * reached because their distance is unknown - they are still online so
      * they naturally surface again in the Phase-2 broadcast.
      */
-    private function dispatch_phase1_nearby($order_type, $row, $title, $message){
+   private function dispatch_phase1_nearby($order_type, $order_id, $row, $title, $message){
         $pickup_lat = isset($row['pickup_lat']) ? $row['pickup_lat'] : '';
         $pickup_lng = isset($row['pickup_lng']) ? $row['pickup_lng'] : '';
         if (!is_numeric($pickup_lat) || !is_numeric($pickup_lng)) {
