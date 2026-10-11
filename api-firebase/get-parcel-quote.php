@@ -45,12 +45,6 @@ if (empty($drop_lat) || empty($drop_lng) || !is_numeric($drop_lat) || !is_numeri
     return false;
 }
 
-$sql_query = "SELECT per_km_price, base_price FROM parcel_settings ORDER BY id ASC LIMIT 1";
-$db->sql($sql_query);
-$res = $db->getResult();
-$per_km_price = (isset($res[0]['per_km_price']) && is_numeric($res[0]['per_km_price'])) ? (float)$res[0]['per_km_price'] : 0;
-$base_price   = (isset($res[0]['base_price'])   && is_numeric($res[0]['base_price']))   ? (float)$res[0]['base_price']   : 0;
-
 $sql_settings = "SELECT value FROM settings WHERE variable = 'system_timezone'";
 $db->sql($sql_settings);
 $settings_res = $db->getResult();
@@ -69,6 +63,36 @@ $quote_zone = $fn->get_zone_id_from_latlng($pickup_lat, $pickup_lng);
 if ($quote_zone === null) {
     $response['error'] = "true";
     $response['message'] = "Pickup is only available inside our service zones. Please move the pickup point inside a zone.";
+    print_r(json_encode($response));
+    $db->disconnect();
+    return false;
+}
+
+// Parcel tariff (per km price, base price) can be overridden per zone. Any
+// NULL zone column falls back to the global parcel_settings value, so a zone
+// with no override keeps the store-wide price.
+$effective_parcel = $fn->get_effective_parcel_settings($quote_zone);
+$per_km_price = $effective_parcel['per_km_price'];
+$base_price   = $effective_parcel['base_price'];
+
+// Per-zone service availability: a zone may switch parcel pickup off even when
+// the global setting allows it.
+if ((int)$effective_parcel['is_service_available'] !== 1) {
+    $response['error'] = "true";
+    $response['message'] = "Parcel service is not available in this pickup zone right now.";
+    print_r(json_encode($response));
+    $db->disconnect();
+    return false;
+}
+
+// Daily operating window: pickup is only bookable between the configured
+// opening and closing times (store timezone). No window configured = 24 hours.
+if (!$fn->is_parcel_service_open_now($effective_parcel['opening_time'], $effective_parcel['closing_time'])) {
+    $hours_label = $fn->get_parcel_operating_hours_label();
+    $response['error'] = "true";
+    $response['message'] = ($hours_label !== '')
+        ? ("Parcel service is currently closed. Pickup is available daily from " . $hours_label . ". Please try again during operating hours.")
+        : "Parcel service is currently closed. Please try again later.";
     print_r(json_encode($response));
     $db->disconnect();
     return false;

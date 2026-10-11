@@ -319,30 +319,22 @@ $db->sql("SELECT * FROM delivery_method WHERE id=1");
 	}
 	
 	// Platform and convenience fee come from the zone the order is delivered to.
-	// The app builds final_total from the global fee values, so only the
-	// difference between the global fee and the zone fee is applied here. While
-	// no zone has an override this difference is exactly zero and the payable
-	// amount is unchanged; once an admin configures a zone the stored total
-	// rises by precisely the extra that zone charges.
+	// The app already previews these zone fees (returned by get_order_delivery_charge
+	// on address selection) and builds final_total from them. The zone fee values
+	// are only persisted here for reference; a zone/global delta must NOT be added
+	// to final_total, otherwise the stored total is inflated a second time and no
+	// longer matches the amount the customer was quoted and actually paid (for
+	// example order 63: quoted and paid 176.6, stored 180.0 after a 3.4 delta).
 	$db->sql("select value from `settings` where variable= 'system_timezone'");
 	$fee_cfg = $db->getResult();
 	$fee_settings = isset($fee_cfg[0]['value']) ? json_decode($fee_cfg[0]['value'], true) : array();
-	$global_platform_fee = isset($fee_settings['platform_fee']) ? (float)$fee_settings['platform_fee'] : 0;
-	$global_convenience_fee = isset($fee_settings['convenience_fee']) ? (float)$fee_settings['convenience_fee'] : 0;
-	
+
 	$order_zone_fees = $function->split_zone_fees((float)$total, $order_zone_id, $fee_settings);
 	$order_platform_fee = $order_zone_fees['platform_fee'];
 	$order_convenience_fee = $order_zone_fees['convenience_fee'];
-	$global_convenience_amount = round(((float)$total * $global_convenience_fee) / 100, 2);
-	$fee_delta = round(($order_platform_fee - $global_platform_fee)
-	    + ($order_convenience_fee - $global_convenience_amount), 2);
-	if($fee_delta != 0){
-		$final_total = round((float)$final_total + $fee_delta, 2);
-		log_order_debug("Order delivered to zone " . var_export($order_zone_id, true) .
-		    " adjusts the app total by " . $fee_delta . " (platform " . $order_platform_fee .
-		    " vs " . $global_platform_fee . ", convenience " . $order_convenience_fee .
-		    " vs " . $global_convenience_amount . ").");
-	}
+	log_order_debug("Order delivered to zone " . var_export($order_zone_id, true) .
+	    " stores zone fees (platform " . $order_platform_fee .
+	    ", convenience " . $order_convenience_fee . "). App final_total kept: " . $final_total);
 	
 	$data = array(
 		'user_id'=>$user_id,

@@ -91,6 +91,7 @@ if(isset($_POST['accesskey'])) {
     	$temp = $temp1 = array();
     	foreach($result as $row){
     		$name = "";
+    		$main_cat_id = "";
     		if($row['type'] == 'main_category'){
     		    $sql = 'select `name`, `status` from main_category where id = '.$row['type_id'].' order by id desc';
     		    $db->sql($sql);
@@ -99,6 +100,20 @@ if(isset($_POST['accesskey'])) {
     		        continue;
     		    }
     		    $name = (!empty($result1[0]['name']))?$result1[0]['name']:"";
+    		}
+    		// Seller banner: the app opens this seller's restaurant screen, which
+    		// needs both the seller id (type_id) and the seller's main category.
+    		// Inactive or deleted sellers are skipped so the banner never links to
+    		// a dead store.
+    		if($row['type'] == 'seller'){
+    		    $sql = 'select `name`, `main_cat_id`, `status` from seller where id = '.$row['type_id'];
+    		    $db->sql($sql);
+    		    $result1 = $db->getResult();
+    		    if(empty($result1[0]) || $result1[0]['status'] != 1){
+    		        continue;
+    		    }
+    		    $name = (!empty($result1[0]['name']))?$result1[0]['name']:"";
+    		    $main_cat_id = (string)$result1[0]['main_cat_id'];
     		}
     // 		if($row['type'] == 'product'){
     // 		    $sql = 'select `name` from products where id = '.$row['type_id'].' order by id desc';
@@ -110,6 +125,7 @@ if(isset($_POST['accesskey'])) {
     		$temp['type'] = $row['type'];
     		$temp['type_id'] = $row['type_id'];
     		$temp['name'] = $name;
+    		$temp['main_cat_id'] = $main_cat_id;
     		$temp['image'] = DOMAIN_URL.$row['image'];
     		$temp1[] = $temp;
     	}
@@ -121,6 +137,7 @@ if(isset($_POST['accesskey'])) {
     	$temp = $temp1 = array();
     	foreach($result as $row){
     		$name = "";
+    		$main_cat_id = "";
     		if($row['type'] == 'category'){
     		    $sql = 'select `name` from category where id = '.$row['type_id'].' order by id desc';
     		    $db->sql($sql);
@@ -133,10 +150,23 @@ if(isset($_POST['accesskey'])) {
     		    $result1 = $db->getResult();
     		    $name = (!empty($result1[0]['name']))?$result1[0]['name']:"";
     		}
+    		// Same seller handling as section one - the banner opens the seller's
+    		// restaurant screen and needs the seller's main category too.
+    		if($row['type'] == 'seller'){
+    		    $sql = 'select `name`, `main_cat_id`, `status` from seller where id = '.$row['type_id'];
+    		    $db->sql($sql);
+    		    $result1 = $db->getResult();
+    		    if(empty($result1[0]) || $result1[0]['status'] != 1){
+    		        continue;
+    		    }
+    		    $name = (!empty($result1[0]['name']))?$result1[0]['name']:"";
+    		    $main_cat_id = (string)$result1[0]['main_cat_id'];
+    		}
     		
     		$temp['type'] = $row['type'];
     		$temp['type_id'] = $row['type_id'];
     		$temp['name'] = $name;
+    		$temp['main_cat_id'] = $main_cat_id;
     		$temp['image'] = DOMAIN_URL.$row['image'];
     		$temp1[] = $temp;
     	}
@@ -234,6 +264,12 @@ if(isset($_POST['accesskey'])) {
     	$data['meal_time_slots'] = $fn->get_meal_time_slots();
         $data['server_time'] = date('H:i:s');
     	$data['server_date'] = date('Y-m-d');
+
+		// Announcement banner shown right below the home slider. Each zone has
+		// its own announcement settings (admin -> Zone Settings), so the banner
+		// is resolved from the zone the customer was matched to above. No zone
+		// match means no banner.
+		$data['announcement'] = $fn->get_announcement_banner($slider_zone_id);
 
 		$response['error'] = "false";
 		$response['data'] = $data;

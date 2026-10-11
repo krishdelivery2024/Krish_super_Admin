@@ -683,8 +683,10 @@ if ($total == 0) {
                     }
                 }
                 if (!$deferred) {
-                    $function->send_notification_to_delivery_boy(0,"New Order Ready for Delivery",$message_delivery_boy,'delivery_boys',$id);
-                    $function->store_delivery_boy_notification(0,$id,"New Order Ready for Delivery",$message_delivery_boy,'order_status');
+                    // Two-stage dispatch: Phase-1 notifies only online boys in
+                    // the order's zone within 4 km of the restaurant; Phase-2
+                    // broadcasts to all online boys after 60 seconds.
+                    $function->dispatch_new_order('food', $id, 'New Order Ready for Delivery', $message_delivery_boy);
                 }
             }
             }

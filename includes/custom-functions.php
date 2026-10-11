@@ -38,6 +38,14 @@ class custom_functions{
     protected $db;
     // Why the last Google routing call failed; see get_last_maps_error()
     protected $last_maps_error = '';
+
+    // Two-stage order dispatch: Phase-1 reaches only online delivery boys whose
+    // live location is within DISPATCH_PHASE1_RADIUS_KM of the pickup and who
+    // belong to the order's zone. If the job is still unclaimed after
+    // DISPATCH_PHASE1_WAIT_SECONDS, Phase-2 broadcasts it to every online boy
+    // across the service area. First to tap Accept keeps it.
+    const DISPATCH_PHASE1_RADIUS_KM = 4.0;
+    const DISPATCH_PHASE1_WAIT_SECONDS = 60;
     function __construct(){
         $this->db = new Database();
         $this->db->connect();
@@ -834,6 +842,241 @@ class custom_functions{
         $this->db->sql($sql);
         $res = $this->db->getResult();
         return (!empty($res) && isset($res[0]['c']) && $res[0]['c'] > 0);
+    }
+
+    /**
+     * Run the two-stage dispatch for a single order.
+     *
+     * Stage '':        order is unassigned and no notification has gone out yet.
+     *                  Phase-1 notifies only online boys whose live location is
+     *                  within 4 km of the pickup point and who belong to the
+     *                  order's zone, then stamps dispatch_stage='phase1' so the
+     *                  60 second wait starts. The claim is a guarded UPDATE so
+     *                  exactly one caller ever runs Phase-1.
+     * Stage 'phase1':  once 60 seconds pass without an acceptance the same job
+     *                  is promoted to Phase-2 and broadcast to every online boy
+     *                  across the service area (first to accept keeps it).
+     * Stage 'phase2'/assigned: nothing left to do.
+     *
+     * Expected $title/$message can be omitted; sensible defaults are built from
+     * the order type so every call site speaks the same copy.
+     */
+    public function dispatch_new_order($order_type, $order_id, $title = '', $message = ''){
+        $order_type = ($order_type === 'parcel') ? 'parcel' : 'food';
+        $order_id = (int)$order_id;
+        $result = array('type' => $order_type, 'stage' => '', 'notified' => 0);
+        if ($order_id <= 0) {
+            return $result;
+        }
+
+        $row = $this->get_dispatch_context($order_type, $order_id);
+        if ($row === null || (int)$row['delivery_boy_id'] !== 0) {
+            return $result;
+        }
+
+        $stage = $row['dispatch_stage'];
+        if ($stage === 'phase2' || ($stage !== 'phase1' && !$this->claim_dispatch_phase1($order_type, $order_id))) {
+            return $result;
+        }
+
+        if ($stage === 'phase1') {
+            $result['stage'] = 'phase1';
+            if ($this->promote_dispatch_to_phase2($order_type, $order_id)) {
+                $result['stage'] = 'phase2';
+                $this->broadcast_dispatch_push($order_type, $order_id, $title, $message);
+            }
+            return $result;
+        }
+
+        // Claimed '' -> 'phase1'. Fresh row data is refetched because the claim
+        // happened after get_dispatch_context() read the stage.
+        $row = $this->get_dispatch_context($order_type, $order_id);
+        $count = ($row !== null) ? $this->dispatch_phase1_nearby($order_type, $row, $title, $message) : 0;
+        $result['stage'] = 'phase1';
+        $result['notified'] = (int)$count;
+        return $result;
+    }
+
+    /**
+     * Escalates a Phase-1 order to Phase-2 when its 60 second window has run
+     * out without an acceptance. Idempotent: the guarded UPDATE returns 1 for
+     * exactly one caller, which is the only caller that broadcasts. Cheap
+     * enough to call from cron (dispatch-worker.php) and from new-order list
+     * fetches so escalation is never starved of a scheduler.
+     */
+    public function escalate_due_dispatch($order_type, $order_id){
+        $order_type = ($order_type === 'parcel') ? 'parcel' : 'food';
+        $order_id = (int)$order_id;
+        if ($order_id <= 0) {
+            return false;
+        }
+        if ($this->promote_dispatch_to_phase2($order_type, $order_id)) {
+            $this->broadcast_dispatch_push($order_type, $order_id, '', '');
+            return true;
+        }
+        return false;
+    }
+
+    private function get_dispatch_context($order_type, $order_id){
+        if ($order_type === 'parcel') {
+            $sql = "SELECT delivery_boy_id, zone_id, dispatch_stage, dispatch_phase1_at,
+                           pickup_lat AS p_lat, pickup_lng AS p_lng
+                    FROM parcel_requests WHERE id = '$order_id' LIMIT 1";
+        } else {
+            $sql = "SELECT o.delivery_boy_id, o.zone_id, o.dispatch_stage, o.dispatch_phase1_at,
+                           o.latitude AS o_lat, o.longitude AS o_lng,
+                           s.latitude AS s_lat, s.longitude AS s_lng
+                    FROM orders o LEFT JOIN seller s ON s.id = o.seller_id
+                    WHERE o.id = '$order_id' LIMIT 1";
+        }
+        $this->db->sql($sql);
+        $res = $this->db->getResult();
+        if (empty($res) || empty($res[0])) {
+            return null;
+        }
+        $row = $res[0];
+
+        if ($order_type === 'parcel') {
+            $row['pickup_lat'] = $row['p_lat'];
+            $row['pickup_lng'] = $row['p_lng'];
+        } else {
+            $s_lat = $row['s_lat'];
+            $s_lng = $row['s_lng'];
+            $o_lat = $row['o_lat'];
+            $o_lng = $row['o_lng'];
+            $row['pickup_lat'] = (is_numeric($s_lat) && is_numeric($s_lng)) ? $s_lat : $o_lat;
+            $row['pickup_lng'] = (is_numeric($s_lat) && is_numeric($s_lng)) ? $s_lng : $o_lng;
+        }
+        return $row;
+    }
+
+    private function claim_dispatch_phase1($order_type, $order_id){
+        $status_guard = ($order_type === 'parcel')
+            ? "status IN ('pending','accepted')"
+            : "active_status NOT IN ('delivered','cancelled','returned')";
+        $table = ($order_type === 'parcel') ? 'parcel_requests' : 'orders';
+        // Phase-1 timestamp comes from MySQL's own clock (NOW()) so the stored
+        // value and the Phase-2 "NOW() - INTERVAL 60 SECOND" check share one
+        // timebase. affected_rows from update() is reliable here; ROW_COUNT()
+        // cannot be used because crud.php's sql() issues "SET NAMES utf8"
+        // before every statement, which resets it.
+        $this->db->sql("SELECT NOW() AS db_now");
+        $r = $this->db->getResult();
+        $db_now = (!empty($r) && isset($r[0]['db_now'])) ? $r[0]['db_now'] : date('Y-m-d H:i:s');
+        $this->db->update(
+            $table,
+            array('dispatch_stage' => 'phase1', 'dispatch_phase1_at' => $db_now),
+            "id = '$order_id' AND delivery_boy_id = '0'
+             AND (dispatch_stage = '' OR dispatch_stage IS NULL)
+             AND " . $status_guard
+        );
+        $aff = $this->db->getResult();
+        return (!empty($aff) && (int)$aff[0] === 1);
+    }
+
+    private function promote_dispatch_to_phase2($order_type, $order_id){
+        $status_guard = ($order_type === 'parcel')
+            ? "status IN ('pending','accepted')"
+            : "active_status NOT IN ('delivered','cancelled','returned')";
+        $wait = (int)self::DISPATCH_PHASE1_WAIT_SECONDS;
+        $this->db->update(
+            ($order_type === 'parcel') ? 'parcel_requests' : 'orders',
+            array('dispatch_stage' => 'phase2'),
+            "id = '$order_id' AND delivery_boy_id = '0' AND dispatch_stage = 'phase1'
+             AND dispatch_phase1_at IS NOT NULL
+             AND dispatch_phase1_at <= NOW() - INTERVAL $wait SECOND AND " . $status_guard
+        );
+        $r = $this->db->getResult();
+        return (!empty($r) && (int)$r[0] === 1);
+    }
+
+    /**
+     * Phase-1 target push: online boys in the order's zone whose live location
+     * is within 4 km of the pickup point. Boys with no coordinates are never
+     * reached because their distance is unknown - they are still online so
+     * they naturally surface again in the Phase-2 broadcast.
+     */
+    private function dispatch_phase1_nearby($order_type, $row, $title, $message){
+        $pickup_lat = isset($row['pickup_lat']) ? $row['pickup_lat'] : '';
+        $pickup_lng = isset($row['pickup_lng']) ? $row['pickup_lng'] : '';
+        if (!is_numeric($pickup_lat) || !is_numeric($pickup_lng)) {
+            return 0;
+        }
+        $order_zone = (int)$row['zone_id'];
+
+        $sql = "SELECT id, fcm_id, latitude, longitude FROM delivery_boys
+                WHERE active_status = 'true'
+                  AND fcm_id IS NOT NULL AND fcm_id != ''
+                  AND latitude IS NOT NULL AND longitude IS NOT NULL";
+        if ($order_zone > 0) {
+            $sql .= " AND (zone_id IS NULL OR zone_id = '' OR zone_id = '0' OR zone_id = '$order_zone')";
+        }
+        if ($this->delivery_boy_has_service_type()) {
+            $sql .= " AND (service_type = 'both' OR service_type = '" . $order_type . "')";
+        }
+        $this->db->sql($sql);
+        $boys = $this->db->getResult();
+
+        $ids = array();
+        $tokens = array();
+        $radius = (float)self::DISPATCH_PHASE1_RADIUS_KM;
+        foreach ($boys as $boy) {
+            $distance = $this->GetDeliveryDistance(
+                (float)$boy['latitude'], (float)$pickup_lat,
+                (float)$boy['longitude'], (float)$pickup_lng
+            );
+            if ($distance <= $radius) {
+                $ids[] = $boy['id'];
+                $tokens[] = $boy['fcm_id'];
+            }
+        }
+
+        if (empty($tokens)) {
+            return 0;
+        }
+
+        $copy = $this->dispatch_copy($order_type, $order_id, $title, $message);
+        $this->push_to_delivery_boy_tokens($tokens, $copy['title'], $copy['message'], 'delivery_boys', $order_id, $order_type);
+        $store_type = ($order_type === 'parcel') ? 'parcel' : 'order_status';
+        foreach ($ids as $boy_id) {
+            $this->store_delivery_boy_notification($boy_id, $order_id, $copy['title'], $copy['message'], $store_type);
+        }
+        return count($ids);
+    }
+
+    private function broadcast_dispatch_push($order_type, $order_id, $title, $message){
+        $copy = $this->dispatch_copy($order_type, $order_id, $title, $message);
+        $this->send_notification_to_delivery_boy(0, $copy['title'], $copy['message'], 'delivery_boys', $order_id, $order_type);
+        $store_type = ($order_type === 'parcel') ? 'parcel' : 'order_status';
+        $this->store_delivery_boy_notification(0, $order_id, $copy['title'], $copy['message'], $store_type);
+    }
+
+    private function dispatch_copy($order_type, $order_id, $title, $message){
+        if ($order_type === 'parcel') {
+            $default_title = 'New Parcel Order';
+            $default_message = 'New parcel delivery request #' . $order_id . ' is ready. Open the app to view the details.';
+        } else {
+            $default_title = 'New Order Ready for Delivery';
+            $default_message = 'Hello, A new order (ID : #' . $order_id . ') is ready for delivery. Please check your app to accept it.';
+        }
+        return array(
+            'title' => ($title !== '') ? $title : $default_title,
+            'message' => ($message !== '') ? $message : $default_message
+        );
+    }
+
+    private function push_to_delivery_boy_tokens($tokens, $title, $message, $type, $order_id = 0, $order_type = 'food'){
+        $push = new Push(
+            $title,
+            $message,
+            null,
+            $type,
+            $order_id,
+            $order_type
+        );
+        $m_push_notification = $push->getPush();
+        $firebase = new Firebase();
+        $firebase->send($tokens, $m_push_notification);
     }
 
     public function get_promo_details($promo_code){
@@ -2135,6 +2378,331 @@ class custom_functions{
             return false;
         }
         return $resized;
+    }
+
+    /*
+     * ----------------------------------------------------------------------
+     * Announcement banner (weather-aware)
+     * ----------------------------------------------------------------------
+     * The admin controls the banner from the settings page: a manual
+     * on/off switch plus an optional "auto-enable on rain" mode. The
+     * home page banner is visible when:
+     *   - the manual switch is ON, OR
+     *   - auto-weather is ON and the customer's zone is detecting rain.
+     * Rain is resolved per zone (nearest coordinates = polygon centroid)
+     * through the free Open-Meteo API and cached for 10 minutes in the
+     * settings table to avoid hammering the external API on every request.
+     */
+
+    function get_zone_center_ll($zone_id){
+        $zone_id = (int)$zone_id;
+        if($zone_id <= 0){
+            return null;
+        }
+        $this->db->sql("SELECT polygon FROM zone WHERE id=".$zone_id." LIMIT 1");
+        $res = $this->db->getResult();
+        if(empty($res) || empty($res[0]['polygon'])){
+            return null;
+        }
+        $poly = json_decode($res[0]['polygon'], true);
+        if(!is_array($poly) || count($poly) < 3){
+            return null;
+        }
+        $lat_sum = 0.0;
+        $lng_sum = 0.0;
+        $count = 0;
+        foreach($poly as $point){
+            if(is_array($point) && isset($point[0], $point[1])){
+                $lat = (float)$point[0];
+                $lng = (float)$point[1];
+            }elseif(is_array($point) && isset($point['lat'], $point['lng'])){
+                $lat = (float)$point['lat'];
+                $lng = (float)$point['lng'];
+            }else{
+                continue;
+            }
+            if($lat == 0.0 && $lng == 0.0){
+                continue;
+            }
+            $lat_sum += $lat;
+            $lng_sum += $lng;
+            $count++;
+        }
+        if($count == 0){
+            return null;
+        }
+        return array('lat' => round($lat_sum / $count, 5), 'lng' => round($lng_sum / $count, 5));
+    }
+
+    function get_zone_rain_status($zone_id, $force_refresh = false){
+        $zone_id = (int)$zone_id;
+        if($zone_id <= 0){
+            return false;
+        }
+        $center = $this->get_zone_center_ll($zone_id);
+        if(empty($center)){
+            return false;
+        }
+        $cache_ttl = 600; // seconds (10 minutes)
+        $now = time();
+        $cache = array();
+        $cache_row = false;
+        $this->db->sql("SELECT value FROM settings WHERE variable='zone_weather_cache' LIMIT 1");
+        $res = $this->db->getResult();
+        if(!empty($res)){
+            $cache_row = true;
+            $decoded = json_decode($res[0]['value'], true);
+            if(is_array($decoded)){
+                $cache = $decoded;
+            }
+        }
+        $key = (string)$zone_id;
+        if(!$force_refresh && isset($cache[$key]) && is_array($cache[$key])
+            && isset($cache[$key]['ts']) && ($now - (int)$cache[$key]['ts']) < $cache_ttl){
+            return !empty($cache[$key]['rain']);
+        }
+
+        $weather_code = null;
+        if(function_exists('curl_init')){
+            $url = 'https://api.open-meteo.com/v1/forecast?latitude='.$center['lat'].'&longitude='.$center['lng'].'&current=weather_code';
+            $ch = curl_init();
+            curl_setopt_array($ch, array(
+                CURLOPT_URL => $url,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT => 10,
+                CURLOPT_CONNECTTIMEOUT => 5,
+                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_SSL_VERIFYHOST => 0,
+                CURLOPT_USERAGENT => 'Mozilla/5.0'
+            ));
+            $body = curl_exec($ch);
+            $err = curl_error($ch);
+            curl_close($ch);
+            if(!$err && !empty($body)){
+                $data = json_decode($body, true);
+                if(is_array($data) && isset($data['current']['weather_code'])){
+                    $weather_code = (int)$data['current']['weather_code'];
+                }
+            }
+        }
+
+        if($weather_code === null){
+            // The external API failed - fall back to the last cached status
+            // for this zone (if any) instead of flashing the banner by
+            // guessing the weather.
+            return isset($cache[$key]['rain']) ? !empty($cache[$key]['rain']) : false;
+        }
+
+        // Rain families in Open-Meteo's WMO weather codes: 51-67 cover
+        // drizzle/rain/freezing rain, 80-82 cover rain showers and 95-99
+        // cover thunderstorms (which are rain/hail events).
+        $rain = ($weather_code >= 51 && $weather_code <= 67)
+            || ($weather_code >= 80 && $weather_code <= 82)
+            || ($weather_code >= 95 && $weather_code <= 99);
+
+        $cache[$key] = array('rain' => $rain ? 1 : 0, 'ts' => $now);
+        $cache_value = $this->db->escapeString(json_encode($cache));
+        if($cache_row){
+            $sql = "UPDATE settings SET value='".$cache_value."' WHERE variable='zone_weather_cache'";
+        }else{
+            $sql = "INSERT INTO settings (variable, value) VALUES ('zone_weather_cache','".$cache_value."')";
+        }
+        $this->db->sql($sql);
+        $this->db->getResult();
+
+        return $rain;
+    }
+
+    function get_zone_announcement_settings($zone_id){
+        $zone_id = (int)$zone_id;
+        if($zone_id <= 0){
+            return null;
+        }
+        $this->db->sql("SELECT id, name, announcement_text, announcement_enabled, announcement_auto_weather FROM zone WHERE id=".$zone_id." LIMIT 1");
+        $res = $this->db->getResult();
+        if(empty($res)){
+            return null;
+        }
+        return $res[0];
+    }
+
+    function get_announcement_banner($zone_id){
+        $zone = $this->get_zone_announcement_settings($zone_id);
+        if(empty($zone)){
+            return array('visible' => 0, 'text' => '');
+        }
+        $text = isset($zone['announcement_text']) ? trim($zone['announcement_text']) : '';
+        if($text === ''){
+            return array('visible' => 0, 'text' => '');
+        }
+        $manual_on = !empty($zone['announcement_enabled']);
+        if($manual_on){
+            return array('visible' => 1, 'text' => $text);
+        }
+        $auto_weather = !empty($zone['announcement_auto_weather']);
+        $visible = $auto_weather && $this->get_zone_rain_status($zone_id);
+        return array('visible' => $visible ? 1 : 0, 'text' => $text);
+    }
+
+    /**
+     * Raw per-zone parcel overrides. A NULL column means "inherit the global
+     * parcel_settings value" (same convention as the zone platform/convenience
+     * fees). Returns null when the zone does not exist.
+     */
+    function get_zone_parcel_settings($zone_id){
+        $zone_id = (int)$zone_id;
+        if($zone_id <= 0){
+            return null;
+        }
+        $this->db->sql("SELECT id, name, parcel_per_km_price, parcel_base_price, parcel_max_weight_kg, parcel_is_service_available FROM zone WHERE id=".$zone_id." LIMIT 1");
+        $res = $this->db->getResult();
+        if(empty($res)){
+            return null;
+        }
+        return $res[0];
+    }
+
+    /**
+     * Effective parcel settings for a zone: the global parcel_settings row with
+     * any non-null zone override layered on top. $zone_id may be null/0 to get
+     * the global values. Returns per_km_price, base_price, max_weight_kg,
+     * terms_conditions, is_service_available plus zone_id and the list of keys
+     * that came from the zone override.
+     */
+    function get_effective_parcel_settings($zone_id = null){
+        $this->db->sql("SELECT per_km_price, base_price, max_weight_kg, terms_conditions, is_service_available, opening_time, closing_time FROM parcel_settings ORDER BY id ASC LIMIT 1");
+        $res = $this->db->getResult();
+        $settings = !empty($res) ? $res[0] : array();
+
+        $out = array(
+            'per_km_price'         => (isset($settings['per_km_price']) && is_numeric($settings['per_km_price'])) ? (float)$settings['per_km_price'] : 0,
+            'base_price'           => (isset($settings['base_price']) && is_numeric($settings['base_price'])) ? (float)$settings['base_price'] : 0,
+            'max_weight_kg'        => (isset($settings['max_weight_kg']) && is_numeric($settings['max_weight_kg'])) ? (float)$settings['max_weight_kg'] : 0,
+            'terms_conditions'     => isset($settings['terms_conditions']) ? $settings['terms_conditions'] : '',
+            'is_service_available' => isset($settings['is_service_available']) ? (int)$settings['is_service_available'] : 1,
+            // Daily operating window (global only, not overridable per zone).
+            // NULL/empty on either end means no time restriction.
+            'opening_time'         => (isset($settings['opening_time']) && $settings['opening_time'] !== '') ? $settings['opening_time'] : null,
+            'closing_time'         => (isset($settings['closing_time']) && $settings['closing_time'] !== '') ? $settings['closing_time'] : null,
+            'zone_id'              => null,
+            'overrides'            => array(),
+        );
+
+        if($zone_id === null || (int)$zone_id <= 0){
+            return $out;
+        }
+        $zone = $this->get_zone_parcel_settings($zone_id);
+        if(empty($zone)){
+            return $out;
+        }
+        $out['zone_id'] = (int)$zone_id;
+
+        if($zone['parcel_per_km_price'] !== null && is_numeric($zone['parcel_per_km_price'])){
+            $out['per_km_price'] = (float)$zone['parcel_per_km_price'];
+            $out['overrides'][] = 'per_km_price';
+        }
+        if($zone['parcel_base_price'] !== null && is_numeric($zone['parcel_base_price'])){
+            $out['base_price'] = (float)$zone['parcel_base_price'];
+            $out['overrides'][] = 'base_price';
+        }
+        if($zone['parcel_max_weight_kg'] !== null && is_numeric($zone['parcel_max_weight_kg'])){
+            $out['max_weight_kg'] = (float)$zone['parcel_max_weight_kg'];
+            $out['overrides'][] = 'max_weight_kg';
+        }
+        if($zone['parcel_is_service_available'] !== null){
+            $out['is_service_available'] = (int)$zone['parcel_is_service_available'];
+            $out['overrides'][] = 'is_service_available';
+        }
+        return $out;
+    }
+
+    /**
+     * The daily operating window for parcel pickup. Both ends are nullable:
+     * leave either empty and the service has no time restriction (24 hours).
+     * Times are returned as stored ('HH:MM:SS') or null, plus 'enabled' which
+     * is true only when both ends are set.
+     */
+    function get_parcel_operating_hours(){
+        $this->db->sql("SELECT opening_time, closing_time FROM parcel_settings ORDER BY id ASC LIMIT 1");
+        $res = $this->db->getResult();
+        $opening = isset($res[0]['opening_time']) ? $res[0]['opening_time'] : null;
+        $closing = isset($res[0]['closing_time']) ? $res[0]['closing_time'] : null;
+        if($opening === ''){ $opening = null; }
+        if($closing === ''){ $closing = null; }
+        return array(
+            'opening_time' => $opening,
+            'closing_time' => $closing,
+            'enabled'      => ($opening !== null && $closing !== null),
+        );
+    }
+
+    /**
+     * Whether parcel pickup is inside its daily operating window right now, in
+     * the store timezone. A missing window means 24-hour service. Overnight
+     * windows (e.g. 22:00 -> 06:00) are supported. The opening minute is
+     * inclusive and the closing minute is exclusive.
+     *
+     * Pass the window explicitly, or leave both args null to read it from
+     * parcel_settings.
+     */
+    function is_parcel_service_open_now($opening_time = null, $closing_time = null){
+        if($opening_time === null && $closing_time === null){
+            $hours = $this->get_parcel_operating_hours();
+            $opening_time = $hours['opening_time'];
+            $closing_time = $hours['closing_time'];
+        }
+        if($opening_time === null || $closing_time === null || $opening_time === '' || $closing_time === ''){
+            return true; // no window configured
+        }
+
+        // Compare on the store clock, not the PHP default timezone.
+        $config = $this->get_configurations();
+        $timezone = (!empty($config) && isset($config['system_timezone']) && !empty($config['system_timezone']))
+            ? $config['system_timezone'] : 'Asia/Kolkata';
+        date_default_timezone_set($timezone);
+
+        $open  = (strlen($opening_time) === 5) ? $opening_time . ':00' : $opening_time;
+        $close = (strlen($closing_time) === 5) ? $closing_time . ':00' : $closing_time;
+        $now   = date('H:i:s');
+
+        if($open === $close){
+            return true; // a zero-length window is treated as 24 hours
+        }
+        if($open < $close){
+            return ($now >= $open && $now < $close);
+        }
+        // Overnight window, e.g. 22:00 -> 06:00.
+        return ($now >= $open || $now < $close);
+    }
+
+    /**
+     * Human-readable "09:00 to 21:00" label for the configured operating
+     * window, or '' when the service has no time restriction.
+     */
+    function get_parcel_operating_hours_label(){
+        $hours = $this->get_parcel_operating_hours();
+        if(!$hours['enabled']){
+            return '';
+        }
+        return substr($hours['opening_time'], 0, 5) . ' to ' . substr($hours['closing_time'], 0, 5);
+    }
+
+    /**
+     * Combined parcel availability: the manual service switch AND the daily
+     * operating window. This is what the app and the booking gate should use.
+     * Pass an effective settings array (from get_effective_parcel_settings) to
+     * avoid a second lookup, or leave null to read the global settings.
+     */
+    function is_parcel_service_available_now($effective = null){
+        if($effective === null){
+            $effective = $this->get_effective_parcel_settings(null);
+        }
+        $manual = (int)$effective['is_service_available'] === 1;
+        $open = $this->is_parcel_service_open_now(
+            isset($effective['opening_time']) ? $effective['opening_time'] : null,
+            isset($effective['closing_time']) ? $effective['closing_time'] : null
+        );
+        return ($manual && $open);
     }
 }
 

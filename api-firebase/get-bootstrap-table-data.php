@@ -1677,8 +1677,30 @@
 			$order = $_GET['order'];
 		
 		if(isset($_GET['search']) && $_GET['search'] !=''){
-			$search = $_GET['search'];
-			$where = " Where `id` like '%".$search."%' OR `name` like '%".$search."%' OR `mobile` like '%".$search."%' OR `address` like '%".$search."%'";
+			$search = $db->escapeString($_GET['search']);
+			$where = " Where (`id` like '%".$search."%' OR `name` like '%".$search."%' OR `mobile` like '%".$search."%' OR `address` like '%".$search."%')";
+		}
+
+		// Online/offline filter. active_status is an enum('true','false') set by
+		// the delivery boy app, so "online" is exactly 'true'. A blank value (the
+		// default "All") leaves the list untouched. The condition is merged into
+		// the search clause so both filters apply together.
+		if(isset($_GET['online']) && $_GET['online'] != ''){
+			$online_filter = strtolower(trim($db->escapeString($_GET['online'])));
+			if($online_filter === 'online'){
+				$online_cond = "`active_status` = 'true'";
+			}elseif($online_filter === 'offline'){
+				$online_cond = "`active_status` = 'false'";
+			}else{
+				$online_cond = '';
+			}
+			if($online_cond !== ''){
+				if($where === ''){
+					$where = " Where ".$online_cond;
+				}else{
+					$where .= " AND ".$online_cond;
+				}
+			}
 		}
 		
 		$sql = "SELECT COUNT(*) as total FROM `delivery_boys` ".$where;
@@ -2356,7 +2378,15 @@
 		$res = $db->getResult();
 		$total = (isset($res[0]['total']))?$res[0]['total']:0;
 		
-		$sql = "SELECT t.*, u.name AS user_name, u.mobile AS user_mobile FROM `transactions` t INNER JOIN `users` u ON u.id = t.user_id ".$where." ORDER BY ".$sort." ".$order." LIMIT ".$offset.", ".$limit;
+		$sql = "SELECT t.*, u.name AS user_name, u.mobile AS user_mobile,
+			pr.distance_km, pr.per_km_price, pr.base_price, pr.weight_kg,
+			pr.total_price, pr.platform_fee AS parcel_platform_fee,
+			pr.convenience_fee AS parcel_convenience_fee, pr.gst AS parcel_gst,
+			pr.grand_total AS parcel_grand_total
+			FROM `transactions` t
+			INNER JOIN `users` u ON u.id = t.user_id
+			LEFT JOIN `parcel_requests` pr ON pr.id = t.order_id
+			".$where." ORDER BY ".$sort." ".$order." LIMIT ".$offset.", ".$limit;
 		$db->sql($sql);
 		$res = $db->getResult();
 		
@@ -2367,6 +2397,7 @@
 		
 		foreach($res as $row){
 			$operate = "<a class='btn btn-xs btn-warning' href='../parcel-request-status-update.php?id=".$row['order_id']."' title='View Parcel Request'><i class='fa fa-eye'></i> View</a>";
+			$operate .= " <button type='button' class='btn btn-xs btn-info parcel-fee-breakdown' data-toggle='modal' data-target='#parcelFeeModal' data-amount='".$row['amount']."' data-delivery='".(!empty($row['total_price'])?$row['total_price']:0)."' data-platform='".(!empty($row['parcel_platform_fee'])?$row['parcel_platform_fee']:0)."' data-convenience='".(!empty($row['parcel_convenience_fee'])?$row['parcel_convenience_fee']:0)."' data-gst='".(!empty($row['parcel_gst'])?$row['parcel_gst']:0)."' data-grand='".(!empty($row['parcel_grand_total'])?$row['parcel_grand_total']:$row['amount'])."' data-distance='".(!empty($row['distance_km'])?$row['distance_km']:0)."' data-perkm='".(!empty($row['per_km_price'])?$row['per_km_price']:0)."' data-base='".(!empty($row['base_price'])?$row['base_price']:0)."' data-weight='".(!empty($row['weight_kg'])?$row['weight_kg']:0)."' title='Fee Breakdown'><i class='fa fa-calculator'></i> Fees</button>";
 			
 			$tempRow['id'] = $row['id'];
 			$tempRow['user_name'] = $row['user_name'].' ('.$row['user_id'].')';
@@ -2374,6 +2405,10 @@
 			$tempRow['order_id'] = "<a href='../parcel-request-status-update.php?id=".$row['order_id']."'>#".$row['order_id']."</a>";
 			$tempRow['type'] = $row['type'];
 			$tempRow['txn_id'] = !empty($row['txn_id'])?$row['txn_id']:'&mdash;';
+			$tempRow['delivery_charge'] = '&#8377; '.number_format((float)(!empty($row['total_price'])?$row['total_price']:0), 2);
+			$tempRow['platform_fee'] = '&#8377; '.number_format((float)(!empty($row['parcel_platform_fee'])?$row['parcel_platform_fee']:0), 2);
+			$tempRow['convenience_fee'] = '&#8377; '.number_format((float)(!empty($row['parcel_convenience_fee'])?$row['parcel_convenience_fee']:0), 2);
+			$tempRow['gst'] = '&#8377; '.number_format((float)(!empty($row['parcel_gst'])?$row['parcel_gst']:0), 2);
 			$tempRow['amount'] = '&#8377; '.$row['amount'];
 			$status = strtolower($row['status']);
 			if($status == 'success'){
@@ -4327,8 +4362,12 @@ FROM
 		
 		if (is_array($res)) {
 			foreach($res as $row){
-				$operate = ' <a href="edit-zone.php?id='.$row['id'].'"><i class="fa fa-edit"></i>Edit</a>';
-				$operate .= ' <a class="btn-xs btn-danger" href="javascript:void(0)" onclick="if(confirm(\'Are you sure you want to delete this zone?\')){ $.get(\'public/db-operation.php?delete_zone=1&id='.$row['id'].'\', function(data){ if(data==0){ $(\'#zones\').bootstrapTable(\'refresh\'); } else { alert(\'Failed to delete zone\'); } }); }"><i class="fa fa-trash-o"></i>Delete</a>';
+				if(isset($_GET['source']) && $_GET['source'] == 'zone_settings'){
+					$operate = ' <a href="javascript:void(0)" class="btn-xs btn-info" onclick="editZoneSettings('.(int)$row['id'].')"><i class="fa fa-edit"></i>Edit Settings</a>';
+				}else{
+					$operate = ' <a href="edit-zone.php?id='.$row['id'].'"><i class="fa fa-edit"></i>Edit</a>';
+					$operate .= ' <a class="btn-xs btn-danger" href="javascript:void(0)" onclick="if(confirm(\'Are you sure you want to delete this zone?\')){ $.get(\'public/db-operation.php?delete_zone=1&id='.$row['id'].'\', function(data){ if(data==0){ $(\'#zones\').bootstrapTable(\'refresh\'); } else { alert(\'Failed to delete zone\'); } }); }"><i class="fa fa-trash-o"></i>Delete</a>';
+				}
 				
 				$tempRow['id'] = $row['id'];
 				$tempRow['name'] = $row['name'];
@@ -4340,7 +4379,34 @@ FROM
 				}else{
 					$tempRow['status'] = '<span class="label label-danger">Disabled</span>';
 				}
+				if(!empty($row['announcement_text']) && trim($row['announcement_text']) !== ''){
+					$tempRow['announcement'] = ($row['announcement_enabled']==1)
+						? '<span class="label label-success">Enabled</span>'
+						: '<span class="label label-default">Text set (off)</span>';
+					$tempRow['auto_weather'] = ($row['announcement_auto_weather']==1)
+						? '<span class="label label-info">On</span>'
+						: '<span class="label label-default">Off</span>';
+				}else{
+					$tempRow['announcement'] = '<span class="label label-default">Not set</span>';
+					$tempRow['auto_weather'] = '<span class="label label-default">Off</span>';
+				}
+				if($row['platform_fee']===null || $row['platform_fee']===''){
+					$tempRow['platform_fee'] = '<span class="label label-default">Global</span>';
+				}else{
+					$tempRow['platform_fee'] = '<span class="label label-info">&#8377;'.number_format((float)$row['platform_fee'], 2).'</span>';
+				}
+				if($row['convenience_fee']===null || $row['convenience_fee']===''){
+					$tempRow['convenience_fee'] = '<span class="label label-default">Global</span>';
+				}else{
+					$tempRow['convenience_fee'] = '<span class="label label-info">'.rtrim(rtrim(number_format((float)$row['convenience_fee'], 2), '0'), '.').'%</span>';
+				}
 				$tempRow['operate'] = $operate;
+				// Raw values used to prefill the zone settings edit modal.
+				$tempRow['zone_platform_fee'] = ($row['platform_fee']===null||$row['platform_fee']==='') ? '' : $row['platform_fee'];
+				$tempRow['zone_convenience_fee'] = ($row['convenience_fee']===null||$row['convenience_fee']==='') ? '' : $row['convenience_fee'];
+				$tempRow['zone_announcement_text'] = $row['announcement_text'] === null ? '' : $row['announcement_text'];
+				$tempRow['zone_announcement_enabled'] = (int)$row['announcement_enabled'];
+				$tempRow['zone_announcement_auto_weather'] = (int)$row['announcement_auto_weather'];
 				$rows[] = $tempRow;
 			}
 		}

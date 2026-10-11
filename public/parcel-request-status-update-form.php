@@ -61,10 +61,9 @@
 					$db->sql($sql_query);
 					$flash_success = "Parcel status updated successfully.";
 
-					// Notify all online delivery boys when the parcel order is accepted
+					// Notify nearby online delivery boys when the parcel order is accepted
 					if($new_status == 'accepted'){
-						$fn->send_notification_to_delivery_boy(0, "New Parcel Order", "New parcel delivery request #".$ID." is ready. Open the app to view the details.", 'delivery_boys', $ID, 'parcel');
-						$fn->store_delivery_boy_notification(0, $ID, "New Parcel Order", "New parcel delivery request #".$ID." is ready.", 'parcel');
+						$fn->dispatch_new_order('parcel', $ID, 'New Parcel Order', "New parcel delivery request #".$ID." is ready. Open the app to view the details.");
 					}
 				}else{
 					$flash_error = "Invalid status selected.";

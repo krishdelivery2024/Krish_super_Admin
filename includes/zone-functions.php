@@ -136,4 +136,26 @@ if (!function_exists('zn_clean_polygon')) {
         }
         return $out;
     }
+
+    /**
+     * Read one optional numeric zone override. A missing/blank value becomes
+     * SQL NULL (inherit the global value). A non-numeric or negative value is
+     * recorded in $problems and also stored as NULL, so a typo can never become
+     * a negative tariff.
+     */
+    function zn_read_optional_number(array $post, $field, array &$problems = [], $decimals = 2)
+    {
+        if (!isset($post[$field])) {
+            return 'NULL';
+        }
+        $raw = trim((string)$post[$field]);
+        if ($raw === '') {
+            return 'NULL';
+        }
+        if (!is_numeric($raw) || (float)$raw < 0) {
+            $problems[] = $field;
+            return 'NULL';
+        }
+        return number_format((float)$raw, $decimals, '.', '');
+    }
 }

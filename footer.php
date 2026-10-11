@@ -4407,7 +4407,7 @@ $(document).on('change','#loose',function(){
 });
 </script>
 <?php } ?>
-<?php if($page=="Categories" || $page=="Brands" || $page=="Parcel Pickup" || $page=="Parcel Requests"){ ?>
+<?php if($page=="Main Category" || $page=="Categories" || $page=="Brands" || $page=="Parcel Pickup" || $page=="Parcel Requests"){ ?>
     <script>
 function queryParams_1(p){
     return {

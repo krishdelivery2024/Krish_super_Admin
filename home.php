@@ -72,15 +72,19 @@ if($res_zone_parcels){
 	}
 }
 
-/* Food orders KPI - orders table (zone filtered when a zone is selected) */
+/* Current server day filter (today only) */
+$today_orders_where = "date_added >= CURDATE() AND date_added < CURDATE() + INTERVAL 1 DAY";
+$today_parcels_where = "created_at >= CURDATE() AND created_at < CURDATE() + INTERVAL 1 DAY";
+
+/* Food orders KPI - orders table (today only, zone filtered when a zone is selected) */
 if($selected_zone > 0){
-	$food_kpi = $function->rows_count('orders', '*', "zone_id='".$selected_zone."'");
+	$food_kpi = $function->rows_count('orders', '*', "zone_id='".$selected_zone."' AND ".$today_orders_where);
 } else if(!empty($my_zone_scope)){
-	$food_kpi = $function->rows_count('orders', '*', "zone_id".$scope_sql);
+	$food_kpi = $function->rows_count('orders', '*', "zone_id".$scope_sql." AND ".$today_orders_where);
 } else if($_SESSION['role'] == 'seller'){
 	$food_kpi = $function->orders_count();
 } else {
-	$food_kpi = $function->rows_count('orders');
+	$food_kpi = $function->rows_count('orders', '*', $today_orders_where);
 }
 
 /* Products KPI - filtered through seller.zone_id */
@@ -105,16 +109,16 @@ if($selected_zone > 0){
 	$customers_kpi = $function->rows_count('users');
 }
 
-/* Parcel Orders KPI - zone filtered */
+/* Parcel Orders KPI - today only, zone filtered */
 if($selected_zone > 0){
-	$parcel_kpi = $function->rows_count('parcel_requests', '*', "zone_id='".$selected_zone."'");
+	$parcel_kpi = $function->rows_count('parcel_requests', '*', "zone_id='".$selected_zone."' AND ".$today_parcels_where);
 } else if(!empty($my_zone_scope)){
-	$parcel_kpi = $function->rows_count('parcel_requests', '*', "zone_id".$scope_sql);
+	$parcel_kpi = $function->rows_count('parcel_requests', '*', "zone_id".$scope_sql." AND ".$today_parcels_where);
 } else {
-	$parcel_kpi = $function->rows_count('parcel_requests');
+	$parcel_kpi = $function->rows_count('parcel_requests', '*', $today_parcels_where);
 }
 
-/* Total Orders = Food orders + Parcel orders */
+/* Total Orders = Food orders + Parcel orders (today only) */
 $orders_kpi = $food_kpi + $parcel_kpi;
 
 /* Delivery Boys KPI - total / online / offline (zone filtered)

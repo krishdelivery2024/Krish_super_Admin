@@ -63,6 +63,21 @@ if ((isset($_POST['add-image'])) && ($_POST['add-image'] == 1)) {
 	$section_type = $db->escapeString($_POST['section_type']);
 	$id = ($type != 'default')?$_POST[$type]:"0";
 
+	// A seller banner links to a seller, so the id has to point at a real one.
+	// Stored as 0 when it does not, which the app treats as "not tappable",
+	// rather than keeping a stale seller id after that seller is removed.
+	if($type == 'seller'){
+		$seller_id = (int)$id;
+		$seller_ok = false;
+		if($seller_id > 0){
+			$db->sql("SELECT id FROM seller WHERE id = ".$seller_id);
+			$seller_ok = (count($db->getResult()) == 1);
+		}
+		if(!$seller_ok){
+			$id = 0;
+		}
+	}
+
 	// Zone targeting. Blank/absent/invalid means "all zones", which is stored
 	// as NULL and is how every pre-existing slider row behaves. The zone id is
 	// checked against the zone table so a stale form cannot orphan a slider

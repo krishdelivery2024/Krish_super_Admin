@@ -61,8 +61,26 @@ foreach ($pending as $row) {
         continue;
     }
 
-    $function->send_notification_to_delivery_boy(0, $title, $message, 'delivery_boys', $order_id, $order_type);
-    $function->store_delivery_boy_notification(0, $order_id, $title, $message, 'order_status');
+    $order_type = strtolower(trim(isset($row['order_type']) ? $row['order_type'] : 'food'));
+    $order_type = in_array($order_type, array('food', 'parcel')) ? $order_type : 'food';
+
+    if ($order_type != 'food') {
+        $db->update('scheduled_delivery_boy_notifications', array('status' => 'cancelled'), "id = $sched_id");
+        $db->getResult();
+        $response['skipped']++;
+        continue;
+    }
+
+    if ($delivery_method == 'storepickup' || $delivery_boy_id != 0) {
+        $db->update('scheduled_delivery_boy_notifications', array('status' => 'cancelled'), "id = $sched_id");
+        $db->getResult();
+        $response['skipped']++;
+        continue;
+    }
+
+    // Route the deferred food order through the same two-stage dispatch used for
+    // immediate orders: Phase-1 targets online boys within 4 km of the pickup.
+    $function->dispatch_new_order('food', $order_id, $title, $message);
     $db->update('scheduled_delivery_boy_notifications', array('status' => 'sent'), "id = $sched_id");
     $db->getResult();
     $response['sent']++;
