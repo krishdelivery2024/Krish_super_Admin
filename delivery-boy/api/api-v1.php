@@ -807,20 +807,20 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 	$total_payable = $sub_amount - $total_deduction;
 
 	// response
-	$response_data['today_earn'] = (string) ($today_earn_cod + $today_earn_online);
-	$response_data['today_earn_cod'] = (string) $today_earn_cod;
-	$response_data['today_earn_online'] = (string) $today_earn_online;
-	$response_data['today_delivery_charge'] = (string) ($today_delivery_charge ?? 0);
+	$response_data['today_earn'] = number_format($today_earn_cod + $today_earn_online, 2, '.', '');
+	$response_data['today_earn_cod'] = number_format($today_earn_cod, 2, '.', '');
+	$response_data['today_earn_online'] = number_format($today_earn_online, 2, '.', '');
+	$response_data['today_delivery_charge'] = number_format($today_delivery_charge ?? 0, 2, '.', '');
 
 	$response_data['today_food_orders'] = (string) ($today_food_orders ?? 0);
-	$response_data['today_food_cod'] = (string) ($today_food_cod ?? 0);
-	$response_data['today_food_online'] = (string) ($today_food_online ?? 0);
-	$response_data['today_food_delivery_charge'] = (string) ($today_food_delivery_charge ?? 0);
+	$response_data['today_food_cod'] = number_format($today_food_cod ?? 0, 2, '.', '');
+	$response_data['today_food_online'] = number_format($today_food_online ?? 0, 2, '.', '');
+	$response_data['today_food_delivery_charge'] = number_format($today_food_delivery_charge ?? 0, 2, '.', '');
 
 	$response_data['today_pickup_orders'] = (string) ($today_pickup_orders ?? 0);
-	$response_data['today_pickup_cod'] = (string) ($today_pickup_cod ?? 0);
-	$response_data['today_pickup_online'] = (string) ($today_pickup_online ?? 0);
-	$response_data['today_pickup_delivery_charge'] = (string) ($today_pickup_delivery_charge ?? 0);
+	$response_data['today_pickup_cod'] = number_format($today_pickup_cod ?? 0, 2, '.', '');
+	$response_data['today_pickup_online'] = number_format($today_pickup_online ?? 0, 2, '.', '');
+	$response_data['today_pickup_delivery_charge'] = number_format($today_pickup_delivery_charge ?? 0, 2, '.', '');
 	
 	$response_data['sub_amount'] = number_format($sub_amount, 2, '.', '');
     $response_data['total_cod_amount'] = number_format($total_cod_amount, 2, '.', '');
@@ -857,9 +857,9 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 				'name' => $item['name'],
 				'unit' => $item['measurement'] . " " . $item['mesurement_unit_name'],
 				'product_image' => DOMAIN_URL . $item['image'],
-				'price' => $price,
+				'price' => number_format((float) $price, 2, '.', ''),
 				'quantity' => $item['quantity'],
-				'subtotal' => $item['sub_total'],
+				'subtotal' => number_format((float) $item['sub_total'], 2, '.', ''),
 				'active_status' => $item['active_status']
 			);
 			$total_amt += $item['sub_total'];
@@ -952,10 +952,10 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 		$tempRow['seller_company_address'] = $row['seller_company_address'];
 		$tempRow['seller_image'] = (!empty($row['seller_image'])) ? DOMAIN_URL . 'upload/sellers/' . $row['seller_image'] : '';
 		$tempRow['items'] = $items1;
-		$tempRow['total'] = $row['total'];
+		$tempRow['total'] = number_format((float) $row['total'], 2, '.', '');
 		$tempRow['tax'] = $row['tax_amount'] . '(' . $row['tax_percentage'] . '%)';
-		$tempRow['promo_discount'] = $row['promo_discount'];
-		$tempRow['wallet_balance'] = $row['wallet_balance'];
+		$tempRow['promo_discount'] = number_format((float) $row['promo_discount'], 2, '.', '');
+		$tempRow['wallet_balance'] = number_format((float) $row['wallet_balance'], 2, '.', '');
 		$tempRow['discount'] = $discount_in_rupees . '(' . $discount_percentage . '%)';
 		$tempRow['qty'] = $qty;
 		$tempRow['final_total'] = ceil($row['final_total']);
@@ -977,8 +977,9 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 
 		$tempRow['accept_status'] = $row['accept_status'];
 		$tempRow['delivery_time'] = $row['delivery_time'];
+		$tempRow['order_date_time'] = !empty($row['date_added']) ? date('d-m-Y h:i A', strtotime($row['date_added'])) : '';
 		$tempRow['active_status'] = $active_status;
-		$tempRow['wallet_balance'] = $row['wallet_balance'];
+		$tempRow['wallet_balance'] = number_format((float) $row['wallet_balance'], 2, '.', '');
 		$tempRow['date_added'] = date('d-m-Y', strtotime($row['date_added']));
 
 		$rows1[] = $tempRow;
@@ -1235,9 +1236,9 @@ if (isset($_POST['get_parcel_orders'])) {
 				'name' => ($row['item_type_name'] != '') ? $row['item_type_name'] : 'Parcel',
 				'unit' => ($weight != '') ? $weight : 'Standard',
 				'product_image' => $first_image,
-				'price' => (string) $row['per_km_price'],
+				'price' => number_format($row['per_km_price'], 2, '.', ''),
 				'quantity' => '1',
-				'subtotal' => (string) $row['total_price'],
+				'subtotal' => number_format($row['total_price'], 2, '.', ''),
 				'active_status' => $row['status']
 			)
 		);
@@ -1259,7 +1260,7 @@ if (isset($_POST['get_parcel_orders'])) {
 		$tempRow['seller_company_address'] = $row['pickup_location'];
 		$tempRow['seller_image'] = $first_image;
 		$tempRow['items'] = $items;
-		$tempRow['total'] = $row['total_price'];
+		$tempRow['total'] = number_format($row['total_price'], 2, '.', '');
 		$tempRow['tax'] = '0(0%)';
 		$tempRow['promo_discount'] = '0';
 		$tempRow['wallet_balance'] = '0';
@@ -1279,6 +1280,7 @@ if (isset($_POST['get_parcel_orders'])) {
 		$tempRow['distance'] = round($distance);
 		$tempRow['accept_status'] = $row['accept_status'];
 		$tempRow['delivery_time'] = date('d F Y, l h:i a', strtotime($row['created_at']));
+		$tempRow['order_date_time'] = !empty($row['created_at']) ? date('d-m-Y h:i A', strtotime($row['created_at'])) : '';
 		$tempRow['active_status'] = $row['status'];
 		$tempRow['date_added'] = date('d-m-Y', strtotime($row['created_at']));
 
@@ -1346,10 +1348,10 @@ if (isset($_POST['get_parcel_orders'])) {
 	$response_data['error'] = false;
 	$response_data['data'] = $rows1;
 	$response_data['total'] = (string) $total;
-	$response_data['today_earn'] = (string) ($today_earn_cod + $today_earn_online);
-	$response_data['today_earn_cod'] = (string) $today_earn_cod;
-	$response_data['today_earn_online'] = (string) $today_earn_online;
-	$response_data['today_delivery_charge'] = (string) $today_delivery_charge;
+	$response_data['today_earn'] = number_format($today_earn_cod + $today_earn_online, 2, '.', '');
+	$response_data['today_earn_cod'] = number_format($today_earn_cod, 2, '.', '');
+	$response_data['today_earn_online'] = number_format($today_earn_online, 2, '.', '');
+	$response_data['today_delivery_charge'] = number_format($today_delivery_charge, 2, '.', '');
 	$response_data['today_food_orders'] = '0';
 	$response_data['today_food_cod'] = '0';
 	$response_data['today_food_online'] = '0';
@@ -1602,9 +1604,9 @@ if (isset($_POST['get_fund_transfers'])) {
 		$tempRow['address'] = $row['address'];
 		$tempRow['delivery_boy_id'] = $row['delivery_boy_id'];
 		$tempRow['type'] = $row['type'];
-		$tempRow['amount'] = $row['amount'];
-		$tempRow['opening_balance'] = $row['opening_balance'];
-		$tempRow['closing_balance'] = $row['closing_balance'];
+		$tempRow['amount'] = number_format((float) $row['amount'], 2, '.', '');
+		$tempRow['opening_balance'] = number_format((float) $row['opening_balance'], 2, '.', '');
+		$tempRow['closing_balance'] = number_format((float) $row['closing_balance'], 2, '.', '');
 		$tempRow['status'] = $row['status'];
 		$tempRow['message'] = $row['message'];
 		$tempRow['date_created'] = $row['date_created'];
@@ -2541,7 +2543,7 @@ if (isset($_POST['enable_pay_button'])) {
 			$db->sql($sql);
 			$response['error'] = false;
 			$response['message'] = 'Payment Request enabled For this Order.';
-			$response['payable_amt'] = $order['final_total'];
+			$response['payable_amt'] = number_format((float) $order['final_total'], 2, '.', '');
 			print_r(json_encode($response));
 			return false;
 		} else {
