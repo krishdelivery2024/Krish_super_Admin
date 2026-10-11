@@ -2420,6 +2420,10 @@ if ($role === 'sub admin') {
 			$offset = (int)$_GET['offset'];
 		if(isset($_GET['limit']))
 			$limit = (int)$_GET['limit'];
+		if(isset($_GET['client_all']) && $_GET['client_all'] == '1'){
+			// client side pagination: return every matching row in one shot
+			$offset = 0; $limit = 0;
+		}
 		
 		if(isset($_GET['sort']) && !empty($_GET['sort'])){
 			$sort = $_GET['sort'];
@@ -2430,6 +2434,13 @@ if ($role === 'sub admin') {
 		if(isset($_GET['search']) && $_GET['search'] !=''){
 			$search = $db->escapeString($_GET['search']);
 			$where .= " AND (t.`id` like '%".$search."%' OR t.`order_id` like '%".$search."%' OR t.`txn_id` like '%".$search."%' OR t.`type` like '%".$search."%' OR t.`status` like '%".$search."%' OR t.`transaction_date` like '%".$search."%' OR u.`name` like '%".$search."%' OR u.`mobile` like '%".$search."%')";
+		}
+		if(!empty($_GET['start_date']) && !empty($_GET['end_date'])){
+			$start_date = $_GET['start_date'];
+			$end_date = $_GET['end_date'];
+			if(preg_match('/^\d{4}-\d{2}-\d{2}$/', $start_date) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $end_date)){
+				$where .= " AND DATE(t.`transaction_date`) >= '".$start_date."' AND DATE(t.`transaction_date`) <= '".$end_date."'";
+			}
 		}
 		if(isset($_GET['filter_zone']) && $_GET['filter_zone']!=''){
 			$where .= " AND t.`order_id` IN (SELECT id FROM parcel_requests WHERE zone_id='".(int)$_GET['filter_zone']."')";
@@ -2451,7 +2462,7 @@ if ($role === 'sub admin') {
 			FROM `transactions` t
 			INNER JOIN `users` u ON u.id = t.user_id
 			LEFT JOIN `parcel_requests` pr ON pr.id = t.order_id
-			".$where." ORDER BY ".$sort." ".$order." LIMIT ".$offset.", ".$limit;
+			".$where." ORDER BY ".$sort." ".$order.(($limit > 0) ? " LIMIT ".$offset.", ".$limit : "");
 		$db->sql($sql);
 		$res = $db->getResult();
 		
