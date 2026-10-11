@@ -438,7 +438,7 @@ if(isset($_POST['add_zone']) && $_POST['add_zone']==1){
         echo "<label class='alert alert-danger'>Access denied - You are not authorized to access this page.</label>";
         return false;
     }
-    if($permissions['zones']['create']==0){
+    if($_SESSION['role'] != 'super admin' && (!isset($permissions['zones']['create']) || $permissions['zones']['create']==0)){
         echo '<label class="alert alert-danger">You have no permission to create zones</label>';
         return false;
     }
@@ -473,7 +473,7 @@ if(isset($_POST['update_zone']) && $_POST['update_zone']==1){
         echo "<label class='alert alert-danger'>Access denied - You are not authorized to access this page.</label>";
         return false;
     }
-    if($permissions['zones']['update']==0){
+    if($_SESSION['role'] != 'super admin' && (!isset($permissions['zones']['update']) || $permissions['zones']['update']==0)){
         echo '<label class="alert alert-danger">You have no permission to update zones</label>';
         return false;
     }
@@ -506,7 +506,7 @@ if(isset($_POST['update_zone_settings']) && $_POST['update_zone_settings']==1){
         echo '<label class="alert alert-danger">Access denied - You are not authorized to access this page.</label>';
         return false;
     }
-    if($permissions['zones']['update']==0){
+    if($_SESSION['role'] != 'super admin' && (!isset($permissions['zones']['update']) || $permissions['zones']['update']==0)){
         echo '<label class="alert alert-danger">You have no permission to update zones</label>';
         return false;
     }
@@ -534,7 +534,7 @@ if(isset($_GET['delete_zone']) && $_GET['delete_zone']==1){
         echo "<label class='alert alert-danger'>Access denied - You are not authorized to access this page.</label>";
         return false;
     }
-    if($permissions['zones']['delete']==0){
+    if($_SESSION['role'] != 'super admin' && (!isset($permissions['zones']['delete']) || $permissions['zones']['delete']==0)){
         echo '<label class="alert alert-danger">You have no permission to delete zones</label>';
         return false;
     }
