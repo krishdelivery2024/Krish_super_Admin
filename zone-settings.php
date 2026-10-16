@@ -27,6 +27,8 @@ include"header.php";?>
                                         <th data-field="auto_weather" data-sortable="false">Auto on Rain</th>
                                         <th data-field="platform_fee" data-sortable="false">Platform Fee</th>
                                         <th data-field="convenience_fee" data-sortable="false">Convenience Fee</th>
+                                        <th data-field="nearby_radius" data-sortable="false">Nearby Radius</th>
+                                        <th data-field="service_time" data-sortable="false">Service Time</th>
                                         <th data-field="operate">Action</th>
                                     </tr>
                                 </thead>
@@ -63,6 +65,11 @@ include"header.php";?>
                             <input type="number" step="0.01" min="0" class="form-control" id="zs_convenience_fee" name="convenience_fee" placeholder="Leave blank to use the global fee">
                             <small class="text-muted d-block">Percentage of the item subtotal. Set it to 0 to charge no convenience fee here.</small>
                         </div>
+                        <div class="form-group">
+                            <label for="zs_nearby_radius_km">Nearby Store Radius (km)</label>
+                            <input type="number" step="0.1" min="0" class="form-control" id="zs_nearby_radius_km" name="nearby_radius_km" placeholder="Leave blank to use the global radius">
+                            <small class="text-muted d-block">Customers in this zone see home stores within this distance. Empty = inherit the global setting (default 4 km).</small>
+                        </div>
                     </div>
                     <div class="col-md-6">
                         <h5><b>Announcement Banner</b></h5>
@@ -83,6 +90,26 @@ include"header.php";?>
                             <input type="hidden" id="zs_announcement_auto_weather" name="announcement_auto_weather" value="0">
                             <small class="text-muted d-block">When ON and Open-Meteo reports rain for this zone, the banner shows even if the switch above is OFF.</small>
                         </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-12">
+                        <h5><b>Daily Service Window</b></h5>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="zs_service_open_time">Service Starts At</label>
+                                    <input type="time" class="form-control" id="zs_service_open_time" name="service_open_time">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="zs_service_close_time">Service Ends At</label>
+                                    <input type="time" class="form-control" id="zs_service_close_time" name="service_close_time">
+                                </div>
+                            </div>
+                        </div>
+                        <small class="text-muted d-block" style="margin-top:-8px;margin-bottom:10px;">Customers in this zone can order daily within this window. Outside it, the user app shows a "Sorry, we are closed for the day" popup with the slot. Leave both blank for no restriction. Overnight windows (e.g. 18:00 to 02:00) are supported.</small>
                     </div>
                 </div>
                 <div id="zs_result" class="alert alert-success" style="display:none;"></div>
@@ -108,6 +135,9 @@ function editZoneSettings(id){
     $('#zs_zone_id').val(row.id);
     $('#zs_platform_fee').val(row.zone_platform_fee);
     $('#zs_convenience_fee').val(row.zone_convenience_fee);
+    $('#zs_nearby_radius_km').val(row.zone_nearby_radius_km);
+    $('#zs_service_open_time').val(row.zone_service_open_time || '');
+    $('#zs_service_close_time').val(row.zone_service_close_time || '');
     $('#zs_announcement_text').val(row.zone_announcement_text || '');
     zsBannerSwitch.setPosition(parseInt(row.zone_announcement_enabled) === 1);
     document.querySelector('#zs-banner-button').checked = (parseInt(row.zone_announcement_enabled) === 1);

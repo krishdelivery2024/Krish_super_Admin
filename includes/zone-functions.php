@@ -158,4 +158,31 @@ if (!function_exists('zn_clean_polygon')) {
         }
         return number_format((float)$raw, $decimals, '.', '');
     }
+
+    /**
+     * Read one optional time-of-day zone override, ready to splice into SQL.
+     *
+     * Accepts "HH:MM" or "HH:MM:SS" (an HTML <input type="time"> posts the
+     * former). A missing/blank value becomes SQL NULL, meaning "no window set
+     * for this zone". Anything that is not a valid 24-hour clock time is
+     * recorded in $problems and stored as NULL, so a bad value can never turn
+     * into a broken time literal.
+     */
+    function zn_read_optional_time(array $post, $field, array &$problems = [])
+    {
+        if (!isset($post[$field])) {
+            return 'NULL';
+        }
+        $raw = trim((string)$post[$field]);
+        if ($raw === '') {
+            return 'NULL';
+        }
+        if (preg_match('/^([01][0-9]|2[0-3]):([0-5][0-9])(:([0-5][0-9]))?$/', $raw, $m) !== 1) {
+            $problems[] = $field;
+            return 'NULL';
+        }
+        $h = (int)$m[1];
+        $i = (int)$m[2];
+        return sprintf("'%02d:%02d:00'", $h, $i);
+    }
 }

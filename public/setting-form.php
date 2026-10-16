@@ -250,7 +250,42 @@
                             <input type="number" class="form-control" name="parcel_zone_drop_max_km" value="<?=(isset($data['parcel_zone_drop_max_km']) && $data['parcel_zone_drop_max_km'] !== '') ? $data['parcel_zone_drop_max_km'] : 5; ?>" placeholder='5' min='0' step='0.5'/>
                             <small class="text-muted">Parcel drop/delivery location is allowed up to this many km outside the nearest zone boundary. Set to 0 to require drop inside a zone.</small>
                         </div>
+
+                        <div class="form-group">
+                            <label for="nearby_store_radius_km">Nearby Store Radius (km)</label>
+                            <input type="number" class="form-control" name="nearby_store_radius_km" value="<?=(isset($data['nearby_store_radius_km']) && $data['nearby_store_radius_km'] !== '') ? $data['nearby_store_radius_km'] : 4; ?>" placeholder='4' min='0' step='0.5'/>
+                            <small class="text-muted">Default distance for the home "Stores Near You" list. Each zone can override it in Zone Settings; leaving the zone field empty uses this global value (default 4 km).</small>
+                        </div>
                         
+                        <h4>App Download Links</h4>
+                        <p class="text-muted">These links are shown on the public landing page. Fill only the stores where each app is available.</p>
+                        <hr>
+                        <div class="form-group col-md-6">
+                            <label for="">Customer App - Play Store URL</label>
+                            <input type="url" class="form-control" name="customer_play_store_url" value="<?=(isset($data['customer_play_store_url']))?$data['customer_play_store_url']:'';?>" placeholder="https://play.google.com/store/apps/details?id=..."/>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="">Customer App - App Store URL (iOS)</label>
+                            <input type="url" class="form-control" name="customer_app_store_url" value="<?=(isset($data['customer_app_store_url']))?$data['customer_app_store_url']:'';?>" placeholder="https://apps.apple.com/app/id..."/>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="">Seller App - Play Store URL</label>
+                            <input type="url" class="form-control" name="seller_play_store_url" value="<?=(isset($data['seller_play_store_url']))?$data['seller_play_store_url']:'';?>" placeholder="https://play.google.com/store/apps/details?id=..."/>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="">Seller App - App Store URL (iOS)</label>
+                            <input type="url" class="form-control" name="seller_app_store_url" value="<?=(isset($data['seller_app_store_url']))?$data['seller_app_store_url']:'';?>" placeholder="https://apps.apple.com/app/id..."/>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="">Delivery Boy App - Play Store URL</label>
+                            <input type="url" class="form-control" name="delivery_play_store_url" value="<?=(isset($data['delivery_play_store_url']))?$data['delivery_play_store_url']:'';?>" placeholder="https://play.google.com/store/apps/details?id=..."/>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="">Delivery Boy App - App Store URL (iOS)</label>
+                            <input type="url" class="form-control" name="delivery_app_store_url" value="<?=(isset($data['delivery_app_store_url']))?$data['delivery_app_store_url']:'';?>" placeholder="https://apps.apple.com/app/id/..."/>
+                        </div>
+                        <div class="clearfix"></div>
+
                         <h4>Mail Settings</h4><hr>
                         <div class="form-group ">
                             <label for="from_mail">From eMail ID: <small>( This email ID will be used in Mail System )</small></label>

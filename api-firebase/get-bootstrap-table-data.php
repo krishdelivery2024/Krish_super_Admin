@@ -4476,13 +4476,31 @@ FROM
 				}else{
 					$tempRow['convenience_fee'] = '<span class="label label-info">'.rtrim(rtrim(number_format((float)$row['convenience_fee'], 2), '0'), '.').'%</span>';
 				}
+				$nearby_radius = isset($row['nearby_radius_km']) ? $row['nearby_radius_km'] : null;
+				if($nearby_radius===null || $nearby_radius===''){
+					$tempRow['nearby_radius'] = '<span class="label label-default">Global</span>';
+				}else{
+					$tempRow['nearby_radius'] = '<span class="label label-info">'.rtrim(rtrim(number_format((float)$nearby_radius, 2), '0'), '.').' km</span>';
+				}
+				// Daily service window: shown to customers as the "we are closed"
+				// popup when the current time is outside it.
+				$svc_open  = isset($row['service_open_time'])  ? $row['service_open_time']  : null;
+				$svc_close = isset($row['service_close_time']) ? $row['service_close_time'] : null;
+				if($svc_open===null || $svc_open==='' || $svc_close===null || $svc_close===''){
+					$tempRow['service_time'] = '<span class="label label-default">Not set</span>';
+				}else{
+					$tempRow['service_time'] = '<span class="label label-info">'.substr($svc_open,0,5).' - '.substr($svc_close,0,5).'</span>';
+				}
 				$tempRow['operate'] = $operate;
 				// Raw values used to prefill the zone settings edit modal.
 				$tempRow['zone_platform_fee'] = ($row['platform_fee']===null||$row['platform_fee']==='') ? '' : $row['platform_fee'];
 				$tempRow['zone_convenience_fee'] = ($row['convenience_fee']===null||$row['convenience_fee']==='') ? '' : $row['convenience_fee'];
+				$tempRow['zone_nearby_radius_km'] = ($nearby_radius===null||$nearby_radius==='') ? '' : $nearby_radius;
 				$tempRow['zone_announcement_text'] = $row['announcement_text'] === null ? '' : $row['announcement_text'];
 				$tempRow['zone_announcement_enabled'] = (int)$row['announcement_enabled'];
 				$tempRow['zone_announcement_auto_weather'] = (int)$row['announcement_auto_weather'];
+				$tempRow['zone_service_open_time']  = ($svc_open===null||$svc_open==='') ? '' : substr($svc_open,0,5);
+				$tempRow['zone_service_close_time'] = ($svc_close===null||$svc_close==='') ? '' : substr($svc_close,0,5);
 				$rows[] = $tempRow;
 			}
 		}

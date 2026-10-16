@@ -271,6 +271,12 @@ if(isset($_POST['accesskey'])) {
 		// match means no banner.
 		$data['announcement'] = $fn->get_announcement_banner($slider_zone_id);
 
+		// Daily service window for the customer's zone (admin -> Zone Settings).
+		// The app shows a "Sorry, we are closed for the day" popup when the
+		// current store time is outside it. No zone match (or no window set)
+		// returns restricted=0, so the popup stays off.
+		$data['zone_service'] = $fn->get_zone_service_status($slider_zone_id);
+
 		$response['error'] = "false";
 		$response['data'] = $data;
 		

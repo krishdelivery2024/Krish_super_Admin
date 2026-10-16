@@ -522,7 +522,24 @@ if(isset($_POST['update_zone_settings']) && $_POST['update_zone_settings']==1){
     $fee_problems = array();
     $zone_fees = zn_read_fee_inputs($_POST, $fee_problems);
 
-    $sql = "UPDATE zone SET announcement_text='".$text."', announcement_enabled=".$enabled.", announcement_auto_weather=".$auto.", platform_fee=".$zone_fees['platform_fee'].", convenience_fee=".$zone_fees['convenience_fee']." WHERE id=".$id;
+    $set_clause = "announcement_text='".$text."', announcement_enabled=".$enabled.", announcement_auto_weather=".$auto.", platform_fee=".$zone_fees['platform_fee'].", convenience_fee=".$zone_fees['convenience_fee'];
+
+    // Nearby-stores radius is only written once the migration that adds the
+    // column has been run, so saving the other zone settings never breaks.
+    $db->sql("SHOW COLUMNS FROM `zone` LIKE 'nearby_radius_km'");
+    if (!empty($db->getResult())) {
+        $set_clause .= ", nearby_radius_km=".zn_read_optional_number($_POST, 'nearby_radius_km', $fee_problems);
+    }
+
+    // Daily service window (user app "we are closed" popup). Guarded the same
+    // way so the modal keeps saving before the migration has been run.
+    $db->sql("SHOW COLUMNS FROM `zone` LIKE 'service_open_time'");
+    if (!empty($db->getResult())) {
+        $set_clause .= ", service_open_time=".zn_read_optional_time($_POST, 'service_open_time', $fee_problems);
+        $set_clause .= ", service_close_time=".zn_read_optional_time($_POST, 'service_close_time', $fee_problems);
+    }
+
+    $sql = "UPDATE zone SET ".$set_clause." WHERE id=".$id;
     if($db->sql($sql)){
         echo '<label class="alert alert-success">Zone settings updated!'.(!empty($fee_problems) ? ' (Invalid values were ignored for: '.implode(', ', $fee_problems).')' : '').'</label>';
     }else{
