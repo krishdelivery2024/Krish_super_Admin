@@ -138,9 +138,11 @@ if ($is_sub_admin) {
                     <h3 class="box-title">Live Delivery Boy Locations</h3>
                     <div class="box-tools pull-right">
                         <span class="label label-success" id="db-live-count">0 online</span>
-                        <button type="button" class="btn btn-default btn-sm" id="db-live-refresh" title="Refresh now">
-                            <i class="fa fa-refresh"></i>
-                        </button>
+                        <select id="zone_filter_map" class="form-control input-sm" style="width:150px; display:inline-block; margin-right:5px;">
+                            <option value="">All Zones</option>
+                        </select>
+                        <button type="button" class="btn btn-default btn-sm" id="db-live-fullscreen" title="Toggle fullscreen"><i class="fa fa-expand"></i></button>
+                        <button type="button" class="btn btn-default btn-sm" id="db-live-refresh" title="Refresh now"><i class="fa fa-refresh"></i></button>
                     </div>
                 </div><!-- /.box-header -->
                 <div class="box-body">
@@ -239,6 +241,54 @@ if ($is_sub_admin) {
         var statusEl = document.getElementById('delivery-boys-live-status');
         var countEl = document.getElementById('db-live-count');
         var fitted = false;
+        // ---- Zone polygons support ----
+        var zonePolys = {};
+        // Load zones for filter dropdown
+        fetch('api-firebase/get_zones.php', { credentials: 'same-origin' })
+            .then(r => r.json())
+            .then(res => {
+                console.log('Zones response:', res);
+                if (!res || res.error) { console.warn('Failed to load zones', res); return; }
+                var zones = res.data || [];
+                var select = document.getElementById('zone_filter_map');
+                zones.forEach(z => {
+                    var opt = document.createElement('option');
+                    opt.value = z.id;
+                    opt.textContent = z.name;
+                    select.appendChild(opt);
+                    if (z.polygon && Array.isArray(z.polygon) && z.polygon.length >= 3) {
+                        var pts = z.polygon.map(p => [p.lat, p.lng]);
+                        var poly = L.polygon(pts, {color: '#ff7800', weight: 2, fillOpacity: 0.15});
+                        zonePolys[z.id] = poly;
+                    }
+                });
+                // Initially show all zones
+                Object.values(zonePolys).forEach(p => p.addTo(map));
+                if (Object.values(zonePolys).length) {
+                    var group = L.featureGroup(Object.values(zonePolys));
+                    map.fitBounds(group.getBounds());
+                }
+                select.addEventListener('change', function () {
+                    var zid = this.value;
+                    // remove existing zone polygons
+                    Object.values(zonePolys).forEach(p => map.removeLayer(p));
+                    if (zid && zonePolys[zid]) {
+                        var p = zonePolys[zid];
+                        p.addTo(map);
+                        map.fitBounds(p.getBounds());
+                    } else {
+                        // All Zones selected - show all again
+                        Object.values(zonePolys).forEach(p => p.addTo(map));
+                        if (Object.values(zonePolys).length) {
+                            var grp = L.featureGroup(Object.values(zonePolys));
+                            map.fitBounds(grp.getBounds());
+                        }
+                    }
+
+                });
+            })
+            .catch(err => console.error('Error loading zones', err));
+        // ---- End of zone support ----
 
         function esc(s) {
             return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -323,6 +373,21 @@ if ($is_sub_admin) {
         setInterval(refresh, 20000);
         document.getElementById('db-live-refresh').addEventListener('click', function () {
             refresh();
+        });
+        // Fullscreen toggle for the live map
+        document.getElementById('db-live-fullscreen').addEventListener('click', function () {
+            var mapEl = document.getElementById('delivery-boys-live-map');
+            if (!document.fullscreenElement) {
+                mapEl.requestFullscreen().catch(function (e) { console.error('Fullscreen request failed', e); });
+            } else {
+                document.exitFullscreen();
+            }
+        });
+        // Adjust map when entering/exiting fullscreen
+        document.addEventListener('fullscreenchange', function () {
+            if (typeof map !== 'undefined' && map.invalidateSize) {
+                setTimeout(function () { map.invalidateSize(); }, 200);
+            }
         });
         window.addEventListener('load', function () { map.invalidateSize(); });
         // Absorbs slow layouts (fonts, AdminLTE) that can size the box late.
