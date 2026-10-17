@@ -17,7 +17,32 @@ include"header.php";?>
 <script>
 // Pass the role check from PHP into JS once, reused below
 var isSeller = <?php echo (isset($_SESSION['role']) && $_SESSION['role'] == 'seller') ? 'true' : 'false'; ?>;
-var $table = $('#sales_table')
+var $table = $('#sales_table');
+
+function salesTotalLabel() {
+    return '<span style="color:green;font-weight:bold;font-size:large;">TOTAL</span>';
+}
+function transTotalLabel() {
+    return salesTotalLabel();
+}
+
+function salesMoneyFormatter(data) {
+    var field = this.field;
+    var sum = 0;
+    if (data && data.length) {
+        for (var i = 0; i < data.length; i++) {
+            var val = data[i] ? data[i][field] : 0;
+            if (typeof val === 'string') {
+                val = val.replace(/[^0-9.\-]/g, '');
+            }
+            sum += (parseFloat(val) || 0);
+        }
+    }
+    return '<span style="color:green;font-weight:bold;font-size:large;">\u20B9 ' + sum.toFixed(2) + '</span>';
+}
+function transMoneyFormatter(data) {
+    return salesMoneyFormatter.call(this, data);
+}
 
 // Excel/PDF export can't render <ul>/badges, so these flatten the arrays
 // and status back down to plain text - one line per item, semicolon
@@ -31,42 +56,26 @@ function exportStatusFormatter(value) {
     return value ? value : '-';
 }
 
-$(function() {
-    $('#toolbar').find('select').change(function () {
-        var exportColumns = [
-            {
-                field: 'state',
-                checkbox: true,
-                visible: $(this).val() === 'selected'
-            },
-            { field: 'id', title: 'ID' }
-        ];
-        if (!isSeller) {
-            exportColumns.push({ field: 'seller_name', title: 'Seller Name' });
-            exportColumns.push({ field: 'seller_mobile', title: 'Seller Mobile' });
-        }
-        exportColumns.push({ field: 'user_name', title: 'User Name' });
-        exportColumns.push({ field: 'user_mobile', title: 'User Mobile' });
-        exportColumns.push({ field: 'address', title: 'Address' });
-        exportColumns.push({ field: 'product_details', title: 'Product / Qty / Unit', formatter: exportListFormatter });
-        exportColumns.push({ field: 'zone_name', title: 'Zone' });
-        exportColumns.push({ field: 'order_date', title: 'Order Date' });
-        if (!isSeller) {
-            exportColumns.push({ field: 'vendor_price', title: 'Vendor Price', formatter: exportListFormatter });
-            exportColumns.push({ field: 'discounted_price', title: 'Discounted Price', formatter: exportListFormatter });
-        }
-        exportColumns.push({ field: 'final_total', title: 'Final Total' });
-        exportColumns.push({ field: 'platform_fee', title: 'Platform Fee' });
-        exportColumns.push({ field: 'payment_method', title: 'Payment Method' });
-        exportColumns.push({ field: 'active_status', title: 'Order Status', formatter: exportStatusFormatter });
-        $table.bootstrapTable('destroy').bootstrapTable({
-            exportDataType: $(this).val(),
-            exportTypes: ['json', 'xml', 'csv', 'txt', 'sql', 'excel', 'pdf'],
-            columns: exportColumns
-        })
-    }).trigger('change')
-});
 $(document).ready(function(){
+    if ($.fn.bootstrapTable && $.fn.bootstrapTable.defaults) {
+        var _expOpts = $.fn.bootstrapTable.defaults.exportOptions || {};
+        _expOpts.onCellHtmlData = function($cell, rowIndex, colIndex, html) {
+            if ($cell.is('th')) {
+                return $cell.find('.th-inner').text();
+            }
+            if ($cell.find('ul.bullet-list').length) {
+                var items = [];
+                $cell.find('ul.bullet-list li').each(function() {
+                    items.push($(this).text().trim());
+                });
+                return items.join(' ; ');
+            }
+            var txt = html ? $('<div>').html(html).text().trim() : '';
+            return txt.replace(/\u20B9|&#8377;/g, 'Rs.').replace(/\u2014|\u2013/g, '-').replace(/&mdash;/g, '-').replace(/&nbsp;|\u00a0/g, ' ');
+        };
+        $.fn.bootstrapTable.defaults.exportOptions = _expOpts;
+    }
+
     $('#from_date').datepicker({
         format: 'dd/mm/yyyy',
         autoclose: true,
@@ -91,8 +100,10 @@ $(document).ready(function(){
         $('#sales_table').bootstrapTable('refresh');
     });
 
-    // Payment method / seller / zone dropdowns trigger a table refresh
-    $(document).on('change', '#payment_method_filter, #seller_filter, #zone_filter', function(){
+    // Payment method / seller dropdowns trigger a table refresh
+    // (zone_filter is handled separately by the cascade in sales-report-table1.php
+    //  which also reloads the seller dropdown before refreshing)
+    $(document).on('change', '#payment_method_filter, #seller_filter', function(){
         $('#sales_table').bootstrapTable('refresh');
     });
 });
