@@ -55,13 +55,13 @@
 					     <div class="col-md-2 form-group">
 						     <label for="db_from_date" class="control-label">From Date</label>
 						     <input type="text" class="form-control" id="db_from_date" name="from_date" autocomplete="off" placeholder="Select From Date" />
-				    	</div>
+					    </div>
 					     <div class="col-md-2 form-group">
 						     <label for="db_to_date" class="control-label">To Date</label>
 						     <input type="text" class="form-control" id="db_to_date" name="to_date" autocomplete="off" placeholder="Select To Date" />
-				    	</div>
+					    </div>
 					    <input type="hidden" id="db_start_from" name="start_date">
-				        <input type="hidden" id="db_end_to" name="end_date">
+					        <input type="hidden" id="db_end_to" name="end_date">
 
                         <!-- Payment Method filter -->
                         <div class="col-md-2 form-group">
@@ -73,7 +73,7 @@
                             </select>
                         </div>
 
-                        <!-- Delivery Boy filter -->
+                        <!-- Delivery Boy filter (dynamically filtered by zone) -->
                         <div class="col-md-2 form-group">
                             <label for="db_boy_filter" class="control-label">Delivery Boy</label>
                             <select class="form-control" id="db_boy_filter" name="delivery_boy_id">
@@ -115,10 +115,10 @@
 				        <div class="col-md-2 form-group" style="padding-top:25px;">
 				            <span class="export_db">Export Data</span>
 				        </div>
-					   <div class="col-md-2 pull-right form-group">
-					       <label for="db_keyword" class="control-label">Search</label>
-					       <input type="text" class="form-control" id="db_keyword" name="search" placeholder="Enter Keyword" autocomplete="off" />
-					    </div>
+				       <div class="col-md-2 pull-right form-group">
+				           <label for="db_keyword" class="control-label">Search</label>
+				           <input type="text" class="form-control" id="db_keyword" name="search" placeholder="Enter Keyword" autocomplete="off" />
+				        </div>
 				      </div>
                 </form>
                 <div class="box-body table-responsive">
@@ -136,19 +136,22 @@
                         data-sort-name="id"
                         data-sort-order="desc"
                         data-show-export="true"
-                        data-export-types='["excel","pdf"]'>
+                        data-export-types='["excel","pdf"]'
+                        data-export-data-type="all"
+                        data-show-footer="true"
+                        data-export-footer="true">
                         <thead>
                         <tr>
-                            <th data-field="id" data-sortable="true">ID</th>
+                            <th data-field="id" data-sortable="true" data-footer-formatter="dbTotalLabel">ID</th>
                             <th data-field="delivery_boy_name" data-sortable="true">Delivery Boy Name</th>
                             <th data-field="delivery_boy_mobile" data-sortable="true">Delivery Boy Mobile</th>
                             <th data-field="zone_name" data-sortable="true">Order Zone</th>
                             <th data-field="delivery_boy_zone_name" data-sortable="true">Boy's Zone</th>
                             <th data-field="product_details" data-formatter="productListFormatter">Product / Qty / Unit</th>
                             <th data-field="discounted_price" data-formatter="priceListFormatter">Discounted Price</th>
-                            <th data-field="delivery_charge" data-sortable="true">Delivery Charge</th>
-                            <th data-field="final_total" data-sortable="true">Final Total</th>
-                            <th data-field="platform_fee" data-sortable="false">Platform Fee</th>
+                            <th data-field="delivery_charge" data-sortable="true" data-align="right" data-footer-formatter="dbMoneyFormatter">Delivery Charge (&#8377;)</th>
+                            <th data-field="final_total" data-sortable="true" data-align="right" data-footer-formatter="dbMoneyFormatter">Final Total (&#8377;)</th>
+                            <th data-field="platform_fee" data-sortable="false" data-align="right" data-footer-formatter="dbMoneyFormatter">Platform Fee (&#8377;)</th>
                             <th data-field="payment_method" data-sortable="true">Payment Method</th>
                             <th data-field="active_status" data-sortable="true" data-formatter="statusBadgeFormatter">Order Status</th>
                         </tr>
@@ -163,6 +166,24 @@
     <div class="alert alert-danger topmargin-sm" style="margin-top: 20px;">You have no permission to view reports</div>
 <?php } ?>
 <script>
+    function dbTotalLabel() {
+        return '<span style="color:green;font-weight:bold;font-size:large;">TOTAL</span>';
+    }
+    function dbMoneyFormatter(data) {
+        var field = this.field;
+        var sum = 0;
+        if (data && data.length) {
+            for (var i = 0; i < data.length; i++) {
+                var val = data[i] ? data[i][field] : 0;
+                if (typeof val === 'string') {
+                    val = val.replace(/[^0-9.\-]/g, '');
+                }
+                sum += (parseFloat(val) || 0);
+            }
+        }
+        return '<span style="color:green;font-weight:bold;font-size:large;">&#8377; ' + sum.toFixed(2) + '</span>';
+    }
+
     // product_details arrives as an array, e.g.
     // ["Tomato - 2 kg", "Onion - 500 g"]
     // Rendered as one bullet per product, all in a single cell/row.
@@ -203,7 +224,31 @@
         return '<span class="status-badge ' + cls + '">' + value + '</span>';
     }
 
-     $("body").on('click', '.export_db', function(){
+    // ── Zone → Delivery Boy cascade ───────────────────────────────────────────
+    // When the zone dropdown changes:
+    //   1. Reload the Delivery Boy dropdown via AJAX (only boys in that zone)
+    //   2. Refresh the table rows to match the new zone
+    $(document).on('change', '#db_zone_filter', function() {
+        var zoneId = $(this).val();
+        // Reset delivery boy to "All Delivery Boys"
+        $('#db_boy_filter').val('');
+        $('#db_boy_filter').empty().append('<option value="">All Delivery Boys</option>');
+        $.ajax({
+            url: 'api-firebase/get_delivery_boys_by_zone.php',
+            type: 'GET',
+            data: { zone_id: zoneId },
+            dataType: 'json',
+            success: function(data) {
+                $.each(data, function(i, boy) {
+                    $('#db_boy_filter').append('<option value="' + boy.id + '">' + boy.name + '</option>');
+                });
+            }
+        });
+        // Refresh table rows to match the selected zone
+        $('#delivery_boy_table').bootstrapTable('refresh');
+    });
+
+    $(document).on('click', '.export_db', function(){
         var start = $('#db_start_from').val();
         var end   = $('#db_end_to').val();
         if(start != "" && end != ""){
