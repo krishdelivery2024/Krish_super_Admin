@@ -116,7 +116,7 @@ $where = " WHERE d.active_status = 'true'
     AND d.latitude IS NOT NULL
     AND d.longitude IS NOT NULL
     AND d.location_updated_at IS NOT NULL
-    AND d.location_updated_at >= (NOW() - INTERVAL " .
+    AND d.location_updated_at >= (UTC_TIMESTAMP() - INTERVAL " .
     (int) $fresh_seconds . " SECOND)";
 
 /*
@@ -146,7 +146,7 @@ if ($role === 'sub admin') {
 $sql = "SELECT d.id, d.name, d.mobile, d.address, d.balance, d.bonus, d.service_type, d.profile, d.zone_id,
         d.latitude, d.longitude, d.location_updated_at,
         z.name AS zone_name,
-        TIMESTAMPDIFF(SECOND, d.location_updated_at, NOW()) AS age_seconds
+        TIMESTAMPDIFF(SECOND, d.location_updated_at, UTC_TIMESTAMP()) AS age_seconds
         FROM delivery_boys d
         LEFT JOIN zone z ON z.id = d.zone_id" . $where . "
         ORDER BY d.location_updated_at DESC";
