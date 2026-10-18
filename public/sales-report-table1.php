@@ -2,6 +2,24 @@
     if($permissions['reports']['read']==1) { 
         $is_seller = (isset($_SESSION['role']) && $_SESSION['role'] == 'seller');
 ?>
+<style>
+/* Order status badge */
+#sales_table .status-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #fff;
+    text-transform: capitalize;
+    white-space: nowrap;
+}
+#sales_table .status-pending    { background-color: #f0ad4e; } /* amber */
+#sales_table .status-processing { background-color: #5bc0de; } /* blue  */
+#sales_table .status-completed  { background-color: #5cb85c; } /* green */
+#sales_table .status-cancelled  { background-color: #d9534f; } /* red   */
+#sales_table .status-default    { background-color: #777777; } /* gray  */
+</style>
     <div class="row small-spacing">
         <div class="col-xs-12">
 			<div class="box-content">
@@ -48,9 +66,8 @@
                         </div>
                         <?php } ?>
 
-                        <!-- Zone filter. "Unassigned" is a real selection, not
-                             filler: orders placed before zones existed carry a
-                             NULL zone_id and would otherwise be unreachable. -->
+                        <!-- Zone filter (hidden for seller-role users) -->
+                        <?php if(!$is_seller) { ?>
                         <div class="col-md-2 form-group">
                             <label for="zone_filter" class="control-label">Zone</label>
                             <select class="form-control" id="zone_filter" name="zone_id">
@@ -65,6 +82,21 @@
                                         }
                                     }
                                 ?>
+                            </select>
+                        </div>
+                        <?php } ?>
+
+                        <!-- Order Status filter -->
+                        <div class="col-md-2 form-group">
+                            <label for="status_filter" class="control-label">Order Status</label>
+                            <select class="form-control" id="status_filter" name="order_status">
+                                <option value="">All Orders</option>
+                                <option value="delivered">Delivered</option>
+                                <option value="received">Received</option>
+                                <option value="processed">Processed</option>
+                                <option value="shipped">Shipped</option>
+                                <option value="cancelled">Cancelled</option>
+                                <option value="returned">Returned</option>
                             </select>
                         </div>
 
@@ -107,11 +139,15 @@
                             <th data-field="user_mobile" data-sortable="true">User Mobile</th>
                             <th data-field="address" data-sortable="true">Address</th>
                             <th data-field="product_details" data-formatter="productListFormatter">Product / Qty / Unit</th>
+                            <?php if(!$is_seller) { ?>
                             <th data-field="zone_name" data-sortable="true">Zone</th>
+                            <?php } ?>
                             <th data-field="order_date" data-sortable="true">Order Date</th>
                             <?php if(!$is_seller) { ?>
-                            <th data-field="vendor_price" data-formatter="priceListFormatter">Vendor Price</th>
-                            <th data-field="discounted_price" data-formatter="priceListFormatter">Discounted Price</th>
+                            <th data-field="vendor_price" data-formatter="priceListFormatter" data-align="right" data-footer-formatter="salesMoneyFormatter">Vendor Price (&#8377;)</th>
+                            <th data-field="discounted_price" data-formatter="priceListFormatter" data-align="right" data-footer-formatter="salesMoneyFormatter">Discounted Price (&#8377;)</th>
+                            <th data-field="commission_percent" data-sortable="false" data-align="center">Commission (%)</th>
+                            <th data-field="commission_amount" data-sortable="false" data-align="right" data-footer-formatter="salesMoneyFormatter">Commission (&#8377;)</th>
                             <?php } ?>
                             <th data-field="final_total" data-sortable="true" data-align="right" data-footer-formatter="salesMoneyFormatter">Final Total (&#8377;)</th>
                             <th data-field="platform_fee" data-sortable="false" data-align="right" data-footer-formatter="salesMoneyFormatter">Platform Fee (&#8377;)</th>
@@ -137,11 +173,25 @@
         var sum = 0;
         if (data && data.length) {
             for (var i = 0; i < data.length; i++) {
-                var val = data[i] ? data[i][field] : 0;
-                if (typeof val === 'string') {
-                    val = val.replace(/[^0-9.\-]/g, '');
+                var row = data[i];
+                if (!row) continue;
+                var val = row[field];
+                if (val === undefined || val === null) continue;
+
+                if (Array.isArray(val)) {
+                    for (var j = 0; j < val.length; j++) {
+                        var item = val[j];
+                        if (typeof item === 'string') {
+                            item = item.replace(/[^0-9.\-]/g, '');
+                        }
+                        sum += (parseFloat(item) || 0);
+                    }
+                } else {
+                    if (typeof val === 'string') {
+                        val = val.replace(/[^0-9.\-]/g, '');
+                    }
+                    sum += (parseFloat(val) || 0);
                 }
-                sum += (parseFloat(val) || 0);
             }
         }
         return '<span style="color:green;font-weight:bold;font-size:large;">\u20B9 ' + sum.toFixed(2) + '</span>';
@@ -180,10 +230,10 @@
         if (!value) return '-';
         var key = String(value).toLowerCase();
         var cls = 'status-default';
-        if (key === 'pending') cls = 'status-pending';
-        else if (key === 'processing') cls = 'status-processing';
-        else if (key === 'completed') cls = 'status-completed';
-        else if (key === 'cancelled' || key === 'canceled') cls = 'status-cancelled';
+        if (key === 'pending' || key === 'received') cls = 'status-pending';
+        else if (key === 'processing' || key === 'processed' || key === 'shipped') cls = 'status-processing';
+        else if (key === 'completed' || key === 'delivered') cls = 'status-completed';
+        else if (key === 'cancelled' || key === 'canceled' || key === 'returned') cls = 'status-cancelled';
         return '<span class="status-badge ' + cls + '">' + value + '</span>';
     }
 

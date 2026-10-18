@@ -31,11 +31,25 @@ function salesMoneyFormatter(data) {
     var sum = 0;
     if (data && data.length) {
         for (var i = 0; i < data.length; i++) {
-            var val = data[i] ? data[i][field] : 0;
-            if (typeof val === 'string') {
-                val = val.replace(/[^0-9.\-]/g, '');
+            var row = data[i];
+            if (!row) continue;
+            var val = row[field];
+            if (val === undefined || val === null) continue;
+
+            if (Array.isArray(val)) {
+                for (var j = 0; j < val.length; j++) {
+                    var item = val[j];
+                    if (typeof item === 'string') {
+                        item = item.replace(/[^0-9.\-]/g, '');
+                    }
+                    sum += (parseFloat(item) || 0);
+                }
+            } else {
+                if (typeof val === 'string') {
+                    val = val.replace(/[^0-9.\-]/g, '');
+                }
+                sum += (parseFloat(val) || 0);
             }
-            sum += (parseFloat(val) || 0);
         }
     }
     return '<span style="color:green;font-weight:bold;font-size:large;">\u20B9 ' + sum.toFixed(2) + '</span>';
@@ -100,10 +114,10 @@ $(document).ready(function(){
         $('#sales_table').bootstrapTable('refresh');
     });
 
-    // Payment method / seller dropdowns trigger a table refresh
+    // Payment method / seller / status dropdowns trigger a table refresh
     // (zone_filter is handled separately by the cascade in sales-report-table1.php
     //  which also reloads the seller dropdown before refreshing)
-    $(document).on('change', '#payment_method_filter, #seller_filter', function(){
+    $(document).on('change', '#payment_method_filter, #seller_filter, #status_filter', function(){
         $('#sales_table').bootstrapTable('refresh');
     });
 });
@@ -116,7 +130,8 @@ function queryParams_sales(p){
         "seller_id": $('#seller_filter').val(),
         // Empty string means "all zones"; "0" is the explicit
         // unassigned selection and must survive as 0, not be dropped.
-        "zone_id": $('#zone_filter').val(),
+        "zone_id": $('#zone_filter').length ? $('#zone_filter').val() : '',
+        "order_status": $('#status_filter').val(),
         limit: p.limit,
         sort: p.sort,
         order: p.order,

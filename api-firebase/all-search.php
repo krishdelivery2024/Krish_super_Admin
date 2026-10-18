@@ -42,20 +42,29 @@ if (isset($_POST['type']) && $_POST['type'] == 'all-search') {
     $search = isset($_POST['search']) ? $db->escapeString($fn->xss_clean($_POST['search'])) : '';
     $main_cat_id = isset($_POST['main_cat_id']) ? $db->escapeString($fn->xss_clean($_POST['main_cat_id'])) : '';
     $user_id = (isset($_POST['user_id']))?$db->escapeString($fn->xss_clean($_POST['user_id'])):"";
-    $where = "WHERE s.status = 1 AND p.status = 1 AND c.status = 1 AND s.main_cat_id IN (SELECT id FROM main_category WHERE status = '1')";
+    // Optional user location for zone-based filtering
+    $latitude  = (isset($_POST['latitude']))?$db->escapeString($fn->xss_clean($_POST['latitude'])):"";
+    $longitude = (isset($_POST['longitude']))?$db->escapeString($fn->xss_clean($_POST['longitude'])):"";
+    $user_zone_id = $fn->get_zone_id_from_latlng($latitude, $longitude);
+    if($user_zone_id === null && $user_id != ''){
+        // Fallback: derive zone from the user's saved delivery address
+        $db->sql("SELECT latitude, longitude FROM user_address WHERE user_id = '$user_id' AND status = '1' ORDER BY is_default DESC, id DESC LIMIT 1");
+        $saved_addr = $db->getResult();
+        if (!empty($saved_addr)) {
+            $user_zone_id = $fn->get_zone_id_from_latlng($saved_addr[0]['latitude'], $saved_addr[0]['longitude']);
+        }
+    }
+    $zone_filter = ($user_zone_id > 0) ? " AND s.zone_id = '".(int)$user_zone_id."'" : " AND s.zone_id = '-1'";
+    $where = "WHERE s.status = 1 AND p.status = 1 AND c.status = 1 AND s.main_cat_id IN (SELECT id FROM main_category WHERE status = '1')".$zone_filter;
 
     // Filter by main_cat_id if present
     if (!empty($main_cat_id)) {
         $where .= " AND s.main_cat_id = '$main_cat_id'";
     }
 
-    // Filter by search text
+    // Filter by search text (directly search product)
     if (!empty($search)) {
-        $search_condition = " AND (
-            c.name LIKE '%$search%' OR 
-            p.name LIKE '%$search%' OR 
-            s.name LIKE '%$search%'
-        )";
+        $search_condition = " AND p.name LIKE '%$search%'";
         $where .= $search_condition;
     }
 

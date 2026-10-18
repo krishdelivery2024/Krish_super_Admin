@@ -53,9 +53,25 @@ $area_id         = $db->escapeString($_POST['area_id']);
 $main_cat_id     = $db->escapeString($_POST['main_cat_id']);
 $status          = $db->escapeString($_POST['status']);
 $store_status    = $db->escapeString($_POST['store_status']);
+$seller = array();
+$db->sql("SELECT working_days, holidays FROM seller WHERE id='$id'");
+$res_seller = $db->getResult();
+if (!empty($res_seller)) { $seller = $res_seller[0]; }
+$working_days    = isset($_POST['working_days']) && is_array($_POST['working_days']) ? implode(',', array_map('intval', $_POST['working_days'])) : '1,2,3,4,5,6,7';
+$holidays    = ''; // Derived from unchecked days (not collected separately).
 
 $zone_id = $fn->get_zone_id_from_latlng($latitude, $longitude);
 $zone_id_sql = ($zone_id !== null) ? $zone_id : 'NULL';
+
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+$is_super_admin = (isset($_SESSION['role']) && $_SESSION['role'] === 'super admin');
+$commission_sql = "";
+if ($is_super_admin && isset($_POST['commission'])) {
+    $commission = floatval($_POST['commission']);
+    $commission_sql = "commission = '$commission',";
+}
 
 // Update query
 $sql = "UPDATE seller SET 
@@ -78,11 +94,14 @@ $sql = "UPDATE seller SET
       opening_time = '$opening_time',
     closing_time = '$closing_time',
     preparation_time = '$preparation_time',
+    working_days = '$working_days',
+    holidays = '$holidays',
     city_id = '$city_id',
     area_id = '$area_id',
     main_cat_id = '$main_cat_id',
     store_status = '$store_status',
     status = '$status',
+    $commission_sql
     zone_id = $zone_id_sql,
     last_updated = NOW()
     WHERE id = '$id'";

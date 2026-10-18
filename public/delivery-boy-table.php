@@ -75,6 +75,10 @@ if ($is_sub_admin) {
                       <input type="number" class="form-control"  name="bonus" id="bonus" value="<?=$config['delivery-boy-bonus-percentage']?>">
                     </div>
                     <div class="form-group">
+                      <label for="">Commission (₹ per order)</label>
+                      <input type="number" step="0.01" min="0" class="form-control" name="commission" id="commission" placeholder="Enter Commission in ₹" value="5">
+                    </div>
+                    <div class="form-group">
                       <label for="">Service Type</label>
                       <select class="form-control" name="service_type">
                         <option value="both">Both (Food &amp; Parcel)</option>
@@ -182,6 +186,7 @@ if ($is_sub_admin) {
                             <th data-field="mobile" data-sortable="true">Mobile</th>
                             <th data-field="address" data-sortable="true">Address</th>
                             <th data-field="bonus" data-sortable="true">Bonus(%)</th>
+                            <th data-field="commission" data-sortable="true">Commission (&#8377;)</th>
                             <th data-field="balance" data-sortable="true">Balance</th>
                             <th data-field="service_type" data-sortable="true">Service Type</th>
                             <th data-field="aadhaar" data-sortable="true">Aadhaar</th>
@@ -223,7 +228,91 @@ if ($is_sub_admin) {
     <link rel="stylesheet" href="dist/plugin/leaflet/leaflet.css" />
     <script src="dist/plugin/leaflet/leaflet.js"></script>
 
-    <!-- Live online delivery boy markers, refreshed every 20 seconds -->
+    <style>
+        .db-leaflet-popup .leaflet-popup-content-wrapper {
+            border-radius: 12px !important;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.25) !important;
+            padding: 4px !important;
+            border-top: 4px solid #3F51B5 !important;
+        }
+        .db-leaflet-popup .leaflet-popup-content {
+            margin: 12px 14px !important;
+            font-family: inherit !important;
+            line-height: 1.5 !important;
+        }
+        .db-popup-card {
+            min-width: 260px;
+            max-width: 310px;
+            color: #1e293b;
+        }
+        .db-popup-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #e2e8f0;
+            margin-bottom: 10px;
+        }
+        .db-popup-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #3F51B5;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+            flex-shrink: 0;
+        }
+        .db-popup-avatar-fallback {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: #eef2ff;
+            color: #3F51B5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            flex-shrink: 0;
+            border: 2px solid #c7d2fe;
+        }
+        .db-popup-name {
+            font-size: 15px;
+            font-weight: 700;
+            color: #0f172a;
+            line-height: 1.25;
+            margin-bottom: 2px;
+        }
+        .db-popup-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #334155;
+            margin-bottom: 6px;
+        }
+        .db-popup-row i {
+            width: 16px;
+            text-align: center;
+            font-size: 13px;
+        }
+        .db-popup-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #e2e8f0;
+        }
+        .db-popup-actions .btn {
+            flex: 1;
+            text-align: center;
+            padding: 6px 8px;
+            font-size: 12px;
+            font-weight: 600;
+            border-radius: 4px;
+            text-decoration: none;
+        }
+    </style>
+
     <script>
     (function () {
         var mapEl = document.getElementById('delivery-boys-live-map');
@@ -298,10 +387,75 @@ if ($is_sub_admin) {
 
         function popupHtml(boy) {
             var seen = (boy.age_seconds <= 5) ? 'just now' : (boy.age_seconds + 's ago');
-            return '<strong>' + esc(boy.name) + '</strong><br>' +
-                   'Mobile: ' + esc(boy.mobile) + '<br>' +
-                   'Updated: ' + esc(seen);
+            var avatar = '';
+            if (boy.profile) {
+                avatar = '<img src="' + esc(boy.profile) + '" class="db-popup-avatar" alt="Photo" onerror="this.outerHTML=\'<div class=\\\'db-popup-avatar-fallback\\\'><i class=\\\'fa fa-motorcycle\\\'></i></div>\'">';
+            } else {
+                avatar = '<div class="db-popup-avatar-fallback"><i class="fa fa-motorcycle"></i></div>';
+            }
+
+            var serviceBadge = '';
+            var st = (boy.service_type || 'both').toLowerCase();
+            if (st === 'food') {
+                serviceBadge = '<span class="label label-warning" style="font-size:10px; padding:2px 6px;">Food Only</span>';
+            } else if (st === 'parcel') {
+                serviceBadge = '<span class="label label-info" style="font-size:10px; padding:2px 6px;">Parcel Only</span>';
+            } else {
+                serviceBadge = '<span class="label label-primary" style="font-size:10px; padding:2px 6px;">Food &amp; Parcel</span>';
+            }
+
+            var mapsUrl = 'https://www.google.com/maps?q=' + encodeURIComponent(boy.latitude + ',' + boy.longitude);
+
+            var balanceHtml = '';
+            if (boy.balance !== undefined && boy.balance !== null) {
+                balanceHtml = '<div class="db-popup-row">' +
+                    '<i class="fa fa-money text-success"></i>' +
+                    '<span><b>Balance:</b> <span style="font-weight:700; color:#16a34a;">₹' + Number(boy.balance).toFixed(2) + '</span></span>' +
+                '</div>';
+            }
+
+            return '<div class="db-popup-card">' +
+                '<div class="db-popup-header">' +
+                    avatar +
+                    '<div style="flex:1; min-width:0;">' +
+                        '<div style="display:flex; align-items:center; justify-content:space-between; gap:4px;">' +
+                            '<div class="db-popup-name" title="' + esc(boy.name) + '">' + esc(boy.name) + '</div>' +
+                            '<span class="label label-success" style="font-size:10px; padding:2px 6px;">Online</span>' +
+                        '</div>' +
+                        '<div style="font-size:11px; color:#64748b; margin-top:2px;">ID: #' + esc(boy.id) + ' &bull; ' + serviceBadge + '</div>' +
+                    '</div>' +
+                '</div>' +
+                '<div style="padding:2px 0;">' +
+                    '<div class="db-popup-row">' +
+                        '<i class="fa fa-phone text-primary"></i>' +
+                        '<span><b>Mobile:</b> <a href="tel:' + esc(boy.mobile) + '" style="color:#3F51B5; font-weight:700; font-size:13px;">' + esc(boy.mobile) + '</a></span>' +
+                    '</div>' +
+                    '<div class="db-popup-row">' +
+                        '<i class="fa fa-map-marker text-danger"></i>' +
+                        '<span><b>Zone:</b> ' + esc(boy.zone_name || 'All Zones') + '</span>' +
+                    '</div>' +
+                    balanceHtml +
+                    '<div class="db-popup-row">' +
+                        '<i class="fa fa-clock-o text-muted"></i>' +
+                        '<span style="font-size:11px; color:#64748b;"><b>Last Seen:</b> ' + esc(seen) + '</span>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="db-popup-actions">' +
+                    '<a href="tel:' + esc(boy.mobile) + '" class="btn btn-primary">' +
+                        '<i class="fa fa-phone"></i> Call Boy' +
+                    '</a>' +
+                    '<a href="' + mapsUrl + '" target="_blank" rel="noopener" class="btn btn-default">' +
+                        '<i class="fa fa-map"></i> Open Maps' +
+                    '</a>' +
+                '</div>' +
+            '</div>';
         }
+
+        var popupOptions = {
+            minWidth: 260,
+            maxWidth: 320,
+            className: 'db-leaflet-popup'
+        };
 
         function refresh() {
             fetch('api-firebase/get-delivery-boy-locations.php', { credentials: 'same-origin' })
@@ -327,7 +481,7 @@ if ($is_sub_admin) {
                             markers[boy.id].setLatLng(latlng);
                             markers[boy.id].setPopupContent(popupHtml(boy));
                         } else {
-                            markers[boy.id] = L.marker(latlng).addTo(map).bindPopup(popupHtml(boy));
+                            markers[boy.id] = L.marker(latlng).addTo(map).bindPopup(popupHtml(boy), popupOptions);
                         }
                     });
 

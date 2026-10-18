@@ -17,6 +17,7 @@ include"header.php";?>
 <script>
 var $delivery_boy_table = $('#delivery_boy_table');
 
+
 // Flatten arrays to semicolon-separated plain text for Excel/PDF
 function exportListFormatter(value) {
     if (!value || !value.length) return '-';
@@ -65,8 +66,8 @@ $(document).ready(function(){
         $('#delivery_boy_table').bootstrapTable('refresh');
     });
 
-    // Payment method / delivery boy / zone dropdowns trigger a table refresh
-    $(document).on('change', '#db_payment_method_filter, #db_boy_filter, #db_zone_filter', function(){
+    // Payment method / delivery boy / zone / status dropdowns trigger a table refresh
+    $(document).on('change', '#db_payment_method_filter, #db_boy_filter, #db_zone_filter, #db_status_filter', function(){
         $('#delivery_boy_table').bootstrapTable('refresh');
     });
 });
@@ -81,6 +82,7 @@ function queryParams_delivery_boy(p){
         // Empty string means "all zones"; "0" is the explicit
         // unassigned selection and must survive as 0, not be dropped.
         "zone_id":         $('#db_zone_filter').val(),
+        "order_status":    $('#db_status_filter').val(),
         limit:  p.limit,
         sort:   p.sort,
         order:  p.order,

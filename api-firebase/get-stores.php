@@ -29,11 +29,20 @@ if(isset($_POST['accesskey'])) {
 		$zone_filter = "";
 		$distance_selector = "";
 		$distance_order = "`sel_priority` ASC, `id` ASC";
+		$radius_having = "";
+		$store_radius_km = null;
 		if($latitude != '' && $longitude != '' && is_numeric($latitude) && is_numeric($longitude)){
 		    $user_zone_id = $fn->get_zone_id_from_latlng($latitude, $longitude);
 		    if($user_zone_id > 0){
 		        // Strict: only sellers belonging to the user's zone
 		        $zone_filter = " AND `zone_id`='".(int)$user_zone_id."'";
+		        // Only show stores within this zone's configured radius (admin
+		        // system zone settings); varies per zone and defaults to the
+		        // global nearby_store_radius_km.
+		        $store_radius_km = $fn->get_zone_store_radius_km($user_zone_id);
+		        if($store_radius_km !== null){
+		            $radius_having = " HAVING distance <= ".number_format((float)$store_radius_km, 2, '.', '');
+		        }
 		    }else{
 		        // User is outside any zone -> strictly no sellers shown
 		        $zone_filter = " AND `zone_id`='-1'";
@@ -44,11 +53,27 @@ if(isset($_POST['accesskey'])) {
 		// get all sellers belonging to the user's zone, ordered by proximity
 		$sql_query = "SELECT *".$distance_selector." 
 			FROM seller 
-            WHERE status='1' AND main_cat_id IN (SELECT id FROM main_category WHERE status = '1')".$zone_filter."
+            WHERE status='1' AND main_cat_id IN (SELECT id FROM main_category WHERE status = '1')".$zone_filter.$radius_having."
 			ORDER BY ".$distance_order;
 		$db->sql($sql_query);
 		$res=$db->getResult();
 		if (!empty($res)) {
+			// Open stores first and closed stores pushed to the bottom (the
+			// proximity order is preserved inside each group), so the nearest
+			// open restaurant leads the list even if a closer one is closed.
+			$now_min = $fn->get_store_now_minutes();
+			$open_rows = array();
+			$closed_rows = array();
+			foreach($res as $row){
+				$row['is_open'] = $fn->is_seller_open_now($row, $now_min);
+				if($row['is_open']){
+					$open_rows[] = $row;
+				}else{
+					$closed_rows[] = $row;
+				}
+			}
+			$res = array_merge($open_rows, $closed_rows);
+
 			for ($i = 0; $i < count($res); $i++) {
 				$seller_id = $res[$i]['id'];
 				

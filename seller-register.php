@@ -65,6 +65,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $status = 0;
     $date_created = date('Y-m-d H:i:s');
     $zone_id = $fn->get_zone_id_from_latlng($latitude, $longitude);
+    $working_days = isset($_POST['working_days']) && is_array($_POST['working_days']) ? implode(',', array_map(function($v){ return preg_replace('/[^0-9]/','',$v); }, $_POST['working_days'])) : '1,2,3,4,5,6,7';
+    $holidays = '';
 
     // Validate required fields
     if (empty($name) || empty($mobile) || empty($email) || empty($main_cat_id) || empty($company_name) || empty($company_legal_name) || empty($personal_address) || empty($store_address) || empty($latitude) || empty($longitude) ) {
@@ -131,6 +133,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
            'opening_time' => $opening_time,
         'closing_time' => $closing_time,
         'preparation_time' => $preparation_time,
+        'working_days' => $working_days,
+        'holidays' => $holidays,
         'status' => $status,
         'image' => $image_name,
         'banner' => $banner_name,
@@ -219,17 +223,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="frm-input col-md-4">
                     <label>Company Name <span class="required">*</span></label>
                     <input type="text" name="company_name" placeholder="Company Name" class="frm-inp" required>
-                </div> 
+                </div>
                 
                 <div class="frm-input col-md-4">
                     <label>Company Legal Name <span class="required">*</span></label>
                     <input type="text" name="company_legal_name" placeholder="Company Legal Name" class="frm-inp" required>
-                </div> 
+                </div>
 
                 <div class="frm-input col-md-4">
                     <label>Company Address <span class="required">*</span></label>
                     <input type="text" name="company_address" placeholder="Company Address" class="frm-inp" required>
-                </div>                
+                </div>
 
                 <div class="frm-input col-md-4">
                     <label>Account Details </label>
@@ -278,12 +282,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="frm-input col-md-3">
                     <label>Company Logo <span class="required">*</span></label>
                     <input type="file" name="image" class="frm-inp" required>
-                </div> 
+                </div>
 
                 <div class="frm-input col-md-3">
                     <label>Company Banner <span class="required">*</span></label>
                     <input type="file" name="banner" class="frm-inp" required>
-                </div>   
+                </div>
                  <div class="frm-input col-md-3">
                     <label>Opening Time <span class="required">*</span></label>
                     <input type="time" name="opening_time" class="frm-inp" value="09:00" required>
@@ -297,7 +301,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="frm-input col-md-3">
                     <label>Preparation Time (mins) <span class="required">*</span></label>
                     <input type="number" name="preparation_time" class="frm-inp" value="20" required>
-                </div>             
+                </div>
+
+                <div class="frm-input col-md-6">
+                    <label>Working Days</label>
+                    <div style="display:flex;flex-wrap:wrap;gap:10px;padding:8px 0;">
+                        <label style="font-weight:400;"><input type="checkbox" name="working_days[]" value="1" checked> Mon</label>
+                        <label style="font-weight:400;"><input type="checkbox" name="working_days[]" value="2" checked> Tue</label>
+                        <label style="font-weight:400;"><input type="checkbox" name="working_days[]" value="3" checked> Wed</label>
+                        <label style="font-weight:400;"><input type="checkbox" name="working_days[]" value="4" checked> Thu</label>
+                        <label style="font-weight:400;"><input type="checkbox" name="working_days[]" value="5" checked> Fri</label>
+                        <label style="font-weight:400;"><input type="checkbox" name="working_days[]" value="6" checked> Sat</label>
+                        <label style="font-weight:400;"><input type="checkbox" name="working_days[]" value="7" checked> Sun</label>
+                    </div>
+                </div>
+
+                <div class="clearfix"></div>
+                <div class="frm-input col-md-12">
+                    <small class="text-muted">Uncheck a day in Working Days to mark it as a holiday.</small>
+                </div>
 
                 <div class="frm-input col-md-12">
                     <label>Store Location <span class="required">*</span></label>
