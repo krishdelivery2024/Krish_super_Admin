@@ -31,11 +31,25 @@ function salesMoneyFormatter(data) {
     var sum = 0;
     if (data && data.length) {
         for (var i = 0; i < data.length; i++) {
-            var val = data[i] ? data[i][field] : 0;
-            if (typeof val === 'string') {
-                val = val.replace(/[^0-9.\-]/g, '');
+            var row = data[i];
+            if (!row) continue;
+            var val = row[field];
+            if (val === undefined || val === null) continue;
+
+            if (Array.isArray(val)) {
+                for (var j = 0; j < val.length; j++) {
+                    var item = val[j];
+                    if (typeof item === 'string') {
+                        item = item.replace(/[^0-9.\-]/g, '');
+                    }
+                    sum += (parseFloat(item) || 0);
+                }
+            } else {
+                if (typeof val === 'string') {
+                    val = val.replace(/[^0-9.\-]/g, '');
+                }
+                sum += (parseFloat(val) || 0);
             }
-            sum += (parseFloat(val) || 0);
         }
     }
     return '<span style="color:green;font-weight:bold;font-size:large;">\u20B9 ' + sum.toFixed(2) + '</span>';

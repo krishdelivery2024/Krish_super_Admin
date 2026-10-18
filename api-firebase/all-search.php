@@ -62,13 +62,9 @@ if (isset($_POST['type']) && $_POST['type'] == 'all-search') {
         $where .= " AND s.main_cat_id = '$main_cat_id'";
     }
 
-    // Filter by search text
+    // Filter by search text (directly search product)
     if (!empty($search)) {
-        $search_condition = " AND (
-            c.name LIKE '%$search%' OR 
-            p.name LIKE '%$search%' OR 
-            s.name LIKE '%$search%'
-        )";
+        $search_condition = " AND p.name LIKE '%$search%'";
         $where .= $search_condition;
     }
 

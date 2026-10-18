@@ -17,6 +17,38 @@ include"header.php";?>
 <script>
 var $delivery_boy_table = $('#delivery_boy_table');
 
+function dbTotalLabel() {
+    return '<span style="color:green;font-weight:bold;font-size:large;">TOTAL</span>';
+}
+function dbMoneyFormatter(data) {
+    var field = this.field;
+    var sum = 0;
+    if (data && data.length) {
+        for (var i = 0; i < data.length; i++) {
+            var row = data[i];
+            if (!row) continue;
+            var val = row[field];
+            if (val === undefined || val === null) continue;
+
+            if (Array.isArray(val)) {
+                for (var j = 0; j < val.length; j++) {
+                    var item = val[j];
+                    if (typeof item === 'string') {
+                        item = item.replace(/[^0-9.\-]/g, '');
+                    }
+                    sum += (parseFloat(item) || 0);
+                }
+            } else {
+                if (typeof val === 'string') {
+                    val = val.replace(/[^0-9.\-]/g, '');
+                }
+                sum += (parseFloat(val) || 0);
+            }
+        }
+    }
+    return '<span style="color:green;font-weight:bold;font-size:large;">&#8377; ' + sum.toFixed(2) + '</span>';
+}
+
 // Flatten arrays to semicolon-separated plain text for Excel/PDF
 function exportListFormatter(value) {
     if (!value || !value.length) return '-';

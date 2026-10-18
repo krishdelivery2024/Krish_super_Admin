@@ -422,10 +422,11 @@ if (empty($_SESSION['csrf_token'])) {
 			<?php endif; ?>				
 				
 				<?php if(!$is_sub_admin || !empty($permissions['settings']['read'])): ?>
-				<li <?php if($page=="Store Settings" || $page=="Payment Methods Settings" || $page=="Time Slots" || $page=="Notification Settings" || $page=="Contact Us" || $page=="Privacy Policy" || $page=="About US" || $page=="Zone Settings"){?>class="active"<?php } ?>>
+				<li <?php if($page=="Store Settings" || $page=="Landing Page Settings" || $page=="Payment Methods Settings" || $page=="Time Slots" || $page=="Notification Settings" || $page=="Contact Us" || $page=="Privacy Policy" || $page=="About US" || $page=="Zone Settings"){?>class="active"<?php } ?>>
 					<a class="waves-effect parent-item js__control" href="#"><i class="menu-icon ti-settings"></i><span>System</span><span class="menu-arrow fa fa-angle-down"></span></a>
-					<ul class="sub-menu js__content" <?php if($page=="Store Settings" || $page=="Payment Methods Settings" || $page=="Time Slots" || $page=="Notification Settings" || $page=="Contact Us" || $page=="Privacy Policy" || $page=="About US" || $page=="Zone Settings"){?>style="display: block;"<?php } ?>>
+					<ul class="sub-menu js__content" <?php if($page=="Store Settings" || $page=="Landing Page Settings" || $page=="Payment Methods Settings" || $page=="Time Slots" || $page=="Notification Settings" || $page=="Contact Us" || $page=="Privacy Policy" || $page=="About US" || $page=="Zone Settings"){?>style="display: block;"<?php } ?>>
 						<li <?php if($page=="Store Settings"){?>class="current"<?php } ?>><a <?php if($page=="Store Settings"){?>class="active"<?php } ?> href="settings.php">Store Settings</a></li>
+						<li <?php if($page=="Landing Page Settings"){?>class="current"<?php } ?>><a <?php if($page=="Landing Page Settings"){?>class="active"<?php } ?> href="landing-settings.php">Landing Page Settings</a></li>
 						<li <?php if($page=="Payment Methods Settings"){?>class="current"<?php } ?>><a <?php if($page=="Payment Methods Settings"){?>class="active"<?php } ?> href="payment-methods-setting.php">Payment Methods</a></li>
 						<li <?php if($page=="Time Slots"){?>class="current"<?php } ?>><a <?php if($page=="Time Slots"){?>class="active"<?php } ?> href="time-slots.php">Time slots</a></li>
 						<li <?php if($page=="Notification Settings"){?>class="current"<?php } ?>><a <?php if($page=="Notification Settings"){?>class="active"<?php } ?> href="notification-settings.php">Notification Settings</a></li>
