@@ -75,6 +75,10 @@ if ($is_sub_admin) {
                       <input type="number" class="form-control"  name="bonus" id="bonus" value="<?=$config['delivery-boy-bonus-percentage']?>">
                     </div>
                     <div class="form-group">
+                      <label for="">Commission (₹ per order)</label>
+                      <input type="number" step="0.01" min="0" class="form-control" name="commission" id="commission" placeholder="Enter Commission in ₹" value="5">
+                    </div>
+                    <div class="form-group">
                       <label for="">Service Type</label>
                       <select class="form-control" name="service_type">
                         <option value="both">Both (Food &amp; Parcel)</option>
@@ -182,6 +186,7 @@ if ($is_sub_admin) {
                             <th data-field="mobile" data-sortable="true">Mobile</th>
                             <th data-field="address" data-sortable="true">Address</th>
                             <th data-field="bonus" data-sortable="true">Bonus(%)</th>
+                            <th data-field="commission" data-sortable="true">Commission (&#8377;)</th>
                             <th data-field="balance" data-sortable="true">Balance</th>
                             <th data-field="service_type" data-sortable="true">Service Type</th>
                             <th data-field="aadhaar" data-sortable="true">Aadhaar</th>

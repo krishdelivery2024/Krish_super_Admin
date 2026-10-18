@@ -241,8 +241,13 @@
                             <input type="number" class="form-control" name="max-product-return-days" value="<?=(isset($data['max-product-return-days']))?$data['max-product-return-days']:'';?>" placeholder='Max days to return item' />
                         </div>
                         <div class="form-group">
-                            <label for="delivery-boy-bonus-percentage">Delivery Boy Bonus (%)</label>
-                            <input type="number" class="form-control" name="delivery-boy-bonus-percentage" value="<?=$data['delivery-boy-bonus-percentage']?>" placeholder='Delivery Boy Bonus' />
+                            <label for="delivery_boy_commission">Delivery Boy Commission (₹ per order)</label>
+                            <input type="number" step="0.01" min="0" class="form-control" name="delivery_boy_commission" value="<?=(isset($data['delivery_boy_commission']))?$data['delivery_boy_commission']:(isset($data['delivery-boy-bonus-percentage'])?$data['delivery-boy-bonus-percentage']:'5');?>" placeholder='e.g. 5' />
+                            <input type="hidden" name="delivery-boy-bonus-percentage" value="<?=(isset($data['delivery_boy_commission']))?$data['delivery_boy_commission']:(isset($data['delivery-boy-bonus-percentage'])?$data['delivery-boy-bonus-percentage']:'5');?>" />
+                        </div>
+                        <div class="form-group">
+                            <label for="seller_commission">Global Seller Commission (%)</label>
+                            <input type="number" step="0.01" class="form-control" name="seller_commission" value="<?=(isset($data['seller_commission']))?$data['seller_commission']:'0';?>" placeholder='Global Seller Commission' />
                         </div>
 
                         <div class="form-group">

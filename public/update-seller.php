@@ -63,6 +63,16 @@ $holidays    = ''; // Derived from unchecked days (not collected separately).
 $zone_id = $fn->get_zone_id_from_latlng($latitude, $longitude);
 $zone_id_sql = ($zone_id !== null) ? $zone_id : 'NULL';
 
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+$is_super_admin = (isset($_SESSION['role']) && $_SESSION['role'] === 'super admin');
+$commission_sql = "";
+if ($is_super_admin && isset($_POST['commission'])) {
+    $commission = floatval($_POST['commission']);
+    $commission_sql = "commission = '$commission',";
+}
+
 // Update query
 $sql = "UPDATE seller SET 
     name = '$name',
@@ -91,6 +101,7 @@ $sql = "UPDATE seller SET
     main_cat_id = '$main_cat_id',
     store_status = '$store_status',
     status = '$status',
+    $commission_sql
     zone_id = $zone_id_sql,
     last_updated = NOW()
     WHERE id = '$id'";

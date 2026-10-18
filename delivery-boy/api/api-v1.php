@@ -784,18 +784,33 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 	    }
 	}
 
+	$boy_comm_rate = 5.0;
+	if (!empty($id)) {
+		$sql_boy_comm = "SELECT commission FROM delivery_boys WHERE id = '$id'";
+		$db->sql($sql_boy_comm);
+		$boy_comm_res = $db->getResult();
+		if (!empty($boy_comm_res) && isset($boy_comm_res[0]['commission']) && $boy_comm_res[0]['commission'] !== '' && floatval($boy_comm_res[0]['commission']) > 0) {
+			$boy_comm_rate = floatval($boy_comm_res[0]['commission']);
+		} else {
+			$boy_comm_rate = (isset($sys_settings['delivery_boy_commission']) && $sys_settings['delivery_boy_commission'] !== '')
+				? floatval($sys_settings['delivery_boy_commission'])
+				: 5.0;
+		}
+	}
+
+	$sql_delivered = "SELECT COUNT(o.id) as delivered_count FROM `orders` o " . $orders_join . " " . $where1 . " AND o.active_status = 'delivered'";
+	$db->sql($sql_delivered);
+	$del_res = $db->getResult();
+	$del_count = (!empty($del_res)) ? intval($del_res[0]['delivered_count']) : 0;
+	if ($del_count == 0 && intval($total) > 0) {
+		$del_count = intval($total);
+	}
+	$total_commission = $del_count * $boy_comm_rate;
+
 	$platform_charges = 0;
 	$gst_amount = 0;
-
-	if ($platform_fee_percent > 0) {
-	    $platform_charges = ($sub_amount * $platform_fee_percent) / 100;
-	}
-	if ($gst_percent > 0 && $platform_charges > 0) {
-	    $gst_amount = ($platform_charges * $gst_percent) / 100;
-	}
-	
-	$total_deduction = $platform_charges + $gst_amount;
-	$total_payable = $sub_amount - $total_deduction;
+	$total_deduction = 0;
+	$total_payable = $sub_amount;
 
 	// response
 	$response_data['today_earn'] = number_format($today_earn_cod + $today_earn_online, 2, '.', '');
@@ -814,9 +829,11 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 	$response_data['today_pickup_delivery_charge'] = number_format($today_pickup_delivery_charge ?? 0, 2, '.', '');
 	
 	$response_data['sub_amount'] = number_format($sub_amount, 2, '.', '');
-    $response_data['total_cod_amount'] = number_format($total_cod_amount, 2, '.', '');
-    $response_data['total_online_amount'] = number_format($total_online_amount, 2, '.', '');
-    $response_data['total_delivery_charge_amount'] = number_format($total_delivery_charge_amount, 2, '.', '');
+	$response_data['total_cod_amount'] = number_format($total_cod_amount, 2, '.', '');
+	$response_data['total_online_amount'] = number_format($total_online_amount, 2, '.', '');
+	$response_data['total_delivery_charge_amount'] = number_format($total_delivery_charge_amount, 2, '.', '');
+	$response_data['total_commission'] = number_format($total_commission, 2, '.', '');
+	$response_data['commission_rate'] = number_format($boy_comm_rate, 2, '.', '');
 	$response_data['platform_charges'] = number_format($platform_charges, 2, '.', '');
 	$response_data['gst_amount'] = number_format($gst_amount, 2, '.', '');
 	$response_data['total_deduction'] = number_format($total_deduction, 2, '.', '');

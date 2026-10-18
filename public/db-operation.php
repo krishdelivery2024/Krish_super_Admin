@@ -541,9 +541,44 @@ if(isset($_POST['update_zone_settings']) && $_POST['update_zone_settings']==1){
 
     $sql = "UPDATE zone SET ".$set_clause." WHERE id=".$id;
     if($db->sql($sql)){
-        echo '<label class="alert alert-success">Zone settings updated!'.(!empty($fee_problems) ? ' (Invalid values were ignored for: '.implode(', ', $fee_problems).')' : '').'</label>';
+        echo '<label class="alert alert-success">Zone settings updated!'.(!empty($fee_problems) ? ' (Invalid values were ignored for: '.implode(', '. $fee_problems).')' : '').'</label>';
     }else{
         echo '<label class="alert alert-danger">Some Error Occurred! Please Try Again.</label>';
+    }
+}
+
+if (isset($_POST['update_global_commissions']) && $_POST['update_global_commissions'] == 1) {
+    if (!checkadmin($auth_username)) {
+        echo "<label class='alert alert-danger'>Access denied - You are not authorized to update settings.</label>";
+        return false;
+    }
+    if ($permissions['settings']['update'] == 0 && $_SESSION['role'] != 'super admin') {
+        echo '<label class="alert alert-danger">You have no permission to update settings</label>';
+        return false;
+    }
+    $seller_commission = isset($_POST['seller_commission']) ? floatval($_POST['seller_commission']) : 0.0;
+    $delivery_boy_commission = isset($_POST['delivery_boy_commission']) ? floatval($_POST['delivery_boy_commission']) : 5.0;
+
+    $sql = "SELECT value FROM settings WHERE variable='system_timezone'";
+    $db->sql($sql);
+    $res = $db->getResult();
+    if (!empty($res)) {
+        $data = json_decode($res[0]['value'], true);
+        if (!is_array($data)) {
+            $data = array();
+        }
+        $data['seller_commission'] = $seller_commission;
+        $data['delivery_boy_commission'] = $delivery_boy_commission;
+        $data['delivery-boy-bonus-percentage'] = $delivery_boy_commission;
+        $settings_value = $db->escapeString(json_encode($data));
+        $update_sql = "UPDATE settings SET value='" . $settings_value . "' WHERE variable='system_timezone'";
+        if ($db->sql($update_sql)) {
+            echo '<label class="alert alert-success"><i class="fa fa-check-circle"></i> Global commissions updated successfully!</label>';
+        } else {
+            echo '<label class="alert alert-danger">Failed to update global commissions. Please try again.</label>';
+        }
+    } else {
+        echo '<label class="alert alert-danger">Settings record not found.</label>';
     }
 }
 if(isset($_GET['delete_zone']) && $_GET['delete_zone']==1){
@@ -585,6 +620,7 @@ if (
 $mobile = $db->escapeString($fn->xss_clean($_POST['mobile']));
 $address = $db->escapeString($fn->xss_clean($_POST['address']));
 $bonus = $db->escapeString($fn->xss_clean($_POST['bonus']));
+$commission = isset($_POST['commission']) ? floatval($_POST['commission']) : 0.0;
 
 $store_id = !empty($_POST['store_id1'])
     ? (int)$fn->xss_clean($_POST['store_id1'])
@@ -652,8 +688,8 @@ $zone_id = $db->escapeString((string)$zone_id);
             echo '<label class="alert alert-danger">Mobile Number Already Exists!</label>';
             return false;
         }
-    $sql = "INSERT INTO delivery_boys (name,mobile,otp,password,store_id,address,bonus,service_type,aadhaar,driving_license,profile,aadhaar_image,driving_license_image,zone_id,fcm_id)
-VALUES('$name', '$mobile', '', '$password', '$store_id', '$address','$bonus','$service_type','$aadhaar','$driving_license','$profile','$aadhaar_image','$driving_license_image','$zone_id','')";
+    $sql = "INSERT INTO delivery_boys (name,mobile,otp,password,store_id,address,bonus,commission,service_type,aadhaar,driving_license,profile,aadhaar_image,driving_license_image,zone_id,fcm_id)
+VALUES('$name', '$mobile', '', '$password', '$store_id', '$address','$bonus','$commission','$service_type','$aadhaar','$driving_license','$profile','$aadhaar_image','$driving_license_image','$zone_id','')";
     if($db->sql($sql)){
         echo '<label class="alert alert-success">Delivery Boy Added Successfully!</label>';
     }else{
@@ -728,6 +764,7 @@ if ($is_sub_admin) {
     $store_id = !empty($_POST['store_id1']) ? $db->escapeString($fn->xss_clean($_POST['store_id1'])) : '0';
     $address = $db->escapeString($fn->xss_clean($_POST['update_address']));
     $bonus = $db->escapeString($fn->xss_clean($_POST['update_bonus']));
+    $commission = isset($_POST['update_commission']) ? floatval($_POST['update_commission']) : 0.0;
    $update_zone_id = isset($_POST['update_zone_id'])
     ? (int)$_POST['update_zone_id']
     : 0;
@@ -788,9 +825,9 @@ $update_zone_id = $db->escapeString((string)$update_zone_id);
     $status = $db->escapeString($fn->xss_clean($_POST['status']));
     $password = !empty($password)?md5($password):'';
     if(!empty($password)){
-        $sql = "Update delivery_boys set `name`='".$name."',password='".$password."',`address`='".$address."',`bonus`='".$bonus."',`zone_id`='".$update_zone_id."',`service_type`='".$service_type."',`aadhaar`='".$aadhaar."',`driving_license`='".$driving_license."',`status`='".$status."'".$profile_update.$aadhaar_image_update.$dl_image_update." where `id`=".$id;
+        $sql = "Update delivery_boys set `name`='".$name."',password='".$password."',`address`='".$address."',`bonus`='".$bonus."',`commission`='".$commission."',`zone_id`='".$update_zone_id."',`service_type`='".$service_type."',`aadhaar`='".$aadhaar."',`driving_license`='".$driving_license."',`status`='".$status."'".$profile_update.$aadhaar_image_update.$dl_image_update." where `id`=".$id;
     }else{
-        $sql = "Update delivery_boys set `name`='".$name."',`address`='".$address."',`bonus`='".$bonus."',`zone_id`='".$update_zone_id."',`service_type`='".$service_type."',`aadhaar`='".$aadhaar."',`driving_license`='".$driving_license."',`status`='".$status."'".$profile_update.$aadhaar_image_update.$dl_image_update." where `id`=".$id;
+        $sql = "Update delivery_boys set `name`='".$name."',`address`='".$address."',`bonus`='".$bonus."',`commission`='".$commission."',`zone_id`='".$update_zone_id."',`service_type`='".$service_type."',`aadhaar`='".$aadhaar."',`driving_license`='".$driving_license."',`status`='".$status."'".$profile_update.$aadhaar_image_update.$dl_image_update." where `id`=".$id;
     }
     if($db->sql($sql)){
         echo "<label class='alert alert-success'>Information Updated Successfully.</label>";
