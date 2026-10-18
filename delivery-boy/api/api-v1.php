@@ -21,14 +21,14 @@ $config = $fn->get_configurations();
 $settings = $fn->get_settings('system_timezone', true);
 $app_name = $settings['app_name'];
 
-/* 
+/*
 -------------------------------------------
 APIs for Delivery Boys
 -------------------------------------------
 1. login
-2. get_delivery_boy_by_id  
+2. get_delivery_boy_by_id
 3. get_orders_by_delivery_boy_id
-4. get_fund_transfers 
+4. get_fund_transfers
 5. update_delivery_boy_profile
 6. update_order_status
 7. delivery_boy_forgot_password
@@ -52,7 +52,7 @@ if ($access_key != $accesskey) {
 }
 
 if (isset($_POST['login'])) {
-	/* 
+	/*
    1.Login
 	   accesskey:90336
 	   mobile:9876543210
@@ -101,14 +101,14 @@ if (isset($_POST['login'])) {
 				$db->disconnect();
 				$res[0]['fcm_id'] = $fcm_id;
 			}
-			
+
 			// Send Push Notification
 			$title = "Keep Online";
 			$message = "keep online to get more orders";
 			$type = "default";
 			$fn->send_notification_to_delivery_boy($delivery_boy_id, $title, $message, $type, "0");
 			$fn->store_delivery_boy_notification($delivery_boy_id, "0", $title, $message, $type);
-			
+
 			$response['error'] = false;
 			$response['message'] = "Delivery Boy Login Susseccfully";
 			if (!empty($res)) {
@@ -143,7 +143,7 @@ if (isset($_POST['login'])) {
 }
 
 
-/* 
+/*
 ---------------------------------------------------------------------------------------------------------
 */
 
@@ -179,13 +179,7 @@ if (isset($_POST['login_with_mobile'])) {
 			$messagetext = "Hello Partner, your OTP for Krish Delivery login is " . $otpno . ". Ride safe!";
 			$template_id = "1207178368065673587";
 
-			$sms_limit_query = "SELECT value FROM settings WHERE variable = 'sms_count'";
-			$db->sql($sms_limit_query);
-			$sms_result = $db->getResult();
-			$sms_count = !empty($sms_result) ? intval($sms_result[0]['value']) : 0;
-			$sms_max_limit_count = sms_max_limit_count;
-
-			if ($sms_count >= $sms_max_limit_count) {
+			if (sms_daily_limit_reached($db)) {
 				echo json_encode(["error" => true, "message" => "SMS limit reached. Please try again later."]);
 				exit;
 			}
@@ -197,10 +191,7 @@ if (isset($_POST['login_with_mobile'])) {
 
 			sendSmsCommon($recipients, $messagetext, $template_id);
 
-			$sms_count++;
-			$update_sms_count_sql = "UPDATE settings SET value = '" . intval($sms_count) . "' WHERE variable = 'sms_count'";
-			$db->sql($update_sms_count_sql);
-			$db->getResult();
+			sms_increment_daily_count($db);
 
 			$db->disconnect();
 
@@ -219,7 +210,7 @@ if (isset($_POST['login_with_mobile'])) {
 	$response['message'] = "Invalid Call of API!";
 }
 
-/* 
+/*
 ---------------------------------------------------------------------------------------------------------
 */
 if (isset($_POST['otp_verify'])) {
@@ -268,14 +259,14 @@ if (isset($_POST['otp_verify'])) {
 				$db->disconnect();
 				$res[0]['fcm_id'] = $fcm_id;
 			}
-			
+
 			// Send Push Notification
 			$title = "Keep Online";
 			$message = "keep online to get more orders";
 			$type = "default";
 			$fn->send_notification_to_delivery_boy($delivery_boy_id, $title, $message, $type, "0");
 			$fn->store_delivery_boy_notification($delivery_boy_id, "0", $title, $message, $type);
-			
+
 			$response['error'] = false;
 			$response['message'] = "OTP Verified Susseccfully";
 			if (!empty($res)) {
@@ -296,7 +287,7 @@ if (isset($_POST['otp_verify'])) {
 	$response['error'] = true;
 	$response['message'] = "Invalid Call of API!";
 }
-/* 
+/*
 ---------------------------------------------------------------------------------------------------------
 */
 if (isset($_POST['delivery_boy_status'])) {
@@ -349,7 +340,7 @@ if (isset($_POST['delivery_boy_status'])) {
 	$response['error'] = true;
 	$response['message'] = "Invalid Call of API!";
 }
-/* 
+/*
 ---------------------------------------------------------------------------------------------------------
 */
 if (isset($_POST['update_delivery_boy_location'])) {
@@ -419,12 +410,12 @@ if (isset($_POST['update_delivery_boy_location'])) {
 	$response['error'] = true;
 	$response['message'] = "Invalid Call of API!";
 }
-/* 
+/*
 ---------------------------------------------------------------------------------------------------------
 */
 if (isset($_POST['get_delivery_boy_by_id'])) {
 
-	/* 
+	/*
 	2.get_delivery_boy_by_id
 		accesskey:90336
 		id:78
@@ -464,7 +455,7 @@ if (isset($_POST['get_delivery_boy_by_id'])) {
 
 }
 
-/* 
+/*
 ---------------------------------------------------------------------------------------------------------
 */
 
@@ -472,11 +463,11 @@ if (isset($_POST['get_delivery_boy_by_id'])) {
 
 if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 
-	/* 
+	/*
 	3.get_orders_by_delivery_boy_id
 		accesskey:90336
-		id:40        // {optional}          
-		order_id:1001        // {optional}  
+		id:40        // {optional}
+		order_id:1001        // {optional}
 		offset:0        // {optional}
 		limit:10        // {optional}
 
@@ -484,7 +475,7 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 		order:DESC / ASC            // {optional}
 
 		search:search_value         // {optional}
-		filter_order:filter_order_status         // {optional} 
+		filter_order:filter_order_status         // {optional}
 		get_orders_by_delivery_boy_id:1
 	*/
 	$response_data = array();
@@ -603,7 +594,7 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 
 	if (!empty($start_date) && !empty($end_date)) {
 		$date_filter = " DATE(o.date_added) >= '$start_date' AND DATE(o.date_added) <= '$end_date'";
-		
+
 		if (!empty($where)) { $where .= " AND" . $date_filter; } else { $where .= " WHERE" . $date_filter; }
 		if (!empty($where1)) { $where1 .= " AND" . $date_filter; } else { $where1 .= " WHERE" . $date_filter; }
 	} else if ($status != 'history') {
@@ -639,9 +630,9 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 	}
 
 	for ($i = 0; $i < count($res); $i++) {
-		$sql = "select oi.*,p.name as name, v.measurement,p.image, (SELECT short_code FROM unit un where un.id=v.measurement_unit_id)as mesurement_unit_name from `order_items` oi 
-            join product_variant v on oi.product_variant_id=v.id 
-            join products p on p.id=v.product_id 
+		$sql = "select oi.*,p.name as name, v.measurement,p.image, (SELECT short_code FROM unit un where un.id=v.measurement_unit_id)as mesurement_unit_name from `order_items` oi
+            join product_variant v on oi.product_variant_id=v.id
+            join products p on p.id=v.product_id
             where oi.order_id=" . $res[$i]['id'];
 
 		$db->sql($sql);
@@ -754,7 +745,7 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 
 	// response
 	// ================= DATE RANGE SETTLEMENT SUMMARY =================
-	
+
 	// Fetch platform fee and GST from settings
 	$sql_settings = "SELECT value FROM settings WHERE variable = 'system_timezone'";
 	$db->sql($sql_settings);
@@ -777,7 +768,7 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
     $total_delivery_charge_amount = 0;
 	if (!empty($id)) {
 	    // Sum final_total for the given date range filter
-	    $sql_sub_amount = "SELECT 
+	    $sql_sub_amount = "SELECT
             IFNULL(SUM(o.final_total),0) AS sub_amount,
             IFNULL(SUM(CASE WHEN o.payment_method = 'Cash on Delivery' THEN o.final_total ELSE 0 END),0) AS total_cod_amount,
             IFNULL(SUM(CASE WHEN o.payment_method != 'Cash on Delivery' THEN o.final_total ELSE 0 END),0) AS total_online_amount,
@@ -793,42 +784,82 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 	    }
 	}
 
-	$platform_charges = 0;
-	$gst_amount = 0;
+        // Delivery-boy commission information.
+        $boy_comm_rate = 5.0;
+        if (!empty($id)) {
+            $sql_boy_comm = "SELECT commission FROM delivery_boys WHERE id = '$id'";
+            $db->sql($sql_boy_comm);
+            $boy_comm_res = $db->getResult();
 
-	if ($platform_fee_percent > 0) {
-	    $platform_charges = ($sub_amount * $platform_fee_percent) / 100;
-	}
-	if ($gst_percent > 0 && $platform_charges > 0) {
-	    $gst_amount = ($platform_charges * $gst_percent) / 100;
-	}
-	
-	$total_deduction = $platform_charges + $gst_amount;
-	$total_payable = $sub_amount - $total_deduction;
+            if (
+                !empty($boy_comm_res) &&
+                isset($boy_comm_res[0]['commission']) &&
+                $boy_comm_res[0]['commission'] !== '' &&
+                floatval($boy_comm_res[0]['commission']) > 0
+            ) {
+                $boy_comm_rate = floatval($boy_comm_res[0]['commission']);
+            } else {
+                $boy_comm_rate =
+                    (isset($config['delivery_boy_commission']) && $config['delivery_boy_commission'] !== '')
+                    ? floatval($config['delivery_boy_commission'])
+                    : ((isset($config['delivery-boy-bonus-percentage']) && $config['delivery-boy-bonus-percentage'] !== '')
+                        ? floatval($config['delivery-boy-bonus-percentage'])
+                        : 5.0);
+            }
+        }
 
-	// response
-	$response_data['today_earn'] = number_format($today_earn_cod + $today_earn_online, 2, '.', '');
-	$response_data['today_earn_cod'] = number_format($today_earn_cod, 2, '.', '');
-	$response_data['today_earn_online'] = number_format($today_earn_online, 2, '.', '');
-	$response_data['today_delivery_charge'] = number_format($today_delivery_charge ?? 0, 2, '.', '');
+        $delivered_where = !empty($where1) ? $where1 . " AND" : " WHERE";
+        $sql_delivered = "SELECT COUNT(o.id) as delivered_count
+                          FROM `orders` o " . $orders_join . $delivered_where .
+                          " o.active_status = 'delivered'";
+        $db->sql($sql_delivered);
+        $del_res = $db->getResult();
+        $del_count = !empty($del_res)
+            ? intval($del_res[0]['delivered_count'])
+            : 0;
 
-	$response_data['today_food_orders'] = (string) ($today_food_orders ?? 0);
-	$response_data['today_food_cod'] = number_format($today_food_cod ?? 0, 2, '.', '');
-	$response_data['today_food_online'] = number_format($today_food_online ?? 0, 2, '.', '');
-	$response_data['today_food_delivery_charge'] = number_format($today_food_delivery_charge ?? 0, 2, '.', '');
 
-	$response_data['today_pickup_orders'] = (string) ($today_pickup_orders ?? 0);
-	$response_data['today_pickup_cod'] = number_format($today_pickup_cod ?? 0, 2, '.', '');
-	$response_data['today_pickup_online'] = number_format($today_pickup_online ?? 0, 2, '.', '');
-	$response_data['today_pickup_delivery_charge'] = number_format($today_pickup_delivery_charge ?? 0, 2, '.', '');
-	
-	$response_data['sub_amount'] = number_format($sub_amount, 2, '.', '');
-    $response_data['total_cod_amount'] = number_format($total_cod_amount, 2, '.', '');
-    $response_data['total_online_amount'] = number_format($total_online_amount, 2, '.', '');
-    $response_data['total_delivery_charge_amount'] = number_format($total_delivery_charge_amount, 2, '.', '');
-	$response_data['platform_charges'] = number_format($platform_charges, 2, '.', '');
-	$response_data['gst_amount'] = number_format($gst_amount, 2, '.', '');
-	$response_data['total_deduction'] = number_format($total_deduction, 2, '.', '');
+        $total_commission = $del_count * $boy_comm_rate;
+
+        // Preserve the existing platform fee and GST payout calculation.
+        $platform_charges = 0;
+        $gst_amount = 0;
+
+        if ($platform_fee_percent > 0) {
+            $platform_charges = ($sub_amount * $platform_fee_percent) / 100;
+        }
+        if ($gst_percent > 0 && $platform_charges > 0) {
+            $gst_amount = ($platform_charges * $gst_percent) / 100;
+        }
+
+        $total_deduction = $platform_charges + $gst_amount;
+        $total_payable = $sub_amount - $total_deduction;
+
+        // Earnings response.
+        $response_data['today_earn'] = number_format($today_earn_cod + $today_earn_online, 2, '.', '');
+        $response_data['today_earn_cod'] = number_format($today_earn_cod, 2, '.', '');
+        $response_data['today_earn_online'] = number_format($today_earn_online, 2, '.', '');
+        $response_data['today_delivery_charge'] = number_format($today_delivery_charge ?? 0, 2, '.', '');
+
+        $response_data['today_food_orders'] = (string) ($today_food_orders ?? 0);
+        $response_data['today_food_cod'] = number_format($today_food_cod ?? 0, 2, '.', '');
+        $response_data['today_food_online'] = number_format($today_food_online ?? 0, 2, '.', '');
+        $response_data['today_food_delivery_charge'] = number_format($today_food_delivery_charge ?? 0, 2, '.', '');
+
+        $response_data['today_pickup_orders'] = (string) ($today_pickup_orders ?? 0);
+        $response_data['today_pickup_cod'] = number_format($today_pickup_cod ?? 0, 2, '.', '');
+        $response_data['today_pickup_online'] = number_format($today_pickup_online ?? 0, 2, '.', '');
+        $response_data['today_pickup_delivery_charge'] = number_format($today_pickup_delivery_charge ?? 0, 2, '.', '');
+
+        $response_data['sub_amount'] = number_format($sub_amount, 2, '.', '');
+        $response_data['total_cod_amount'] = number_format($total_cod_amount, 2, '.', '');
+        $response_data['total_online_amount'] = number_format($total_online_amount, 2, '.', '');
+        $response_data['total_delivery_charge_amount'] = number_format($total_delivery_charge_amount, 2, '.', '');
+        $response_data['total_commission'] = number_format($total_commission, 2, '.', '');
+        $response_data['commission_rate'] = number_format($boy_comm_rate, 2, '.', '');
+        $response_data['platform_charges'] = number_format($platform_charges, 2, '.', '');
+        $response_data['gst_amount'] = number_format($gst_amount, 2, '.', '');
+        $response_data['total_deduction'] = number_format($total_deduction, 2, '.', '');
 	$response_data['total_payable'] = number_format($total_payable, 2, '.', '');
 
 
@@ -1096,16 +1127,16 @@ if (isset($_POST['accept_order_delivery_boy'])) {
 
 }
 
-/* 
+/*
 ---------------------------------------------------------------------------------------------------------
 */
 
 if (isset($_POST['get_parcel_orders'])) {
 
-	/* 
+	/*
 	get_parcel_orders
 		accesskey:90336
-		get_parcel_orders:10        // delivery boy id (caller)    
+		get_parcel_orders:10        // delivery boy id (caller)
 		id:10                       // {optional}
 		status:new / active / past  // {optional, default new}
 		latitude:12.34              // {optional - delivery boy's live location}
@@ -1370,7 +1401,7 @@ if (isset($_POST['get_parcel_orders'])) {
 	die;
 }
 
-/* 
+/*
 ---------------------------------------------------------------------------------------------------------
 */
 
@@ -1439,7 +1470,7 @@ if (isset($_POST['accept_parcel_order'])) {
 	die;
 }
 
-/* 
+/*
 ---------------------------------------------------------------------------------------------------------
 */
 
@@ -1545,13 +1576,13 @@ if (isset($_POST['update_parcel_order_status']) && isset($_POST['order_id'])) {
 	die;
 }
 
-/* 
+/*
 ---------------------------------------------------------------------------------------------------------
 */
 
 if (isset($_POST['get_fund_transfers'])) {
 
-	/* 
+	/*
 	4. get_fund_transfers
 		accesskey:90336
 		id:82
@@ -1618,7 +1649,7 @@ if (isset($_POST['get_fund_transfers'])) {
 	print_r(json_encode($json_response));
 
 }
-/* 
+/*
 ---------------------------------------------------------------------------------------------------------
 */
 
@@ -1778,13 +1809,13 @@ if (isset($_POST['update_delivery_boy_profile_image'])) {
 	die;
 }
 
-/* 
+/*
 ---------------------------------------------------------------------------------------------------------
 */
 
 if (isset($_POST['update_order_status']) && isset($_POST['order_id'])) {
 
-	/* 
+	/*
 	6.update_order_status
 		accesskey:90336
 		update_order_status:1
@@ -2076,7 +2107,7 @@ if (isset($_POST['update_order_status']) && isset($_POST['order_id'])) {
 	}
 }
 
-/* 
+/*
 ---------------------------------------------------------------------------------------------------------
 */
 
@@ -2118,13 +2149,13 @@ if (isset($_POST['delivery_boy_forgot_password']) && isset($_POST['mobile'])) {
 	print_r(json_encode($response));
 }
 
-/* 
+/*
 ---------------------------------------------------------------------------------------------------------
 */
 
 if (isset($_POST['get_notifications'])) {
 
-	/* 
+	/*
 	8. get_notifications
 		accesskey:90336
 		id:114
@@ -2187,12 +2218,12 @@ if (isset($_POST['get_notifications'])) {
 
 }
 
-/* 
+/*
 ---------------------------------------------------------------------------------------------------------
 */
 
 if (isset($_POST['update_delivery_boy_fcm_id'])) {
-	/* 
+	/*
    9.update_delivery_boy_fcm_id
 	   accesskey:90336
 	   id:114
@@ -2224,7 +2255,7 @@ if (isset($_POST['update_delivery_boy_fcm_id'])) {
 	}
 }
 
-/* 
+/*
 ---------------------------------------------------------------------------------------------------------
 */
 

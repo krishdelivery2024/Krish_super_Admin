@@ -105,6 +105,23 @@ $res_main_category = $db->getResult();
         renderInput("Preparation Time (mins)", "preparation_time", $seller['preparation_time'] ?? '20', "number");
         renderInput("Date Created", "date_created", $seller['date_created'], "text", false, true);
         ?>
+        <?php
+        $working_days_arr = isset($seller['working_days']) && $seller['working_days'] !== '' ? explode(',', $seller['working_days']) : array('1','2','3','4','5','6','7');
+        $days = array('1'=>'Mon','2'=>'Tue','3'=>'Wed','4'=>'Thu','5'=>'Fri','6'=>'Sat','7'=>'Sun');
+        ?>
+        <div class="form-group">
+            <label class="col-md-2">Working Days</label>
+            <div class="col-md-8" style="display:flex;flex-wrap:wrap;gap:12px;padding-top:4px;">
+                <?php foreach ($days as $k=>$d): $is_working = in_array($k,$working_days_arr); ?>
+                <label style="font-weight:400;">
+                    <input type="checkbox" name="working_days[]" value="<?= $k ?>" <?= $is_working?'checked':'' ?>> <?= $d ?>
+                </label>
+                <?php endforeach; ?>
+            </div>
+            <div class="col-md-offset-2 col-md-8">
+                <small class="text-muted">Uncheck a day to mark it as a holiday. Only checked days are treated as working days.</small>
+            </div><br><br>
+        </div>
 
 
         <div class="form-group" style="display:none;">

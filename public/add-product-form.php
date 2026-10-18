@@ -612,7 +612,7 @@
                         </div>
                         <div class="form-group" style="display:none;">
                             <label for="subcategory_id">Sub Category :</label><?php echo isset($error['subcategory_id']) ? $error['subcategory_id'] : '';?>
-                            <select name="subcategory_id" id="subcategory_id" class="form-control" required>
+                            <select name="subcategory_id" id="subcategory_id" class="form-control">
                                 <option value="">--Select Main Category--</option>
                             </select>
                         </div>
@@ -880,6 +880,17 @@
             // Second pass, once the compressed files are back on the inputs.
             if (imagesReady) { return; }
 
+            // jQuery Validate puts novalidate on the form, so the browser's own
+            // checks never run, and it is registered after this handler, so it
+            // would swallow the nested submit event requestSubmit() fires - that
+            // is what made the first click do nothing. Validate up-front instead.
+            var $form = window.jQuery ? window.jQuery(addProductForm) : null;
+            var validator = $form && $form.data('validator');
+            if (validator && !validator.form()) {
+                e.preventDefault();
+                return;
+            }
+
             e.preventDefault();
 
             var btn = addProductForm.querySelector('input[type="submit"]');
@@ -899,18 +910,16 @@
 
                 imagesReady = true;
 
-                // requestSubmit keeps btnAdd on the post; the plain form.submit()
-                // path would drop the submitter and the handler would never run.
-                if (btn && typeof addProductForm.requestSubmit === 'function') {
-                    addProductForm.requestSubmit(btn);
-                } else {
-                    var marker = document.createElement('input');
-                    marker.type = 'hidden';
-                    marker.name = 'btnAdd';
-                    marker.value = 'Add';
-                    addProductForm.appendChild(marker);
-                    addProductForm.submit();
-                }
+                // Submit through the native method: form.submit() fires no submit
+                // event, so nothing re-validates or swallows it. A hidden btnAdd
+                // marker stands in for the submit button it drops.
+                var marker = document.createElement('input');
+                marker.type = 'hidden';
+                marker.name = 'btnAdd';
+                marker.value = 'Add';
+                addProductForm.appendChild(marker);
+
+                addProductForm.submit();
             });
         });
     }

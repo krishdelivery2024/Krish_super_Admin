@@ -55,14 +55,8 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'verify-user')) {
 
 		$template_id = "1207178351325943342";
 
-        $sms_limit_query = "SELECT value FROM settings WHERE variable = 'sms_count'";
-        $db->sql($sms_limit_query);
-        $sms_result = $db->getResult();
-        $sms_count = !empty($sms_result) ? intval($sms_result[0]['value']) : 0;
-        $sms_max_limit_count = sms_max_limit_count;
-
-        if ($sms_count >= $sms_max_limit_count) {
-            echo json_encode(["error" => true, "message" => "SMS limit reached. Please try again later."]);           
+        if (sms_daily_limit_reached($db)) {
+            echo json_encode(["error" => true, "message" => "SMS limit reached. Please try again later."]);
             exit;
         }
 		
@@ -72,11 +66,7 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'verify-user')) {
 		        $db->sql($sql);
     		    sendSmsCommon($recipients, $messagetext, $template_id);
 
-    		    
-    		    $sms_count++;
-    		    $update_sms_count_sql = "UPDATE settings SET value = '" . intval($sms_count) . "' WHERE variable = 'sms_count'";
-    		    $db->sql($update_sms_count_sql);
-    		    $db->getResult();
+                    sms_increment_daily_count($db);
 
     	        $response["error"]   = false;
     			$response["message"] = "success";
@@ -125,10 +115,7 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'verify-user')) {
     		    sendSmsCommon($recipients, $messagetext, $template_id);
 
     		    // FIXED: increment the counter here too (new-user signup path).
-    		    $sms_count++;
-    		    $update_sms_count_sql = "UPDATE settings SET value = '" . intval($sms_count) . "' WHERE variable = 'sms_count'";
-    		    $db->sql($update_sms_count_sql);
-    		    $db->getResult();
+                    sms_increment_daily_count($db);
 
     		    $response["error"]   = false;
     			$response["message"] = "success";

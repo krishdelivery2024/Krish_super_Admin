@@ -37,24 +37,37 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'verify-user')) {
 		$db->sql($sql);
 		$res = $db->getResult();
 		$num_rows = $db->numRows($res);
-		
+
 		$otpno = generateOTP(6);
 		$recipients="91".trim($mobile);
 		$messagetext="Your OTP for $app_name is ".$otpno.". Please do not share this OTP.";
 		$template_id="1407168862906996721";
-		
-		if($num_rows > 0){
-		    if($res[0]['status'] == 0){
-    	        $response["error"]   = true;
-        		$response["message"] = "Account Not Active";
-        		echo json_encode($response);die();
-    	    }else if($res[0]['status'] == 1){
-		        $sql = 'UPDATE `seller` SET `otp`="'.$otpno.'" WHERE `mobile`="'.$mobile.'"';
-		        $db->sql($sql);
-    		    sendSmsCommon($recipients, $messagetext, $template_id);
-    	        $response["error"]   = false;
-    			$response["message"] = "success";
-    			echo json_encode($response);
+
+
+if($num_rows > 0){
+    if($res[0]['status'] == 0){
+        $response["error"] = true;
+        $response["message"] = "Account Not Active";
+        echo json_encode($response);die();
+    }else if($res[0]['status'] == 1){
+
+        if (sms_daily_limit_reached($db)) {
+            $response["error"] = true;
+            $response["message"] = "SMS limit reached. Please try again later.";
+            echo json_encode($response);
+            die();
+        }
+
+        $sql = 'UPDATE `seller` SET `otp`="'.$otpno.'" WHERE `mobile`="'.$mobile.'"';
+        $db->sql($sql);
+
+        sendSmsCommon($recipients, $messagetext, $template_id);
+        sms_increment_daily_count($db);
+
+        $response["error"] = false;
+        $response["message"] = "success";
+        echo json_encode($response);
+
     	    }else{
     	        $response["error"]   = true;
         		$response["message"] = "Account Suspended";
@@ -73,11 +86,11 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'verify-user')) {
 }
 
 if((isset($_POST['type'])) && ($_POST['type'] == 'login-user')) {
-   
+
     // get mobile
     $mobile = isset($_POST['mobile']) ? $db->escapeString($_POST['mobile']) : "";
 	$response = array();
-	
+
     // if mobile is not empty, check in database
     if (!empty($mobile)) {
         if(empty($_POST['otp'])){
@@ -89,7 +102,7 @@ if((isset($_POST['type'])) && ($_POST['type'] == 'login-user')) {
         $sql_query = "SELECT *,COALESCE((SELECT name FROM area a WHERE a.id=u.area_id), u.area) as area_name,COALESCE((SELECT name FROM city c WHERE c.id=u.city_id), u.city) as city_name,COALESCE((SELECT name FROM state s WHERE s.id=u.state_id), u.state) as state_name FROM `seller` u WHERE `mobile` = '".$mobile."'";
         $db->sql($sql_query);
         $result=$db->getResult();
-       
+
 		if ($db->numRows($result) > 0) {
 			if(empty($result[0]['status'])){
 			 	$response['error']     = true;
@@ -102,7 +115,7 @@ if((isset($_POST['type'])) && ($_POST['type'] == 'login-user')) {
     			$response['message']   = "Invalid OTP";
     			print_r(json_encode($response));exit;
     		}
-			 
+
 			$last_logged=date('Y-m-d H:i:s');
 		    $sql = "UPDATE seller SET  `otp` = '', `last_updated` = '$last_logged' WHERE id = ".$result[0]['id'];
             $db->sql($sql);
