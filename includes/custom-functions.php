@@ -958,7 +958,7 @@ class custom_functions{
     private function claim_dispatch_phase1($order_type, $order_id){
         $status_guard = ($order_type === 'parcel')
             ? "status IN ('pending','accepted')"
-            : "active_status NOT IN ('delivered','cancelled','returned')";
+            : "active_status = 'processed'";
         $table = ($order_type === 'parcel') ? 'parcel_requests' : 'orders';
         // Phase-1 timestamp comes from MySQL's own clock (NOW()) so the stored
         // value and the Phase-2 "NOW() - INTERVAL 60 SECOND" check share one
@@ -982,7 +982,7 @@ class custom_functions{
     private function promote_dispatch_to_phase2($order_type, $order_id){
         $status_guard = ($order_type === 'parcel')
             ? "status IN ('pending','accepted')"
-            : "active_status NOT IN ('delivered','cancelled','returned')";
+            : "active_status = 'processed'";
         $wait = (int)self::DISPATCH_PHASE1_WAIT_SECONDS;
         $this->db->update(
             ($order_type === 'parcel') ? 'parcel_requests' : 'orders',

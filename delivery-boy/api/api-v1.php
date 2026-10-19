@@ -565,7 +565,8 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 		} else if ($_POST['status'] == 'past') {
 			$where .= " AND active_status != 'received' AND active_status != 'processed' AND active_status != 'shipped'";
 		} else if ($_POST['status'] == 'new') {
-			$where .= " AND active_status != 'delivered' AND active_status != 'cancelled' AND active_status != 'returned' AND delivery_boy_id ='0' ";
+			// Food orders must be confirmed/processed by seller first, unassigned, not store pickup, and already dispatched (Phase 1 or Phase 2)
+			$where .= " AND o.active_status = 'processed' AND o.delivery_boy_id = '0' AND (o.delivery_method IS NULL OR LOWER(TRIM(o.delivery_method)) != 'storepickup') AND o.dispatch_stage IN ('phase1', 'phase2') ";
 			// Exclude orders this delivery boy has already rejected
 			if (!empty($caller_id)) {
 				$where .= " AND (rejected_by IS NULL OR rejected_by = '' OR NOT FIND_IN_SET('$caller_id', rejected_by)) ";
@@ -622,9 +623,12 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 	// Phase-1 for 60+ seconds is broadcast to the whole network while the boy
 	// is already polling. The guarded transition fires the push only once.
 	if (isset($_POST['status']) && $_POST['status'] == 'new') {
-		foreach ($res as $row_dispatch) {
-			if (isset($row_dispatch['delivery_boy_id']) && (int)$row_dispatch['delivery_boy_id'] === 0) {
-				$fn->escalate_due_dispatch('food', (int)$row_dispatch['id']);
+		$wait_sec = (int)custom_functions::DISPATCH_PHASE1_WAIT_SECONDS;
+		$db->sql("SELECT id FROM orders WHERE dispatch_stage = 'phase1' AND delivery_boy_id = '0' AND dispatch_phase1_at IS NOT NULL AND dispatch_phase1_at <= NOW() - INTERVAL $wait_sec SECOND AND active_status = 'processed'");
+		$due_orders = $db->getResult();
+		if (!empty($due_orders)) {
+			foreach ($due_orders as $d_row) {
+				$fn->escalate_due_dispatch('food', (int)$d_row['id']);
 			}
 		}
 	}
@@ -923,6 +927,13 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 					$seller_latitude,
 					$seller_longitude
 				);
+
+				// Phase-1 constraint: only delivery boys within 4 km of seller get to see/accept during Phase 1
+				if (isset($row['dispatch_stage']) && $row['dispatch_stage'] == 'phase1') {
+					if ($distance > (float)custom_functions::DISPATCH_PHASE1_RADIUS_KM || empty($deliveryboylatitude) || empty($deliveryboylongtitude)) {
+						continue; // Not within 4 km during Phase-1 batch; skip until Phase-2 broadcast
+					}
+				}
 			}
 
 			// STATUS = ACTIVE -> distance between delivery boy (live) and customer (drop point)
@@ -1062,22 +1073,24 @@ if (isset($_POST['accept_order_delivery_boy'])) {
 
 		if ($status == "yes") {
 			// Atomic first-come-first-served claim. Only the single statement
-			// that sees delivery_boy_id = '0' can win, even when two boys tap
-			// Accept at the same instant.
+			// that sees delivery_boy_id = '0' and seller confirmed ('processed') can win.
 			$db->update('orders',
 				array('delivery_boy_id' => $id, 'accept_status' => $status, 'dispatch_stage' => 'assigned'),
-				"id = '$order_id' AND active_status NOT IN ('delivered','cancelled','returned') AND delivery_boy_id = '0'");
+				"id = '$order_id' AND active_status = 'processed' AND delivery_boy_id = '0'");
 			$aff = $db->getResult();
 			$affected = (!empty($aff)) ? (int)$aff[0] : 0;
 			if ($affected === 1) {
 				$response['error'] = false;
 				$response['message'] = "Order Accepted Susseccfully";
 			} else {
-				$db->sql("SELECT delivery_boy_id FROM orders WHERE id = '$order_id'");
+				$db->sql("SELECT delivery_boy_id, active_status FROM orders WHERE id = '$order_id'");
 				$res_taken = $db->getResult();
 				if (!empty($res_taken) && isset($res_taken[0]['delivery_boy_id']) && (int)$res_taken[0]['delivery_boy_id'] !== 0) {
 					$response['error'] = true;
 					$response['message'] = "Order already accepted by another partner.";
+				} elseif (!empty($res_taken) && isset($res_taken[0]['active_status']) && $res_taken[0]['active_status'] !== 'processed') {
+					$response['error'] = true;
+					$response['message'] = "Order is not ready for delivery or not yet confirmed by seller.";
 				} else {
 					$response['error'] = true;
 					$response['message'] = "Invalid Order ID!";

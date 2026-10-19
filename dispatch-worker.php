@@ -56,7 +56,7 @@ $due = "dispatch_stage = 'phase1'
         AND dispatch_phase1_at <= NOW() - INTERVAL $wait SECOND";
 
 // Food orders still waiting to be accepted.
-$db->sql("SELECT id FROM orders WHERE $due AND active_status NOT IN ('delivered','cancelled','returned') ORDER BY id ASC");
+$db->sql("SELECT id FROM orders WHERE $due AND active_status = 'processed' ORDER BY id ASC");
 $due_orders = $db->getResult();
 foreach ($due_orders as $row) {
     if ($function->escalate_due_dispatch('food', (int)$row['id'])) {

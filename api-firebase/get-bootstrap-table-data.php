@@ -2771,6 +2771,8 @@ if ($role === 'sub admin') {
             'delivery_boy_zone_name' => 'dz.name',
             'delivery_charge'     => 'o.delivery_charge',
             'final_total'         => 'o.final_total',
+            'platform_fee'        => 'o.platform_fee',
+            'convenience_fee'     => 'o.convenience_fee',
             'payment_method'      => 'o.payment_method',
             'active_status'       => 'o.active_status',
         );
@@ -2858,6 +2860,7 @@ if ($role === 'sub admin') {
                 o.final_total,
                 o.delivery_charge,
                 o.platform_fee,
+                o.convenience_fee,
                 o.payment_method,
                 o.active_status,
      
@@ -3008,6 +3011,7 @@ if ($role === 'sub admin') {
             // Read from the order instead of a hardcoded 2, so a zone that
             // overrides the platform fee reports what was actually charged.
             $tempRow['platform_fee']    = !empty($row['platform_fee']) ? $row['platform_fee'] : '0';
+            $tempRow['convenience_fee'] = !empty($row['convenience_fee']) ? $row['convenience_fee'] : '0';
 
             // Delivery Boy Commission is a fixed amount (default 5 Rs) for every order
             $db_comm_amt = (isset($row['delivery_boy_commission']) && $row['delivery_boy_commission'] !== '' && floatval($row['delivery_boy_commission']) > 0)
@@ -3067,6 +3071,8 @@ if ($role === 'sub admin') {
             'order_date'      => 'o.date_added',
             'zone_name'       => 'z.name',
             'final_total'     => 'o.final_total',
+            'platform_fee'    => 'o.platform_fee',
+            'convenience_fee' => 'o.convenience_fee',
             'payment_method'  => 'o.payment_method',
             'active_status'   => 'o.active_status',
         );
@@ -3160,6 +3166,7 @@ if ($role === 'sub admin') {
                 o.date_added,
                 o.final_total,
                 o.platform_fee,
+                o.convenience_fee,
                 o.payment_method,
                 o.active_status,
      
@@ -3328,6 +3335,7 @@ if ($role === 'sub admin') {
             // Read from the order instead of a hardcoded 2, so a zone that
             // overrides the platform fee reports what was actually charged.
             $tempRow['platform_fee']   = !empty($row['platform_fee']) ? $row['platform_fee'] : '0';
+            $tempRow['convenience_fee'] = !empty($row['convenience_fee']) ? $row['convenience_fee'] : '0';
      
             // NOTE: payment_method is used as-is (assumed to already be
             // stored/displayed as "Cash on Delivery" / "Online Payment").

@@ -150,7 +150,8 @@
                             <th data-field="commission_amount" data-sortable="false" data-align="right" data-footer-formatter="salesMoneyFormatter">Commission (&#8377;)</th>
                             <?php } ?>
                             <th data-field="final_total" data-sortable="true" data-align="right" data-footer-formatter="salesMoneyFormatter">Final Total (&#8377;)</th>
-                            <th data-field="platform_fee" data-sortable="false" data-align="right" data-footer-formatter="salesMoneyFormatter">Platform Fee (&#8377;)</th>
+                            <th data-field="platform_fee" data-sortable="true" data-align="right" data-footer-formatter="salesMoneyFormatter">Platform Fee (&#8377;)</th>
+                            <th data-field="convenience_fee" data-sortable="true" data-align="right" data-footer-formatter="salesMoneyFormatter">Convenience Fee (&#8377;)</th>
                             <th data-field="payment_method" data-sortable="true">Payment Method</th>
                             <th data-field="active_status" data-sortable="true" data-formatter="statusBadgeFormatter">Order Status</th>
                         </tr>
