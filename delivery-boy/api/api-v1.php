@@ -481,12 +481,15 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 	$response_data = array();
 
 	$id = (isset($_POST['id']) && !empty(trim($_POST['id'])) && is_numeric($_POST['id'])) ? $db->escapeString(trim($fn->xss_clean($_POST['id']))) : '';
+	$status = isset($_POST['status']) ? $_POST['status'] : '';
 
 	// For 'new' orders, the delivery boy ID is passed as get_orders_by_delivery_boy_id value
 	// e.g. get_orders_by_delivery_boy_id=10 means id=10
 	$caller_id = $id;
-	if (empty($caller_id) && isset($_POST['get_orders_by_delivery_boy_id']) && is_numeric($_POST['get_orders_by_delivery_boy_id']) && intval($_POST['get_orders_by_delivery_boy_id']) > 1) {
-		$caller_id = $db->escapeString(trim($fn->xss_clean($_POST['get_orders_by_delivery_boy_id'])));
+	if (empty($caller_id) && isset($_POST['get_orders_by_delivery_boy_id']) && is_numeric($_POST['get_orders_by_delivery_boy_id'])) {
+		if ($status == 'new' || intval($_POST['get_orders_by_delivery_boy_id']) > 1) {
+			$caller_id = $db->escapeString(trim($fn->xss_clean($_POST['get_orders_by_delivery_boy_id'])));
+		}
 	}
 
 	// Accept both 'latitude' and correctly-spelled/misspelled longitude keys
@@ -516,8 +519,8 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 		die;
 	}
 
-	if ($status == 'new' && !empty($id)) {
-		$sql_check = "SELECT active_status FROM delivery_boys WHERE id='$id'";
+	if ($status == 'new' && !empty($caller_id)) {
+		$sql_check = "SELECT active_status FROM delivery_boys WHERE id='$caller_id'";
 		$db->sql($sql_check);
 		$res_check = $db->getResult();
 		if (!empty($res_check) && $res_check[0]['active_status'] == 'false') {
@@ -545,16 +548,24 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 		}
 	}
 
-	if (empty($where)) {
-		if (empty($id)) {
-			$where .= (!empty($order_id)) ? " WHERE o.id = $order_id" : "";
+	if ($status != 'new') {
+		if (empty($where)) {
+			if (empty($id)) {
+				$where .= (!empty($order_id)) ? " WHERE o.id = $order_id" : "";
+			} else {
+				$where .= " WHERE delivery_boy_id = " . $id;
+				$where .= (!empty($order_id)) ? " AND o.id = $order_id" : "";
+			}
 		} else {
-			$where .= " WHERE delivery_boy_id = " . $id;
+			$where .= (!empty($id)) ? " AND delivery_boy_id = " . $id : "";
 			$where .= (!empty($order_id)) ? " AND o.id = $order_id" : "";
 		}
 	} else {
-		$where .= (!empty($id)) ? " AND delivery_boy_id = " . $id : "";
-		$where .= (!empty($order_id)) ? " AND o.id = $order_id" : "";
+		if (empty($where)) {
+			$where .= (!empty($order_id)) ? " WHERE o.id = $order_id" : "";
+		} else {
+			$where .= (!empty($order_id)) ? " AND o.id = $order_id" : "";
+		}
 	}
 
 
@@ -565,8 +576,13 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 		} else if ($_POST['status'] == 'past') {
 			$where .= " AND active_status != 'received' AND active_status != 'processed' AND active_status != 'shipped'";
 		} else if ($_POST['status'] == 'new') {
-			// Food orders must be confirmed/processed by seller first, unassigned, not store pickup, and already dispatched (Phase 1 or Phase 2)
-			$where .= " AND o.active_status = 'processed' AND o.delivery_boy_id = '0' AND (o.delivery_method IS NULL OR LOWER(TRIM(o.delivery_method)) != 'storepickup') AND o.dispatch_stage IN ('phase1', 'phase2') ";
+			// Food orders must be confirmed/processed by seller first, unassigned, not store pickup
+			$new_clause = " o.active_status = 'processed' AND o.delivery_boy_id = '0' AND (o.delivery_method IS NULL OR LOWER(TRIM(o.delivery_method)) != 'storepickup') AND (o.dispatch_stage IN ('phase1', 'phase2') OR o.dispatch_stage IS NULL OR o.dispatch_stage = '') ";
+			if (empty($where)) {
+				$where .= " WHERE " . $new_clause;
+			} else {
+				$where .= " AND " . $new_clause;
+			}
 			// Exclude orders this delivery boy has already rejected
 			if (!empty($caller_id)) {
 				$where .= " AND (rejected_by IS NULL OR rejected_by = '' OR NOT FIND_IN_SET('$caller_id', rejected_by)) ";
@@ -623,6 +639,15 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 	// Phase-1 for 60+ seconds is broadcast to the whole network while the boy
 	// is already polling. The guarded transition fires the push only once.
 	if (isset($_POST['status']) && $_POST['status'] == 'new') {
+		// Auto-dispatch any orders accepted by seller that haven't been claimed for Phase 1
+		$db->sql("SELECT id FROM orders WHERE (dispatch_stage IS NULL OR dispatch_stage = '') AND delivery_boy_id = '0' AND active_status = 'processed' AND (delivery_method IS NULL OR LOWER(TRIM(delivery_method)) != 'storepickup')");
+		$unclaimed_orders = $db->getResult();
+		if (!empty($unclaimed_orders)) {
+			foreach ($unclaimed_orders as $u_row) {
+				$fn->dispatch_new_order('food', (int)$u_row['id']);
+			}
+		}
+
 		$wait_sec = (int)custom_functions::DISPATCH_PHASE1_WAIT_SECONDS;
 		$db->sql("SELECT id FROM orders WHERE dispatch_stage = 'phase1' AND delivery_boy_id = '0' AND dispatch_phase1_at IS NOT NULL AND dispatch_phase1_at <= NOW() - INTERVAL $wait_sec SECOND AND active_status = 'processed'");
 		$due_orders = $db->getResult();

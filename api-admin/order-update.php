@@ -195,6 +195,16 @@ $sub_total = (float)$res_query[0]['sub_total'];
     			return false;
     		}
     	}
+    	if($postStatus == 'cancelled'){
+    	    $db_delivery_boy_id = isset($res[0]['delivery_boy_id']) ? (int)$res[0]['delivery_boy_id'] : 0;
+    	    $is_store_pickup_order = (strtolower(trim(isset($res[0]['delivery_method']) ? $res[0]['delivery_method'] : '')) == 'storepickup');
+    	    if(!$is_store_pickup_order && $db_delivery_boy_id > 0){
+    	        $response['error'] = true;
+    	        $response['message'] = "Delivery boy on the way to pick. For cancel contact admin.";
+    	        print_r(json_encode($response));
+    	        return false;
+    	    }
+    	}
     	if($postStatus=='cancelled' || $postStatus=='returned'){
     	    $sql = 'SELECT oi.`product_variant_id`,oi.`quantity`,pv.`product_id`,pv.`type`,pv.`stock`,pv.`stock_unit_id`,pv.`measurement`,pv.`measurement_unit_id` FROM `order_items` oi join `product_variant` pv on pv.id = oi.product_variant_id WHERE `order_id`='.$id;
     	    $db->sql($sql);
@@ -661,33 +671,44 @@ if ($total == 0) {
                     $function->store_delivery_boy_notification($res[0]['delivery_boy_id'],$id,"Order Status Updated to ".ucwords($postStatus),$message_delivery_boy,'order_status');
                 }
             } else if ($res[0]['delivery_boy_id'] == 0 && $postStatus == 'processed') {
-                $message_delivery_boy = "Hello, A new order (ID : #".$id.") is ready for delivery. Please check your app to accept it.";
-                $deferred = false;
-                if ($is_book_for_later && $booked_delivery_dt instanceof DateTime) {
-                    $notify_at = clone $booked_delivery_dt;
-                    $notify_at->modify('-30 minutes');
-                    if ($notify_at > new DateTime()) {
-                        $sched = array(
-                            'order_id'=>$id,
-                            'delivery_boy_id'=>'0',
-                            'title'=>'New Order Ready for Delivery',
-                            'message'=>$message_delivery_boy,
-                            'type'=>'order_status',
-                            'order_type'=>'food',
-                            'scheduled_for'=>$notify_at->format('Y-m-d H:i:s'),
-                            'status'=>'pending'
-                        );
-                        $db->insert('scheduled_delivery_boy_notifications',$sched);
-                        $db->getResult();
-                        $deferred = true;
-                    }
-                }
-                if (!$deferred) {
-                    // Two-stage dispatch: Phase-1 notifies only online boys in
-                    // the order's zone within 4 km of the restaurant; Phase-2
-                    // broadcasts to all online boys after 60 seconds.
-                    $function->dispatch_new_order('food', $id, 'New Order Ready for Delivery', $message_delivery_boy);
-                }
+            
+$message_delivery_boy = "Hello, A new order (ID : #".$id.") is ready for delivery. Please check your app to accept it.";
+
+$deferred = false;
+
+if ($is_book_for_later && $booked_delivery_dt instanceof DateTime) {
+    $notify_at = clone $booked_delivery_dt;
+    $notify_at->modify('-30 minutes');
+
+    if ($notify_at > new DateTime()) {
+        $sched = array(
+            'order_id' => $id,
+            'delivery_boy_id' => '0',
+            'title' => 'New Order Ready for Delivery',
+            'message' => $message_delivery_boy,
+            'type' => 'order_status',
+            'order_type' => 'food',
+            'scheduled_for' => $notify_at->format('Y-m-d H:i:s'),
+            'status' => 'pending'
+        );
+
+        $db->insert('scheduled_delivery_boy_notifications', $sched);
+        $db->getResult();
+        $deferred = true;
+    }
+}
+
+if (!$deferred) {
+    // Regular orders dispatch immediately using the two-phase flow.
+    // Book-later orders are scheduled 30 minutes before delivery.
+    $function->dispatch_new_order(
+        'food',
+        $id,
+        'New Order Ready for Delivery',
+        $message_delivery_boy
+    );
+}
+
             }
             }
 // sendSms($mobile,$message,$country_code);
