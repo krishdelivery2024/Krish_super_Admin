@@ -1123,7 +1123,7 @@
 		
 		if(isset($_GET['search'])){
 			$search = $_GET['search'];
-			$where = " Where u.`id` like '%".$search."%' OR u.`name` like '%".$search."%' OR u.`email` like '%".$search."%' OR u.`mobile` like '%".$search."%' OR u.`company_name` like '%".$search."%'";
+			$where = " Where u.`id` like '%".$search."%' OR u.`name` like '%".$search."%' OR u.`email` like '%".$search."%' OR u.`mobile` like '%".$search."%' OR u.`company_name` like '%".$search."%' OR u.`commission` like '%".$search."%'";
 		}
 		if(isset($_GET['filter_order_status']) && $_GET['filter_order_status'] !=''){
 			$filter_order = $_GET['filter_order'];
@@ -1156,6 +1156,8 @@
 		$bulkData['total'] = $total;
 		$rows = array();
 		$tempRow = array();
+		$sellers_sys_config = $fn->get_configurations();
+		$global_seller_comm = isset($sellers_sys_config['seller_commission']) && $sellers_sys_config['seller_commission'] !== '' ? floatval($sellers_sys_config['seller_commission']) : 0.0;
 		
 		foreach($res as $row){
 		    $operate = ' <a href="edit-seller.php?id='.$row['id'].'"><i class="fa fa-edit"></i>Edit</a>';
@@ -1169,6 +1171,10 @@
 			$tempRow['email'] = $row['email'];
 			$tempRow['company_name'] = $row['company_name'];
 			$tempRow['zone_name'] = $row['zone_name'];
+			$seller_comm = (isset($row['commission']) && $row['commission'] !== '' && floatval($row['commission']) > 0)
+			    ? floatval($row['commission'])
+			    : $global_seller_comm;
+			$tempRow['commission'] = $seller_comm . '%';
 			if($row['status']==0)
 			    $tempRow['status']="<label class='label label-danger'>Inactive</label>";
             else
@@ -1783,6 +1789,8 @@ if ($role === 'sub admin') {
 		$bulkData['total'] = $total;
 		$rows = array();
 		$tempRow = array();
+		$db_sys_config = $fn->get_configurations();
+		$global_db_comm = isset($db_sys_config['delivery_boy_commission']) && $db_sys_config['delivery_boy_commission'] !== '' ? floatval($db_sys_config['delivery_boy_commission']) : (isset($db_sys_config['delivery-boy-bonus-percentage']) ? floatval($db_sys_config['delivery-boy-bonus-percentage']) : 0.0);
 		
 		foreach($res as $row){
 			$sql = "SELECT sname FROM `stores` WHERE id=".$row['store_id'];
@@ -1818,7 +1826,11 @@ if ($role === 'sub admin') {
 			$tempRow['store'] = (!empty($res1))?$res1[0]['sname']:'';
 			$tempRow['address'] = $row['address'];
 			$tempRow['zone_id'] = $row['zone_id'];
-			$tempRow['bonus'] = $row['bonus'];
+			$tempRow['bonus_raw'] = $row['bonus'];
+			$tempRow['bonus'] = (isset($row['bonus']) && $row['bonus'] !== '') ? $row['bonus'] . '%' : '0%';
+			$boy_comm = (isset($row['commission']) && $row['commission'] !== '' && floatval($row['commission']) > 0) ? floatval($row['commission']) : $global_db_comm;
+			$tempRow['commission_raw'] = $boy_comm;
+			$tempRow['commission'] = '₹' . number_format($boy_comm, 2);
 			$tempRow['balance'] = $row['balance'];
 			$tempRow['aadhaar'] = $row['aadhaar'];
 			$tempRow['driving_license'] = $row['driving_license'];
@@ -2759,6 +2771,8 @@ if ($role === 'sub admin') {
             'delivery_boy_zone_name' => 'dz.name',
             'delivery_charge'     => 'o.delivery_charge',
             'final_total'         => 'o.final_total',
+            'platform_fee'        => 'o.platform_fee',
+            'convenience_fee'     => 'o.convenience_fee',
             'payment_method'      => 'o.payment_method',
             'active_status'       => 'o.active_status',
         );
@@ -2810,12 +2824,34 @@ if ($role === 'sub admin') {
         } elseif ($zone_filter_id > 0) {
             $extra_filters .= " AND o.zone_id = '" . $zone_filter_id . "' ";
         }
+
+        // ================= Order status filter =================
+        $order_status_raw = isset($_GET['order_status']) ? strtolower(trim($_GET['order_status'])) : '';
+        if (!empty($order_status_raw)) {
+            if ($order_status_raw === 'delivered' || $order_status_raw === 'completed') {
+                $extra_filters .= " AND o.active_status IN ('delivered', 'completed') ";
+            } elseif ($order_status_raw === 'cancelled' || $order_status_raw === 'canceled') {
+                $extra_filters .= " AND o.active_status IN ('cancelled', 'canceled') ";
+            } elseif ($order_status_raw === 'received' || $order_status_raw === 'pending') {
+                $extra_filters .= " AND o.active_status IN ('received', 'pending') ";
+            } elseif ($order_status_raw === 'processed' || $order_status_raw === 'processing') {
+                $extra_filters .= " AND o.active_status IN ('processed', 'processing') ";
+            } elseif ($order_status_raw === 'shipped') {
+                $extra_filters .= " AND o.active_status = 'shipped' ";
+            } elseif ($order_status_raw === 'returned') {
+                $extra_filters .= " AND o.active_status = 'returned' ";
+            } else {
+                $extra_filters .= " AND o.active_status = '" . $db->escapeString($order_status_raw) . "' ";
+            }
+        }
      
         $select_block = "
             SELECT
                 o.id,
                 db.name             AS delivery_boy_name,
                 db.mobile           AS delivery_boy_mobile,
+                db.bonus            AS delivery_boy_bonus,
+                db.commission       AS delivery_boy_commission,
                 db.zone_id          AS delivery_boy_zone_id,
                 dz.name             AS delivery_boy_zone_name,
                 o.zone_id,
@@ -2824,6 +2860,7 @@ if ($role === 'sub admin') {
                 o.final_total,
                 o.delivery_charge,
                 o.platform_fee,
+                o.convenience_fee,
                 o.payment_method,
                 o.active_status,
      
@@ -2929,13 +2966,20 @@ if ($role === 'sub admin') {
      
         $status_labels = array(
             'pending'    => 'Pending',
+            'received'   => 'Received',
             'processing' => 'Processing',
-            'completed'  => 'Completed',
-            'delivered'  => 'Completed',
+            'processed'  => 'Processed',
+            'shipped'    => 'Shipped',
+            'completed'  => 'Delivered',
+            'delivered'  => 'Delivered',
             'cancelled'  => 'Cancelled',
             'canceled'   => 'Cancelled',
+            'returned'   => 'Returned',
         );
      
+        $db_report_sys_config = $fn->get_configurations();
+        $global_db_comm = isset($db_report_sys_config['delivery_boy_commission']) && $db_report_sys_config['delivery_boy_commission'] !== '' ? floatval($db_report_sys_config['delivery_boy_commission']) : (isset($db_report_sys_config['delivery-boy-bonus-percentage']) ? floatval($db_report_sys_config['delivery-boy-bonus-percentage']) : 0.0);
+
         foreach ($res as $row) {
      
             if (!is_array($row)) {
@@ -2967,6 +3011,15 @@ if ($role === 'sub admin') {
             // Read from the order instead of a hardcoded 2, so a zone that
             // overrides the platform fee reports what was actually charged.
             $tempRow['platform_fee']    = !empty($row['platform_fee']) ? $row['platform_fee'] : '0';
+            $tempRow['convenience_fee'] = !empty($row['convenience_fee']) ? $row['convenience_fee'] : '0';
+
+            // Delivery Boy Commission is a fixed amount (default 5 Rs) for every order
+            $db_comm_amt = (isset($row['delivery_boy_commission']) && $row['delivery_boy_commission'] !== '' && floatval($row['delivery_boy_commission']) > 0)
+                ? floatval($row['delivery_boy_commission'])
+                : $global_db_comm;
+
+            $tempRow['commission_percent'] = '₹' . number_format($db_comm_amt, 2);
+            $tempRow['commission_amount']  = number_format($db_comm_amt, 2, '.', '');
 
             // NOTE: payment_method used as-is (assumed already stored as
             // "Cash on Delivery" / "Online Payment"), same as sales report.
@@ -3018,6 +3071,8 @@ if ($role === 'sub admin') {
             'order_date'      => 'o.date_added',
             'zone_name'       => 'z.name',
             'final_total'     => 'o.final_total',
+            'platform_fee'    => 'o.platform_fee',
+            'convenience_fee' => 'o.convenience_fee',
             'payment_method'  => 'o.payment_method',
             'active_status'   => 'o.active_status',
         );
@@ -3067,10 +3122,32 @@ if ($role === 'sub admin') {
         if (!$is_seller && $seller_filter_id > 0) {
             $extra_filters .= " AND o.seller_id = '" . $seller_filter_id . "' ";
         }
-        if ($zone_filter_id === 0) {
-            $extra_filters .= " AND o.zone_id IS NULL ";
-        } elseif ($zone_filter_id > 0) {
-            $extra_filters .= " AND o.zone_id = '" . $zone_filter_id . "' ";
+        if (!$is_seller) {
+            if ($zone_filter_id === 0) {
+                $extra_filters .= " AND o.zone_id IS NULL ";
+            } elseif ($zone_filter_id > 0) {
+                $extra_filters .= " AND o.zone_id = '" . $zone_filter_id . "' ";
+            }
+        }
+
+        // ================= Order status filter =================
+        $order_status_raw = isset($_GET['order_status']) ? strtolower(trim($_GET['order_status'])) : '';
+        if (!empty($order_status_raw)) {
+            if ($order_status_raw === 'delivered' || $order_status_raw === 'completed') {
+                $extra_filters .= " AND o.active_status IN ('delivered', 'completed') ";
+            } elseif ($order_status_raw === 'cancelled' || $order_status_raw === 'canceled') {
+                $extra_filters .= " AND o.active_status IN ('cancelled', 'canceled') ";
+            } elseif ($order_status_raw === 'received' || $order_status_raw === 'pending') {
+                $extra_filters .= " AND o.active_status IN ('received', 'pending') ";
+            } elseif ($order_status_raw === 'processed' || $order_status_raw === 'processing') {
+                $extra_filters .= " AND o.active_status IN ('processed', 'processing') ";
+            } elseif ($order_status_raw === 'shipped') {
+                $extra_filters .= " AND o.active_status = 'shipped' ";
+            } elseif ($order_status_raw === 'returned') {
+                $extra_filters .= " AND o.active_status = 'returned' ";
+            } else {
+                $extra_filters .= " AND o.active_status = '" . $db->escapeString($order_status_raw) . "' ";
+            }
         }
      
         // ================= COMMON SELECT / JOIN BLOCK =================
@@ -3080,6 +3157,7 @@ if ($role === 'sub admin') {
                 o.id,
                 se.name            AS seller_name,
                 se.mobile          AS seller_mobile,
+                se.commission      AS seller_commission,
                 us.name             AS user_name,
                 us.mobile           AS user_mobile,
                 o.address,
@@ -3088,6 +3166,7 @@ if ($role === 'sub admin') {
                 o.date_added,
                 o.final_total,
                 o.platform_fee,
+                o.convenience_fee,
                 o.payment_method,
                 o.active_status,
      
@@ -3214,13 +3293,20 @@ if ($role === 'sub admin') {
         // values if your active_status column uses different codes.
         $status_labels = array(
             'pending'    => 'Pending',
+            'received'   => 'Received',
             'processing' => 'Processing',
-            'completed'  => 'Completed',
-            'delivered'  => 'Completed',
+            'processed'  => 'Processed',
+            'shipped'    => 'Shipped',
+            'completed'  => 'Delivered',
+            'delivered'  => 'Delivered',
             'cancelled'  => 'Cancelled',
             'canceled'   => 'Cancelled',
+            'returned'   => 'Returned',
         );
      
+        $sales_sys_config = $fn->get_configurations();
+        $global_seller_comm = isset($sales_sys_config['seller_commission']) && $sales_sys_config['seller_commission'] !== '' ? floatval($sales_sys_config['seller_commission']) : 0.0;
+
         foreach ($res as $row) {
      
             if (!is_array($row)) {
@@ -3249,6 +3335,7 @@ if ($role === 'sub admin') {
             // Read from the order instead of a hardcoded 2, so a zone that
             // overrides the platform fee reports what was actually charged.
             $tempRow['platform_fee']   = !empty($row['platform_fee']) ? $row['platform_fee'] : '0';
+            $tempRow['convenience_fee'] = !empty($row['convenience_fee']) ? $row['convenience_fee'] : '0';
      
             // NOTE: payment_method is used as-is (assumed to already be
             // stored/displayed as "Cash on Delivery" / "Online Payment").
@@ -3273,6 +3360,15 @@ if ($role === 'sub admin') {
                 $tempRow['discounted_price'] = !empty($row['discounted_price_list'])
                     ? explode('||', $row['discounted_price_list'])
                     : array('0');
+
+                $comm_pct = (isset($row['seller_commission']) && $row['seller_commission'] !== '' && floatval($row['seller_commission']) > 0)
+                    ? floatval($row['seller_commission'])
+                    : $global_seller_comm;
+                $final_tot = isset($row['final_total']) ? floatval($row['final_total']) : 0.0;
+                $comm_amt = round(($final_tot * $comm_pct) / 100, 2);
+
+                $tempRow['commission_percent'] = $comm_pct . '%';
+                $tempRow['commission_amount']  = number_format($comm_amt, 2, '.', '');
             }
      
             $rows[] = $tempRow;
@@ -4476,13 +4572,31 @@ FROM
 				}else{
 					$tempRow['convenience_fee'] = '<span class="label label-info">'.rtrim(rtrim(number_format((float)$row['convenience_fee'], 2), '0'), '.').'%</span>';
 				}
+				$nearby_radius = isset($row['nearby_radius_km']) ? $row['nearby_radius_km'] : null;
+				if($nearby_radius===null || $nearby_radius===''){
+					$tempRow['nearby_radius'] = '<span class="label label-default">Global</span>';
+				}else{
+					$tempRow['nearby_radius'] = '<span class="label label-info">'.rtrim(rtrim(number_format((float)$nearby_radius, 2), '0'), '.').' km</span>';
+				}
+				// Daily service window: shown to customers as the "we are closed"
+				// popup when the current time is outside it.
+				$svc_open  = isset($row['service_open_time'])  ? $row['service_open_time']  : null;
+				$svc_close = isset($row['service_close_time']) ? $row['service_close_time'] : null;
+				if($svc_open===null || $svc_open==='' || $svc_close===null || $svc_close===''){
+					$tempRow['service_time'] = '<span class="label label-default">Not set</span>';
+				}else{
+					$tempRow['service_time'] = '<span class="label label-info">'.substr($svc_open,0,5).' - '.substr($svc_close,0,5).'</span>';
+				}
 				$tempRow['operate'] = $operate;
 				// Raw values used to prefill the zone settings edit modal.
 				$tempRow['zone_platform_fee'] = ($row['platform_fee']===null||$row['platform_fee']==='') ? '' : $row['platform_fee'];
 				$tempRow['zone_convenience_fee'] = ($row['convenience_fee']===null||$row['convenience_fee']==='') ? '' : $row['convenience_fee'];
+				$tempRow['zone_nearby_radius_km'] = ($nearby_radius===null||$nearby_radius==='') ? '' : $nearby_radius;
 				$tempRow['zone_announcement_text'] = $row['announcement_text'] === null ? '' : $row['announcement_text'];
 				$tempRow['zone_announcement_enabled'] = (int)$row['announcement_enabled'];
 				$tempRow['zone_announcement_auto_weather'] = (int)$row['announcement_auto_weather'];
+				$tempRow['zone_service_open_time']  = ($svc_open===null||$svc_open==='') ? '' : substr($svc_open,0,5);
+				$tempRow['zone_service_close_time'] = ($svc_close===null||$svc_close==='') ? '' : substr($svc_close,0,5);
 				$rows[] = $tempRow;
 			}
 		}

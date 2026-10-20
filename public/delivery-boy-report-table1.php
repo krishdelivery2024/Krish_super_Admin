@@ -112,6 +112,20 @@
                             </select>
                         </div>
 
+                        <!-- Order Status filter -->
+                        <div class="col-md-2 form-group">
+                            <label for="db_status_filter" class="control-label">Order Status</label>
+                            <select class="form-control" id="db_status_filter" name="order_status">
+                                <option value="">All Orders</option>
+                                <option value="delivered">Delivered</option>
+                                <option value="received">Received</option>
+                                <option value="processed">Processed</option>
+                                <option value="shipped">Shipped</option>
+                                <option value="cancelled">Cancelled</option>
+                                <option value="returned">Returned</option>
+                            </select>
+                        </div>
+
 				        <div class="col-md-2 form-group" style="padding-top:25px;">
 				            <span class="export_db">Export Data</span>
 				        </div>
@@ -148,10 +162,12 @@
                             <th data-field="zone_name" data-sortable="true">Order Zone</th>
                             <th data-field="delivery_boy_zone_name" data-sortable="true">Boy's Zone</th>
                             <th data-field="product_details" data-formatter="productListFormatter">Product / Qty / Unit</th>
-                            <th data-field="discounted_price" data-formatter="priceListFormatter">Discounted Price</th>
+                            <th data-field="discounted_price" data-formatter="priceListFormatter" data-align="right" data-footer-formatter="dbMoneyFormatter">Discounted Price (&#8377;)</th>
                             <th data-field="delivery_charge" data-sortable="true" data-align="right" data-footer-formatter="dbMoneyFormatter">Delivery Charge (&#8377;)</th>
                             <th data-field="final_total" data-sortable="true" data-align="right" data-footer-formatter="dbMoneyFormatter">Final Total (&#8377;)</th>
-                            <th data-field="platform_fee" data-sortable="false" data-align="right" data-footer-formatter="dbMoneyFormatter">Platform Fee (&#8377;)</th>
+                            <th data-field="commission_amount" data-sortable="false" data-align="right" data-footer-formatter="dbMoneyFormatter">Commission (&#8377;)</th>
+                            <th data-field="platform_fee" data-sortable="true" data-align="right" data-footer-formatter="dbMoneyFormatter">Platform Fee (&#8377;)</th>
+                            <th data-field="convenience_fee" data-sortable="true" data-align="right" data-footer-formatter="dbMoneyFormatter">Convenience Fee (&#8377;)</th>
                             <th data-field="payment_method" data-sortable="true">Payment Method</th>
                             <th data-field="active_status" data-sortable="true" data-formatter="statusBadgeFormatter">Order Status</th>
                         </tr>
@@ -174,11 +190,25 @@
         var sum = 0;
         if (data && data.length) {
             for (var i = 0; i < data.length; i++) {
-                var val = data[i] ? data[i][field] : 0;
-                if (typeof val === 'string') {
-                    val = val.replace(/[^0-9.\-]/g, '');
+                var row = data[i];
+                if (!row) continue;
+                var val = row[field];
+                if (val === undefined || val === null) continue;
+
+                if (Array.isArray(val)) {
+                    for (var j = 0; j < val.length; j++) {
+                        var item = val[j];
+                        if (typeof item === 'string') {
+                            item = item.replace(/[^0-9.\-]/g, '');
+                        }
+                        sum += (parseFloat(item) || 0);
+                    }
+                } else {
+                    if (typeof val === 'string') {
+                        val = val.replace(/[^0-9.\-]/g, '');
+                    }
+                    sum += (parseFloat(val) || 0);
                 }
-                sum += (parseFloat(val) || 0);
             }
         }
         return '<span style="color:green;font-weight:bold;font-size:large;">&#8377; ' + sum.toFixed(2) + '</span>';
@@ -217,10 +247,10 @@
         if (!value) return '-';
         var key = String(value).toLowerCase();
         var cls = 'status-default';
-        if (key === 'pending') cls = 'status-pending';
-        else if (key === 'processing') cls = 'status-processing';
-        else if (key === 'completed') cls = 'status-completed';
-        else if (key === 'cancelled' || key === 'canceled') cls = 'status-cancelled';
+        if (key === 'pending' || key === 'received') cls = 'status-pending';
+        else if (key === 'processing' || key === 'processed' || key === 'shipped') cls = 'status-processing';
+        else if (key === 'completed' || key === 'delivered') cls = 'status-completed';
+        else if (key === 'cancelled' || key === 'canceled' || key === 'returned') cls = 'status-cancelled';
         return '<span class="status-badge ' + cls + '">' + value + '</span>';
     }
 

@@ -123,7 +123,18 @@ $res_main_category = $db->getResult();
                         <option value="2" <?= (2 == $seller['status']) ? 'selected' : '' ?>>Suspended</option>
                 </select>
             </div>
-        </div><br><br>
+        </div>
+
+        <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'super admin'): ?>
+        <div class="form-group">
+            <label class="col-md-2">Commission (%)</label>
+            <div class="col-md-8">
+                <input type="number" step="0.01" min="0" max="100" name="commission" class="form-control" placeholder="Enter Commission %" value="<?= htmlspecialchars($seller['commission'] ?? '0') ?>">
+                <p class="help-block" style="color: #737373; font-size: 12px; margin-top: 5px;">Commission percentage for this seller (only visible to Super Admin).</p>
+            </div>
+        </div>
+        <?php endif; ?>
+        <br><br>
 
         <div class="form-group text-center">
             <div class="col-md-offset-2 col-md-3">

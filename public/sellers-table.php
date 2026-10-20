@@ -43,6 +43,7 @@
                     <th data-field="email" data-sortable="true">Email</th>
                     <th data-field="company_name" data-sortable="true">Company Name</th>
                     <th data-field="zone_name" data-sortable="true">Zone</th>
+                    <th data-field="commission" data-sortable="true">Commission (%)</th>
                     <th data-field="status" data-sortable="false">Status</th>
                     <th data-field="date_created" data-sortable="true">Created At</th>
                     <th data-field="operate" data-sortable="false">Action</th>

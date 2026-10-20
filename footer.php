@@ -156,6 +156,10 @@
                                                    <input type="number" class="form-control"  name="update_bonus" id="update_bonus">
                                                 </div>
                                                 <div class="form-group">
+                                                   <label for="">Commission (₹ per order)</label>
+                                                   <input type="number" step="0.01" min="0" class="form-control" name="update_commission" id="update_commission" placeholder="Enter Commission in ₹">
+                                                </div>
+                                                <div class="form-group">
                                                     <label for="">Service Type</label>
                                                     <select class="form-control" name="update_service_type" id="update_service_type">
                                                         <option value="both">Both (Food &amp; Parcel)</option>
@@ -4016,7 +4020,8 @@ $(document).on('change','#loose',function(){
             $('#update_mobile').val(row.mobile);
             $('#store_id1').val(row.store_id);
             $('#update_address').val(row.address);
-            $('#update_bonus').val(row.bonus);
+            $('#update_bonus').val(row.bonus_raw !== undefined ? row.bonus_raw : (row.bonus ? parseFloat(row.bonus) : '0'));
+            $('#update_commission').val(row.commission_raw !== undefined ? row.commission_raw : (row.commission ? parseFloat(row.commission) : '0'));
             if (row.service_type_value !== undefined && row.service_type_value != null && row.service_type_value != '')
                 $('#update_service_type').val(row.service_type_value);
             else

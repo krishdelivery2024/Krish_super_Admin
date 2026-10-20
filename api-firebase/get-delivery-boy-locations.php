@@ -111,12 +111,12 @@ if (isset($config['system_timezone'], $config['system_timezone_gmt'])) {
 
 $fresh_seconds = 120;
 
-$where = " WHERE active_status = 'true'
-    AND status = 1
-    AND latitude IS NOT NULL
-    AND longitude IS NOT NULL
-    AND location_updated_at IS NOT NULL
-    AND location_updated_at >= (NOW() - INTERVAL " .
+$where = " WHERE d.active_status = 'true'
+    AND d.status = 1
+    AND d.latitude IS NOT NULL
+    AND d.longitude IS NOT NULL
+    AND d.location_updated_at IS NOT NULL
+    AND d.location_updated_at >= (UTC_TIMESTAMP() - INTERVAL " .
     (int) $fresh_seconds . " SECOND)";
 
 /*
@@ -138,16 +138,18 @@ if ($role === 'sub admin') {
     if (empty($zoneIds)) {
         $where .= " AND 1 = 0";
     } else {
-        $where .= " AND zone_id IN (" . implode(',', $zoneIds) . ")";
+        $where .= " AND d.zone_id IN (" . implode(',', $zoneIds) . ")";
     }
 }
 
 
-$sql = "SELECT id, name, mobile, zone_id, latitude, longitude,
-        location_updated_at,
-        TIMESTAMPDIFF(SECOND, location_updated_at, NOW()) AS age_seconds
-        FROM delivery_boys" . $where . "
-        ORDER BY location_updated_at DESC";
+$sql = "SELECT d.id, d.name, d.mobile, d.address, d.balance, d.bonus, d.service_type, d.profile, d.zone_id,
+        d.latitude, d.longitude, d.location_updated_at,
+        z.name AS zone_name,
+        TIMESTAMPDIFF(SECOND, d.location_updated_at, UTC_TIMESTAMP()) AS age_seconds
+        FROM delivery_boys d
+        LEFT JOIN zone z ON z.id = d.zone_id" . $where . "
+        ORDER BY d.location_updated_at DESC";
 
 $db->sql($sql);
 $res = $db->getResult();
@@ -156,12 +158,21 @@ $data = array();
 
 if (!empty($res)) {
     foreach ($res as $row) {
+        $profile_img = '';
+        if (!empty($row['profile'])) {
+            $profile_img = (strpos($row['profile'], 'http') === 0) ? $row['profile'] : DOMAIN_URL . $row['profile'];
+        }
         $data[] = array(
             'id' => (int) $row['id'],
             'name' => $row['name'],
             'mobile' => $row['mobile'],
-            'zone_id' => ($row['zone_id'] === null
-                ? null : (int) $row['zone_id']),
+            'address' => isset($row['address']) ? $row['address'] : '',
+            'balance' => isset($row['balance']) ? (float)$row['balance'] : 0,
+            'bonus' => isset($row['bonus']) ? (float)$row['bonus'] : 0,
+            'service_type' => isset($row['service_type']) ? $row['service_type'] : 'both',
+            'profile' => $profile_img,
+            'zone_id' => ($row['zone_id'] === null ? null : (int) $row['zone_id']),
+            'zone_name' => (!empty($row['zone_name']) ? $row['zone_name'] : 'All Zones'),
             'latitude' => (float) $row['latitude'],
             'longitude' => (float) $row['longitude'],
             'location_updated_at' => $row['location_updated_at'],
