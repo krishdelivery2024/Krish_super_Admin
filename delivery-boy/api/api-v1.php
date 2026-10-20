@@ -485,7 +485,7 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 	// For 'new' orders, the delivery boy ID is passed as get_orders_by_delivery_boy_id value
 	// e.g. get_orders_by_delivery_boy_id=10 means id=10
 	$caller_id = $id;
-	if (empty($caller_id) && isset($_POST['get_orders_by_delivery_boy_id']) && is_numeric($_POST['get_orders_by_delivery_boy_id']) && intval($_POST['get_orders_by_delivery_boy_id']) > 1) {
+	if (empty($caller_id) && isset($_POST['get_orders_by_delivery_boy_id']) && is_numeric($_POST['get_orders_by_delivery_boy_id'])) {
 		$caller_id = $db->escapeString(trim($fn->xss_clean($_POST['get_orders_by_delivery_boy_id'])));
 	}
 
@@ -516,8 +516,8 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 		die;
 	}
 
-	if ($status == 'new' && !empty($id)) {
-		$sql_check = "SELECT active_status FROM delivery_boys WHERE id='$id'";
+	if ($status == 'new' && !empty($caller_id)) {
+		$sql_check = "SELECT active_status FROM delivery_boys WHERE id='$caller_id'";
 		$db->sql($sql_check);
 		$res_check = $db->getResult();
 		if (!empty($res_check) && $res_check[0]['active_status'] == 'false') {
@@ -545,7 +545,10 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 		}
 	}
 
-	if (empty($where)) {
+        if ($status == "new" && empty($where)) {
+                $where = " WHERE 1=1";
+                $where .= (!empty($order_id)) ? " AND o.id = $order_id" : "";
+        } else if ($status != "new" && empty($where)) {
 		if (empty($id)) {
 			$where .= (!empty($order_id)) ? " WHERE o.id = $order_id" : "";
 		} else {
@@ -553,7 +556,7 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 			$where .= (!empty($order_id)) ? " AND o.id = $order_id" : "";
 		}
 	} else {
-		$where .= (!empty($id)) ? " AND delivery_boy_id = " . $id : "";
+		$where .= (!empty($id) && $status != "new") ? " AND delivery_boy_id = " . $id : "";
 		$where .= (!empty($order_id)) ? " AND o.id = $order_id" : "";
 	}
 
@@ -565,7 +568,7 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 		} else if ($_POST['status'] == 'past') {
 			$where .= " AND active_status != 'received' AND active_status != 'processed' AND active_status != 'shipped'";
 		} else if ($_POST['status'] == 'new') {
-			$where .= " AND active_status != 'delivered' AND active_status != 'cancelled' AND active_status != 'returned' AND delivery_boy_id ='0' ";
+				$where .= " AND o.active_status = 'processed' AND delivery_boy_id = '0' AND (o.delivery_method IS NULL OR LOWER(TRIM(o.delivery_method)) != 'storepickup') AND (o.dispatch_stage IN ('phase1', 'phase2') OR o.dispatch_stage IS NULL OR o.dispatch_stage = '') ";
 			// Exclude orders this delivery boy has already rejected
 			if (!empty($caller_id)) {
 				$where .= " AND (rejected_by IS NULL OR rejected_by = '' OR NOT FIND_IN_SET('$caller_id', rejected_by)) ";
@@ -1089,14 +1092,14 @@ if (isset($_POST['accept_order_delivery_boy'])) {
 			// Accept at the same instant.
 			$db->update('orders',
 				array('delivery_boy_id' => $id, 'accept_status' => $status, 'dispatch_stage' => 'assigned'),
-				"id = '$order_id' AND active_status NOT IN ('delivered','cancelled','returned') AND delivery_boy_id = '0'");
+				"id = '$order_id' AND active_status = 'processed' AND delivery_boy_id = '0'");
 			$aff = $db->getResult();
 			$affected = (!empty($aff)) ? (int)$aff[0] : 0;
 			if ($affected === 1) {
 				$response['error'] = false;
 				$response['message'] = "Order Accepted Susseccfully";
 			} else {
-				$db->sql("SELECT delivery_boy_id FROM orders WHERE id = '$order_id'");
+				$db->sql("SELECT delivery_boy_id, active_status FROM orders WHERE id = '$order_id'");
 				$res_taken = $db->getResult();
 				if (!empty($res_taken) && isset($res_taken[0]['delivery_boy_id']) && (int)$res_taken[0]['delivery_boy_id'] !== 0) {
 					$response['error'] = true;

@@ -768,7 +768,7 @@ class custom_functions{
     }
     
     public function send_notification_to_delivery_boy($delivery_boy_id,$title,$message,$type,$order_id,$order_type='food'){
-        if($_SERVER['REQUEST_METHOD']=='POST'){
+        if(isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD']=='POST'){
         //hecking the required params 
             //creating a new push
             /*dynamically getting the domain of the app*/
