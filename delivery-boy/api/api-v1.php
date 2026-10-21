@@ -625,12 +625,24 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 	// Phase-1 for 60+ seconds is broadcast to the whole network while the boy
 	// is already polling. The guarded transition fires the push only once.
 	if (isset($_POST['status']) && $_POST['status'] == 'new') {
-		foreach ($res as $row_dispatch) {
-			if (isset($row_dispatch['delivery_boy_id']) && (int)$row_dispatch['delivery_boy_id'] === 0) {
-				$fn->escalate_due_dispatch('food', (int)$row_dispatch['id']);
-			}
-		}
-	}
+        // Auto-dispatch any orders accepted by seller that haven't been claimed for Phase 1
+        $db->sql("SELECT id FROM orders WHERE (dispatch_stage IS NULL OR dispatch_stage = '') AND delivery_boy_id = '0' AND active_status = 'processed' AND (delivery_method IS NULL OR LOWER(TRIM(delivery_method)) != 'storepickup')");
+        $unclaimed_orders = $db->getResult();
+        if (!empty($unclaimed_orders)) {
+                foreach ($unclaimed_orders as $u_row) {
+                        $fn->dispatch_new_order('food', (int)$u_row['id']);
+                }
+        }
+
+        $wait_sec = (int)custom_functions::DISPATCH_PHASE1_WAIT_SECONDS;
+        $db->sql("SELECT id FROM orders WHERE dispatch_stage = 'phase1' AND delivery_boy_id = '0' AND dispatch_phase1_at IS NOT NULL AND dispatch_phase1_at <= NOW() - INTERVAL $wait_sec SECOND AND active_status = 'processed'");
+        $due_orders = $db->getResult();
+        if (!empty($due_orders)) {
+                foreach ($due_orders as $d_row) {
+                        $fn->escalate_due_dispatch('food', (int)$d_row['id']);
+                }
+        }
+}
 
 	for ($i = 0; $i < count($res); $i++) {
 		$sql = "select oi.*,p.name as name, v.measurement,p.image, (SELECT short_code FROM unit un where un.id=v.measurement_unit_id)as mesurement_unit_name from `order_items` oi
@@ -941,15 +953,21 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 		if (isset($_POST['status'])) {
 
 			// STATUS = NEW -> distance between delivery boy (live) and seller (pickup point)
-			if ($_POST['status'] == 'new') {
+		if ($_POST['status'] == 'new') {
+        $distance = calculateDistance(
+                $deliveryboylatitude,
+                $deliveryboylongtitude,
+                $seller_latitude,
+                $seller_longitude
+        );
 
-				$distance = calculateDistance(
-					$deliveryboylatitude,
-					$deliveryboylongtitude,
-					$seller_latitude,
-					$seller_longitude
-				);
-			}
+        // Phase-1 constraint: only delivery boys within 4 km of seller get to see/accept during Phase 1
+        if (isset($row['dispatch_stage']) && $row['dispatch_stage'] == 'phase1') {
+                if ($distance > (float)custom_functions::DISPATCH_PHASE1_RADIUS_KM || empty($deliveryboylatitude) || empty($deliveryboylongtitude)) {
+                        continue; // Not within 4 km during Phase-1 batch; skip until Phase-2 broadcast
+                }
+        }
+}
 
 			// STATUS = ACTIVE -> distance between delivery boy (live) and customer (drop point)
 			// NOTE: previously this used seller_lat/lng -> user_lat/lng, which meant

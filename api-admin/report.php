@@ -45,7 +45,7 @@ switch ($type) {
     // ==============================
     case 'high_selling_products':
         $filter = dateFilter($_POST['start_date'] ?? '', $_POST['end_date'] ?? '', 'oi.date_added');
-        $sql = "SELECT p.name, v.product_id, SUM(oi.quantity) AS qty,
+        $sql = "SELECT p.name, v.product_id, SUM(oi.quantity) AS qty, 
                     CONCAT(v.measurement, ' ', (SELECT short_code FROM unit un WHERE un.id = v.measurement_unit_id)) AS measurement,
                     ROUND(IFNULL(SUM(COALESCE(NULLIF(oi.vendor_price, ''), NULLIF(v.vendor_price, ''), oi.price, 0) * oi.quantity), 0), 2) AS amount,
                     COUNT(DISTINCT o.id) AS order_count,
@@ -98,54 +98,54 @@ switch ($type) {
         $reports = [];
 
         // Today Sales (vendor price)
-        $sql_today = "SELECT ROUND(IFNULL(SUM(COALESCE(NULLIF(oi.vendor_price, ''), NULLIF(pv.vendor_price, ''), oi.price, 0) * oi.quantity), 0), 2) AS total
+        $sql_today = "SELECT ROUND(IFNULL(SUM(COALESCE(NULLIF(oi.vendor_price, ''), NULLIF(pv.vendor_price, ''), oi.price, 0) * oi.quantity), 0), 2) AS total 
                       FROM orders o
                       JOIN order_items oi ON oi.order_id = o.id
                       LEFT JOIN product_variant pv ON pv.id = oi.product_variant_id
-                      WHERE o.seller_id = $seller_id
-                      AND o.active_status!='cancelled'
-                      AND oi.active_status!='cancelled'
+                      WHERE o.seller_id = $seller_id 
+                      AND o.active_status!='cancelled' 
+                      AND oi.active_status!='cancelled' 
                       AND o.date_added BETWEEN '$today' AND '$tomorrow'";
         $db->sql($sql_today);
         $reports['today_sales'] = $db->getResult()[0]['total'] ?? 0;
 
         // Weekly Sales (vendor price)
-        $sql_week = "SELECT ROUND(IFNULL(SUM(COALESCE(NULLIF(oi.vendor_price, ''), NULLIF(pv.vendor_price, ''), oi.price, 0) * oi.quantity), 0), 2) AS total
+        $sql_week = "SELECT ROUND(IFNULL(SUM(COALESCE(NULLIF(oi.vendor_price, ''), NULLIF(pv.vendor_price, ''), oi.price, 0) * oi.quantity), 0), 2) AS total 
                      FROM orders o
                      JOIN order_items oi ON oi.order_id = o.id
                      LEFT JOIN product_variant pv ON pv.id = oi.product_variant_id
-                     WHERE o.seller_id = $seller_id
-                     AND o.active_status!='cancelled'
-                     AND oi.active_status!='cancelled'
+                     WHERE o.seller_id = $seller_id 
+                     AND o.active_status!='cancelled' 
+                     AND oi.active_status!='cancelled' 
                      AND o.date_added >= '$week_start'";
         $db->sql($sql_week);
         $reports['weekly_sales'] = $db->getResult()[0]['total'] ?? 0;
 
         // Monthly Sales (vendor price)
-        $sql_month = "SELECT ROUND(IFNULL(SUM(COALESCE(NULLIF(oi.vendor_price, ''), NULLIF(pv.vendor_price, ''), oi.price, 0) * oi.quantity), 0), 2) AS total
+        $sql_month = "SELECT ROUND(IFNULL(SUM(COALESCE(NULLIF(oi.vendor_price, ''), NULLIF(pv.vendor_price, ''), oi.price, 0) * oi.quantity), 0), 2) AS total 
                       FROM orders o
                       JOIN order_items oi ON oi.order_id = o.id
                       LEFT JOIN product_variant pv ON pv.id = oi.product_variant_id
-                      WHERE o.seller_id = $seller_id
-                      AND o.active_status!='cancelled'
-                      AND oi.active_status!='cancelled'
+                      WHERE o.seller_id = $seller_id 
+                      AND o.active_status!='cancelled' 
+                      AND oi.active_status!='cancelled' 
                       AND o.date_added >= '$month_start'";
         $db->sql($sql_month);
         $reports['monthly_sales'] = $db->getResult()[0]['total'] ?? 0;
 
         // Total Sales (vendor price)
-        $sql_total = "SELECT ROUND(IFNULL(SUM(COALESCE(NULLIF(oi.vendor_price, ''), NULLIF(pv.vendor_price, ''), oi.price, 0) * oi.quantity), 0), 2) AS total
+        $sql_total = "SELECT ROUND(IFNULL(SUM(COALESCE(NULLIF(oi.vendor_price, ''), NULLIF(pv.vendor_price, ''), oi.price, 0) * oi.quantity), 0), 2) AS total 
                       FROM orders o
                       JOIN order_items oi ON oi.order_id = o.id
                       LEFT JOIN product_variant pv ON pv.id = oi.product_variant_id
-                      WHERE o.seller_id = $seller_id
-                      AND o.active_status!='cancelled'
+                      WHERE o.seller_id = $seller_id 
+                      AND o.active_status!='cancelled' 
                       AND oi.active_status!='cancelled'";
         $db->sql($sql_total);
         $reports['total_sales'] = $db->getResult()[0]['total'] ?? 0;
 
         // Add counts
-        $sql_counts = "SELECT
+        $sql_counts = "SELECT 
                           COUNT(CASE WHEN date_added BETWEEN '$today' AND '$tomorrow' THEN id END) AS today_orders,
                           COUNT(CASE WHEN date_added >= '$week_start' THEN id END) AS weekly_orders,
                           COUNT(CASE WHEN date_added >= '$month_start' THEN id END) AS monthly_orders,
@@ -184,7 +184,7 @@ switch ($type) {
                     ), 0), 2) AS amount,
                     (SELECT COUNT(id) FROM order_items WHERE order_id = o.id AND active_status != 'cancelled') AS items_count
                 FROM orders o
-                WHERE o.seller_id = $seller_id AND o.active_status != 'cancelled' $filter
+                WHERE o.seller_id = $seller_id AND o.active_status = 'delivered' $filter
                 ORDER BY o.id DESC";
         break;
 
@@ -193,11 +193,11 @@ switch ($type) {
     // ==============================
     case 'settlement_report':
         $filter = dateFilter($_POST['start_date'] ?? '', $_POST['end_date'] ?? '', 'o.date_added');
-
+        
         $response_data = array();
 
         // 1. Total Orders Count
-        $sql_orders = "SELECT COUNT(id) AS total_orders FROM orders o WHERE o.seller_id = $seller_id AND o.active_status != 'cancelled' $filter";
+        $sql_orders = "SELECT COUNT(id) AS total_orders FROM orders o WHERE o.seller_id = $seller_id AND o.active_status = 'delivered' $filter";
         $db->sql($sql_orders);
         $total_orders = intval($db->getResult()[0]['total_orders'] ?? 0);
 
@@ -206,8 +206,8 @@ switch ($type) {
                        FROM orders o
                        JOIN order_items oi ON oi.order_id = o.id
                        LEFT JOIN product_variant pv ON pv.id = oi.product_variant_id
-                       WHERE o.seller_id = $seller_id
-                       AND o.active_status != 'cancelled'
+                       WHERE o.seller_id = $seller_id 
+                       AND o.active_status = 'delivered' 
                        AND oi.active_status != 'cancelled' $filter";
         $db->sql($sql_amount);
         $total_amount = floatval($db->getResult()[0]['total_amount'] ?? 0);

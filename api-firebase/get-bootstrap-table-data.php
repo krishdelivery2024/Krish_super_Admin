@@ -1707,7 +1707,7 @@ $where = '';
 $allowed_sort_columns = array(
     'id', 'name', 'mobile', 'store_id', 'address',
     'bonus', 'balance', 'active_status', 'status',
-    'zone_id', 'service_type'
+    'zone_id', 'zone_name', 'service_type'
 );
 
 $requested_sort = isset($_GET['sort']) ? (string)$_GET['sort'] : 'id';
@@ -1722,7 +1722,7 @@ $order = in_array($requested_order, array('ASC', 'DESC'), true)
 		
 		if(isset($_GET['search']) && $_GET['search'] !=''){
 			$search = $db->escapeString($_GET['search']);
-			$where = " Where (`id` like '%".$search."%' OR `name` like '%".$search."%' OR `mobile` like '%".$search."%' OR `address` like '%".$search."%')";
+			$where = " Where (d.`id` like '%".$search."%' OR d.`name` like '%".$search."%' OR d.`mobile` like '%".$search."%' OR d.`address` like '%".$search."%' OR z.`name` like '%".$search."%')";
 		}
 
 		// Online/offline filter. active_status is an enum('true','false') set by
@@ -1732,9 +1732,9 @@ $order = in_array($requested_order, array('ASC', 'DESC'), true)
 		if(isset($_GET['online']) && $_GET['online'] != ''){
 			$online_filter = strtolower(trim($db->escapeString($_GET['online'])));
 			if($online_filter === 'online'){
-				$online_cond = "`active_status` = 'true'";
+				$online_cond = "d.`active_status` = 'true'";
 			}elseif($online_filter === 'offline'){
-				$online_cond = "`active_status` = 'false'";
+				$online_cond = "d.`active_status` = 'false'";
 			}else{
 				$online_cond = '';
 			}
@@ -1747,6 +1747,22 @@ $order = in_array($requested_order, array('ASC', 'DESC'), true)
 			}
 		}
 
+		// Zone filter
+		$filter_zone_id = '';
+		if(isset($_GET['zone_id']) && $_GET['zone_id'] !== ''){
+			$filter_zone_id = trim($_GET['zone_id']);
+		}elseif(isset($_GET['filter_zone']) && $_GET['filter_zone'] !== ''){
+			$filter_zone_id = trim($_GET['filter_zone']);
+		}
+		if($filter_zone_id !== ''){
+			$fz = (int)$filter_zone_id;
+			$zone_cond = ($fz === 0) ? "(d.`zone_id` IS NULL OR d.`zone_id` = 0)" : "d.`zone_id` = " . $fz;
+			if($where === ''){
+				$where = " Where " . $zone_cond;
+			}else{
+				$where .= " AND " . $zone_cond;
+			}
+		}
 
 if ($role === 'sub admin') {
     $zone_ids = array();
@@ -1764,7 +1780,7 @@ if ($role === 'sub admin') {
 
     $zone_condition = empty($zone_ids)
         ? '1 = 0'
-        : '`zone_id` IN (' . implode(',', $zone_ids) . ')';
+        : 'd.`zone_id` IN (' . implode(',', $zone_ids) . ')';
 
     if ($where === '') {
         $where = ' WHERE ' . $zone_condition;
@@ -1774,13 +1790,14 @@ if ($role === 'sub admin') {
 }
 
 		
-		$sql = "SELECT COUNT(*) as total FROM `delivery_boys` ".$where;
+		$sql = "SELECT COUNT(*) as total FROM `delivery_boys` d LEFT JOIN `zone` z ON z.id = d.zone_id ".$where;
 		$db->sql($sql);
 		$res = $db->getResult();
 		foreach($res as $row)
 			$total = $row['total'];
 		
-		$sql = "SELECT * FROM `delivery_boys` ".$where." ORDER BY ".$sort." ".$order." LIMIT ".$offset.", ".$limit;
+		$sort_col = ($sort === 'zone_name') ? 'z.name' : 'd.`'.$sort.'`';
+		$sql = "SELECT d.*, IFNULL(z.name, 'All Zones') as zone_name FROM `delivery_boys` d LEFT JOIN `zone` z ON z.id = d.zone_id ".$where." ORDER BY ".$sort_col." ".$order." LIMIT ".$offset.", ".$limit;
 		//echo $sql;
 		$db->sql($sql);
 		$res = $db->getResult();
@@ -1826,6 +1843,9 @@ if ($role === 'sub admin') {
 			$tempRow['store'] = (!empty($res1))?$res1[0]['sname']:'';
 			$tempRow['address'] = $row['address'];
 			$tempRow['zone_id'] = $row['zone_id'];
+			$tempRow['zone_name'] = (!empty($row['zone_id']) && !empty($row['zone_name']) && $row['zone_name'] !== 'All Zones')
+				? "<label class='label label-info'>".htmlspecialchars($row['zone_name'], ENT_QUOTES, 'UTF-8')."</label>"
+				: "<label class='label label-default'>All Zones</label>";
 			$tempRow['bonus_raw'] = $row['bonus'];
 			$tempRow['bonus'] = (isset($row['bonus']) && $row['bonus'] !== '') ? $row['bonus'] . '%' : '0%';
 			$boy_comm = (isset($row['commission']) && $row['commission'] !== '' && floatval($row['commission']) > 0) ? floatval($row['commission']) : $global_db_comm;
@@ -2771,6 +2791,8 @@ if ($role === 'sub admin') {
             'delivery_boy_zone_name' => 'dz.name',
             'delivery_charge'     => 'o.delivery_charge',
             'final_total'         => 'o.final_total',
+            'platform_fee'        => 'o.platform_fee',
+            'convenience_fee'     => 'o.convenience_fee',
             'payment_method'      => 'o.payment_method',
             'active_status'       => 'o.active_status',
         );
@@ -2858,6 +2880,7 @@ if ($role === 'sub admin') {
                 o.final_total,
                 o.delivery_charge,
                 o.platform_fee,
+                o.convenience_fee,
                 o.payment_method,
                 o.active_status,
      
@@ -3008,6 +3031,7 @@ if ($role === 'sub admin') {
             // Read from the order instead of a hardcoded 2, so a zone that
             // overrides the platform fee reports what was actually charged.
             $tempRow['platform_fee']    = !empty($row['platform_fee']) ? $row['platform_fee'] : '0';
+            $tempRow['convenience_fee'] = !empty($row['convenience_fee']) ? $row['convenience_fee'] : '0';
 
             // Delivery Boy Commission is a fixed amount (default 5 Rs) for every order
             $db_comm_amt = (isset($row['delivery_boy_commission']) && $row['delivery_boy_commission'] !== '' && floatval($row['delivery_boy_commission']) > 0)
@@ -3067,6 +3091,8 @@ if ($role === 'sub admin') {
             'order_date'      => 'o.date_added',
             'zone_name'       => 'z.name',
             'final_total'     => 'o.final_total',
+            'platform_fee'    => 'o.platform_fee',
+            'convenience_fee' => 'o.convenience_fee',
             'payment_method'  => 'o.payment_method',
             'active_status'   => 'o.active_status',
         );
@@ -3160,6 +3186,7 @@ if ($role === 'sub admin') {
                 o.date_added,
                 o.final_total,
                 o.platform_fee,
+                o.convenience_fee,
                 o.payment_method,
                 o.active_status,
      
@@ -3328,6 +3355,7 @@ if ($role === 'sub admin') {
             // Read from the order instead of a hardcoded 2, so a zone that
             // overrides the platform fee reports what was actually charged.
             $tempRow['platform_fee']   = !empty($row['platform_fee']) ? $row['platform_fee'] : '0';
+            $tempRow['convenience_fee'] = !empty($row['convenience_fee']) ? $row['convenience_fee'] : '0';
      
             // NOTE: payment_method is used as-is (assumed to already be
             // stored/displayed as "Cash on Delivery" / "Online Payment").
