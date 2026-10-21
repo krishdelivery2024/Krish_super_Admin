@@ -1,0 +1,6 @@
+DirectoryIndex landing.php index.php
+
+RewriteEngine On
+
+# Route authadmin or authadmin/ to index.php (Admin Login)
+RewriteRule ^authadmin/?$ index.php [L,QSA]

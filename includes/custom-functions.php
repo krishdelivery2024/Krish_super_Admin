@@ -768,7 +768,7 @@ class custom_functions{
     }
     
     public function send_notification_to_delivery_boy($delivery_boy_id,$title,$message,$type,$order_id,$order_type='food'){
-        if($_SERVER['REQUEST_METHOD']=='POST'){
+        if(isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD']=='POST'){
         //hecking the required params 
             //creating a new push
             /*dynamically getting the domain of the app*/
@@ -958,7 +958,7 @@ class custom_functions{
     private function claim_dispatch_phase1($order_type, $order_id){
         $status_guard = ($order_type === 'parcel')
             ? "status IN ('pending','accepted')"
-            : "active_status NOT IN ('delivered','cancelled','returned')";
+            : "active_status = 'processed'";
         $table = ($order_type === 'parcel') ? 'parcel_requests' : 'orders';
         // Phase-1 timestamp comes from MySQL's own clock (NOW()) so the stored
         // value and the Phase-2 "NOW() - INTERVAL 60 SECOND" check share one
@@ -982,7 +982,7 @@ class custom_functions{
     private function promote_dispatch_to_phase2($order_type, $order_id){
         $status_guard = ($order_type === 'parcel')
             ? "status IN ('pending','accepted')"
-            : "active_status NOT IN ('delivered','cancelled','returned')";
+            : "active_status = 'processed'";
         $wait = (int)self::DISPATCH_PHASE1_WAIT_SECONDS;
         $this->db->update(
             ($order_type === 'parcel') ? 'parcel_requests' : 'orders',
@@ -2736,6 +2736,200 @@ public function get_permissions($id){
             isset($effective['closing_time']) ? $effective['closing_time'] : null
         );
         return ($manual && $open);
+    }
+
+    /**
+     * Minutes since midnight on the store clock (system_timezone). Cached per
+     * request so a whole seller list is compared against one point in time.
+     */
+    public function get_store_now_minutes(){
+        static $now_min = null;
+        if($now_min !== null){
+            return $now_min;
+        }
+        $config = $this->get_configurations();
+        $timezone = (!empty($config) && isset($config['system_timezone']) && !empty($config['system_timezone']))
+            ? $config['system_timezone'] : 'Asia/Kolkata';
+        date_default_timezone_set($timezone);
+        $now_min = ((int)date('G') * 60) + (int)date('i');
+        return $now_min;
+    }
+
+    /**
+     * Whether a seller/store is currently open. Mirrors the check used when an
+     * order is placed (order-process.php): the manual store_status switch plus
+     * the optional daily opening/closing window. A missing window is treated as
+     * always open. $seller_row is a row from the `seller` table.
+     */
+    public function is_seller_open_now($seller_row, $now_min = null){
+        if($now_min === null){
+            $now_min = $this->get_store_now_minutes();
+        }
+        if(isset($seller_row['store_status']) && $seller_row['store_status'] === 'false'){
+            return false;
+        }
+        $open_time  = isset($seller_row['opening_time'])  ? $seller_row['opening_time']  : '';
+        $close_time = isset($seller_row['closing_time']) ? $seller_row['closing_time'] : '';
+        if($open_time === '' || $open_time === null || $close_time === '' || $close_time === null){
+            return true; // no window configured
+        }
+        $op = explode(':', $open_time);
+        $open_min = ((isset($op[0]) ? (int)$op[0] : 0) * 60) + (isset($op[1]) ? (int)$op[1] : 0);
+        $cp = explode(':', $close_time);
+        $close_min = ((isset($cp[0]) ? (int)$cp[0] : 0) * 60) + (isset($cp[1]) ? (int)$cp[1] : 0);
+        if($open_min === $close_min){
+            return true; // zero-length window => 24 hours
+        }
+        if($open_min < $close_min){
+            return ($now_min >= $open_min && $now_min < $close_min);
+        }
+        // Overnight window, e.g. 22:00 -> 06:00.
+        return ($now_min >= $open_min || $now_min < $close_min);
+    }
+
+    /**
+     * Radius (km) within which a customer's zone shows nearby stores.
+     *
+     * The value is per zone (`zone.nearby_radius_km`) and falls back to the
+     * global "nearby_store_radius_km" system setting, then to 4 km. A NULL or
+     * blank zone value means "inherit the global setting", the same convention
+     * used by the per-zone fees.
+     *
+     * The zone column is looked up once per request; if the migration that adds
+     * it has not been run yet the global default is used instead of risking a
+     * SQL error on a column that does not exist.
+     */
+    public function get_zone_store_radius_km($zone_id){
+        $default = 4.0;
+        $config = $this->get_configurations();
+        if(is_array($config) && isset($config['nearby_store_radius_km'])
+            && $config['nearby_store_radius_km'] !== '' && is_numeric($config['nearby_store_radius_km'])
+            && (float)$config['nearby_store_radius_km'] >= 0){
+            $default = (float)$config['nearby_store_radius_km'];
+        }
+
+        $zone_id = is_numeric($zone_id) ? (int)$zone_id : 0;
+        if($zone_id <= 0){
+            return $default;
+        }
+
+        static $has_column = null;
+        if($has_column === null){
+            $this->db->sql("SHOW COLUMNS FROM `zone` LIKE 'nearby_radius_km'");
+            $has_column = !empty($this->db->getResult());
+        }
+        if(!$has_column){
+            return $default;
+        }
+
+        $this->db->sql("SELECT nearby_radius_km FROM `zone` WHERE id=".$zone_id." LIMIT 1");
+        $row = $this->db->getResult();
+        if(!empty($row) && isset($row[0]['nearby_radius_km'])
+            && $row[0]['nearby_radius_km'] !== null && $row[0]['nearby_radius_km'] !== ''
+            && is_numeric($row[0]['nearby_radius_km'])){
+            return (float)$row[0]['nearby_radius_km'];
+        }
+        return $default;
+    }
+
+    /** Minutes since midnight for a stored TIME value ("HH:MM" / "HH:MM:SS"). */
+    public function get_zone_service_time_minutes($time){
+        $parts = explode(':', (string)$time);
+        $h = isset($parts[0]) ? (int)$parts[0] : 0;
+        $i = isset($parts[1]) ? (int)$parts[1] : 0;
+        return ($h * 60) + $i;
+    }
+
+    /** Pretty 12-hour label for a stored TIME value, e.g. "10:00 AM". */
+    public function get_zone_service_time_label($time){
+        $min = $this->get_zone_service_time_minutes($time);
+        $h = intdiv($min, 60) % 24;
+        $i = $min % 60;
+        $ampm = ($h < 12) ? 'AM' : 'PM';
+        $h12 = $h % 12;
+        if($h12 === 0){
+            $h12 = 12;
+        }
+        return sprintf('%d:%02d %s', $h12, $i, $ampm);
+    }
+
+    /**
+     * Daily service window configured per zone (admin -> Zone Settings).
+     *
+     * Drives the user app's "Sorry, we are closed for the day" popup. Returns
+     * whether a window is configured ('restricted'), whether the store clock is
+     * currently inside it ('open'), the raw and pretty start/end times, and a
+     * ready-made 'message' for the popup body.
+     *
+     * A zone with no window (either end NULL/blank) returns restricted=0, which
+     * the app treats as "never show the popup". The window is evaluated on the
+     * same store clock (system_timezone) used for seller opening hours, and
+     * overnight windows (e.g. 18:00 -> 02:00) are handled.
+     *
+     * The columns are looked up once per request; if the migration that adds
+     * them has not been run the popup stays off instead of risking a SQL error
+     * on a column that does not exist.
+     */
+    public function get_zone_service_status($zone_id){
+        $out = array(
+            'restricted'  => 0,
+            'open'        => 1,
+            'start'       => '',
+            'end'         => '',
+            'start_label' => '',
+            'end_label'   => '',
+            'message'     => '',
+        );
+
+        $zone_id = is_numeric($zone_id) ? (int)$zone_id : 0;
+        if($zone_id <= 0){
+            return $out;
+        }
+
+        static $has_column = null;
+        if($has_column === null){
+            $this->db->sql("SHOW COLUMNS FROM `zone` LIKE 'service_open_time'");
+            $has_column = !empty($this->db->getResult());
+        }
+        if(!$has_column){
+            return $out;
+        }
+
+        $this->db->sql("SELECT service_open_time, service_close_time FROM `zone` WHERE id=".$zone_id." LIMIT 1");
+        $rows = $this->db->getResult();
+        if(empty($rows)){
+            return $out;
+        }
+        $open_raw  = isset($rows[0]['service_open_time'])  ? $rows[0]['service_open_time']  : null;
+        $close_raw = isset($rows[0]['service_close_time']) ? $rows[0]['service_close_time'] : null;
+        if($open_raw === null || $open_raw === '' || $close_raw === null || $close_raw === ''){
+            return $out;
+        }
+
+        $open_min  = $this->get_zone_service_time_minutes($open_raw);
+        $close_min = $this->get_zone_service_time_minutes($close_raw);
+        $now_min   = $this->get_store_now_minutes();
+
+        if($open_min === $close_min){
+            $is_open = true; // zero-length window => treat as 24 hours
+        }elseif($open_min < $close_min){
+            $is_open = ($now_min >= $open_min && $now_min < $close_min);
+        }else{
+            // Overnight window, e.g. 18:00 -> 02:00.
+            $is_open = ($now_min >= $open_min || $now_min < $close_min);
+        }
+
+        $start_label = $this->get_zone_service_time_label($open_raw);
+        $end_label   = $this->get_zone_service_time_label($close_raw);
+
+        $out['restricted']  = 1;
+        $out['open']        = $is_open ? 1 : 0;
+        $out['start']       = substr($open_raw, 0, 5);
+        $out['end']         = substr($close_raw, 0, 5);
+        $out['start_label'] = $start_label;
+        $out['end_label']   = $end_label;
+        $out['message']     = 'We are daily serviceable between '.$start_label.' and '.$end_label.'. Please schedule your order anytime in this slot.';
+        return $out;
     }
 }
 

@@ -14,10 +14,10 @@ define('WP_DEBUG_DISPLAY', true); */
  error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-define('DOMAIN_URL','http://127.0.0.1/Krish/production/'); /* chnage to your domain here - Don't forget to add forward slash at the end like this "/" */
-// define('DOMAIN_URL','https://www.krishdelivery.com/'); /* chnage to your domain here - Don't forget to add forward slash at the end like this "/" */
+// define('DOMAIN_URL','http://127.0.0.1/Krish/production/'); /* chnage to your domain here - Don't forget to add forward slash at the end like this "/" */
+define('DOMAIN_URL','https://www.krishdelivery.com/'); /* chnage to your domain here - Don't forget to add forward slash at the end like this "/" */
 define('JWT_SECRET_KEY','HS256'); /* chnage to your secret key here - you can set anything here - make sure same you set on android side as well */
-define('sms_max_limit_count','100');
+define('sms_max_limit_count','300');
 define('push_notificastion_max_limit_count', '1000');
 
 define('PUSHER_INSTANCE_ID','5ab3483a-d917-4bfd-a2a1-03a0d2e8ce1d');
@@ -33,15 +33,20 @@ class Database{
      * Database class
      */
 
-    private $db_host = "localhost";
-    private $db_user = "root";  
-    private $db_pass = ""; 
-    private $db_name = "live_db";  
+    // private $db_host = "localhost";
+    // private $db_user = "root";  
+    // private $db_pass = ""; 
+    // private $db_name = "live_db";  
 
     // private $db_host = "localhost";
     // private $db_user = "krishdelivery";
     // private $db_pass = "KrishDelivery@123";
     // private $db_name = "krishdelivery_staging";
+
+      private $db_host = "localhost";
+    private $db_user = "krishuser_prod";  
+    private $db_pass = "KrishDelivery@123";  
+    private $db_name = "krishdelivery_prod";  
     
     /*
      * Extra variables that are required by other function such as boolean con variable
@@ -56,6 +61,7 @@ class Database{
     public function connect(){
         if(!$this->con){
             $this->myconn = new mysqli($this->db_host,$this->db_user,$this->db_pass,$this->db_name);  // mysql_connect() with variables defined at the start of Database class
+          $this->myconn->query("SET SESSION sql_mode = 'NO_ZERO_IN_DATE,NO_ZERO_DATE,NO_ENGINE_SUBSTITUTION'");
             if($this->myconn->connect_errno > 0){
                 array_push($this->result,$this->myconn->connect_error);
                 return false; // Problem selecting database return FALSE
