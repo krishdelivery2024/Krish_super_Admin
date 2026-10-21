@@ -73,17 +73,60 @@ if ($is_super_admin && isset($_POST['commission'])) {
     $commission_sql = "commission = '$commission',";
 }
 
+// Handle file upload (image & banner)
+$target_dir = "../upload/sellers/";
+if (!is_dir($target_dir)) {
+    mkdir($target_dir, 0777, true);
+}
+
+$allowed_extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+$image_sql = "";
+$banner_sql = "";
+
+if (isset($_FILES['image']) && $_FILES['image']['error'] === 0 && $_FILES['image']['size'] > 0) {
+    $ext = strtolower(pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION));
+    if (in_array($ext, $allowed_extensions)) {
+        $image_name = uniqid("img_") . "." . $ext;
+        if (move_uploaded_file($_FILES['image']['tmp_name'], $target_dir . $image_name)) {
+            // Remove old image if present
+            $db->sql("SELECT image FROM seller WHERE id='$id'");
+            $old_img_res = $db->getResult();
+            if (!empty($old_img_res[0]['image']) && file_exists($target_dir . $old_img_res[0]['image'])) {
+                @unlink($target_dir . $old_img_res[0]['image']);
+            }
+            $image_sql = "image = '$image_name',";
+        }
+    }
+}
+
+if (isset($_FILES['banner']) && $_FILES['banner']['error'] === 0 && $_FILES['banner']['size'] > 0) {
+    $ext = strtolower(pathinfo($_FILES['banner']['name'], PATHINFO_EXTENSION));
+    if (in_array($ext, $allowed_extensions)) {
+        $banner_name = uniqid("banner_") . "." . $ext;
+        if (move_uploaded_file($_FILES['banner']['tmp_name'], $target_dir . $banner_name)) {
+            // Remove old banner if present
+            $db->sql("SELECT banner FROM seller WHERE id='$id'");
+            $old_ban_res = $db->getResult();
+            if (!empty($old_ban_res[0]['banner']) && file_exists($target_dir . $old_ban_res[0]['banner'])) {
+                @unlink($target_dir . $old_ban_res[0]['banner']);
+            }
+            $banner_sql = "banner = '$banner_name',";
+        }
+    }
+}
+
 // Update query
 $sql = "UPDATE seller SET 
     name = '$name',
     email = '$email',
     mobile = '$mobile',
     company_name = '$company_name',
-     company_legal_name = '$company_legal_name',
+    company_legal_name = '$company_legal_name',
     personal_address = '$personal_addr',
     company_address = '$company_addr',
     store_address = '$store_address',
-
+    $image_sql
+    $banner_sql
     latitude = '$latitude',
     longitude = '$longitude',
     

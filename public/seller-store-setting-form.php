@@ -33,7 +33,7 @@ $res_main_category = $db->getResult();
 
 <div class="container">
     <h2 class="text-center">Seller Store Details</h2>
-    <form id="editSellerForm" method="post" class="form-horizontal">
+    <form id="editSellerForm" method="post" enctype="multipart/form-data" class="form-horizontal">
         <input type="hidden" class="form-control" name="id" value="<?= $seller['id'] ?>">
 
         <?php
@@ -68,7 +68,42 @@ $res_main_category = $db->getResult();
             false,
             "company_address"
         );
-        ?> 
+        ?>
+
+        <div class="form-group">
+            <label class="col-md-2 control-label">Company Logo</label>
+            <div class="col-md-8">
+                <?php if (!empty($seller['image'])): ?>
+                    <div style="margin-bottom: 8px;">
+                        <img id="preview_seller_image" src="<?= 'upload/sellers/' . $seller['image'] ?>" alt="Company Logo" style="max-height: 100px; max-width: 200px; border-radius: 4px; border: 1px solid #ddd; padding: 3px; display: block;">
+                    </div>
+                <?php else: ?>
+                    <div style="margin-bottom: 8px;">
+                        <img id="preview_seller_image" src="" alt="Company Logo Preview" style="max-height: 100px; max-width: 200px; border-radius: 4px; border: 1px solid #ddd; padding: 3px; display: none;">
+                    </div>
+                <?php endif; ?>
+                <input type="file" name="image" id="seller_image" class="form-control" accept="image/*">
+                <small class="text-muted">Upload to update logo (PNG, JPG, WEBP). Automatically compressed to under 300 KB.</small>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="col-md-2 control-label">Company Banner</label>
+            <div class="col-md-8">
+                <?php if (!empty($seller['banner'])): ?>
+                    <div style="margin-bottom: 8px;">
+                        <img id="preview_seller_banner" src="<?= 'upload/sellers/' . $seller['banner'] ?>" alt="Company Banner" style="max-height: 120px; max-width: 100%; border-radius: 4px; border: 1px solid #ddd; padding: 3px; display: block;">
+                    </div>
+                <?php else: ?>
+                    <div style="margin-bottom: 8px;">
+                        <img id="preview_seller_banner" src="" alt="Company Banner Preview" style="max-height: 120px; max-width: 100%; border-radius: 4px; border: 1px solid #ddd; padding: 3px; display: none;">
+                    </div>
+                <?php endif; ?>
+                <input type="file" name="banner" id="seller_banner" class="form-control" accept="image/*">
+                <small class="text-muted">Upload to update banner (PNG, JPG, WEBP). Automatically compressed to under 300 KB.</small>
+            </div>
+        </div>
+        ?>
 
         <input type="hidden" id="latitude" name="latitude" value="<?= $seller['latitude'] ?? '' ?>">
         <input type="hidden" id="longitude" name="longitude" value="<?= $seller['longitude'] ?? '' ?>">
@@ -203,28 +238,174 @@ $res_main_category = $db->getResult();
             src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDYXBYj5sA6nxiNvUsSrQKWSvytDzVRM7I&callback=initSellerStoreMap"></script>
 
 <script>
+var SELLER_MAX_BYTES = 300 * 1024;
+var SELLER_MAX_EDGE = 1600;
+
+function compressImageToTarget(file, maxBytes, done) {
+    if (file.size <= maxBytes) {
+        done(file);
+        return;
+    }
+
+    var reader = new FileReader();
+
+    reader.onerror = function () {
+        done(file);
+    };
+
+    reader.onload = function (e) {
+        var img = new Image();
+
+        img.onerror = function () {
+            done(file);
+        };
+
+        img.onload = function () {
+            var canvas = document.createElement('canvas');
+            var ctx = canvas.getContext('2d');
+            var scale = Math.min(1, SELLER_MAX_EDGE / Math.max(img.width, img.height));
+            var width = Math.max(1, Math.round(img.width * scale));
+            var height = Math.max(1, Math.round(img.height * scale));
+            var quality = 0.85;
+            var qualityFloor = 0.4;
+
+            function attempt() {
+                canvas.width = width;
+                canvas.height = height;
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, width, height);
+                ctx.drawImage(img, 0, 0, width, height);
+
+                canvas.toBlob(function (blob) {
+                    if (!blob) {
+                        done(file);
+                        return;
+                    }
+                    if (blob.size <= maxBytes) {
+                        done(blob);
+                        return;
+                    }
+                    if (quality > qualityFloor) {
+                        quality -= 0.1;
+                        attempt();
+                        return;
+                    }
+                    if (width > 160 || height > 160) {
+                        width = Math.max(64, Math.round(width * 0.8));
+                        height = Math.max(64, Math.round(height * 0.8));
+                        quality = 0.85;
+                        attempt();
+                        return;
+                    }
+                    done(blob);
+                }, 'image/jpeg', quality);
+            }
+
+            attempt();
+        };
+
+        img.src = e.target.result;
+    };
+
+    reader.readAsDataURL(file);
+}
+
+function prepareFormData(form, done) {
+    var formData = new FormData(form);
+    var fields = ['image', 'banner'].filter(function (name) {
+        var value = formData.get(name);
+        return value instanceof File && value.size > 0 && /^image\//.test(value.type);
+    });
+
+    if (!fields.length) {
+        done(formData);
+        return;
+    }
+
+    var pending = fields.length;
+
+    fields.forEach(function (fieldName) {
+        var original = formData.get(fieldName);
+
+        compressImageToTarget(original, SELLER_MAX_BYTES, function (blob) {
+            if (blob === original) {
+                formData.set(fieldName, blob, original.name);
+            } else {
+                var base = original.name.replace(/\.[^.]+$/, '') || fieldName;
+                formData.set(fieldName, blob, base + '.jpg');
+            }
+
+            console.log(fieldName + ': ' + original.size + ' -> ' + blob.size + ' bytes'
+                + (blob.size > SELLER_MAX_BYTES ? '  OVER BUDGET' : ''));
+
+            if (--pending === 0) {
+                done(formData);
+            }
+        });
+    });
+}
+
 $(document).ready(function () {
     $('select').selectize({ sortField: 'text' });
 
+    $('#seller_image').on('change', function () {
+        var file = this.files[0];
+        if (file && /^image\//.test(file.type)) {
+            var reader = new FileReader();
+            reader.onload = function (e) {
+                $('#preview_seller_image').attr('src', e.target.result).show();
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    $('#seller_banner').on('change', function () {
+        var file = this.files[0];
+        if (file && /^image\//.test(file.type)) {
+            var reader = new FileReader();
+            reader.onload = function (e) {
+                $('#preview_seller_banner').attr('src', e.target.result).show();
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
     $('#editSellerForm').on('submit', function (e) {
         e.preventDefault();
-        $.ajax({
-            url: 'public/update-seller.php',
-            type: 'POST',
-            dataType: 'json',
-            data: $('#editSellerForm').serialize(),
-            success: function (response) {
-                if (!response.error) {
-                    alert(response.message);
-                } else {
-                    alert('Error: ' + response.message);
-                }
-            },
-            error: function () {
-                alert('Something went wrong.');
-            }
-        });
+        var form = this;
+        var $btn = $(form).find('button[type="submit"]');
+        var originalBtnText = $btn.html();
+        $btn.prop('disabled', true).html('Preparing images...');
 
+        prepareFormData(form, function (formData) {
+            $btn.html('Updating...');
+            $.ajax({
+                url: 'public/update-seller.php',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                dataType: 'json',
+                success: function (response) {
+                    if (!response.error) {
+                        alert(response.message);
+                        location.reload();
+                    } else {
+                        alert('Error: ' + response.message);
+                    }
+                },
+                error: function (xhr) {
+                    if (xhr.status === 413) {
+                        alert('Images are too large. Please upload smaller photos.');
+                    } else {
+                        alert('Something went wrong.');
+                    }
+                },
+                complete: function () {
+                    $btn.prop('disabled', false).html(originalBtnText);
+                }
+            });
+        });
     });
 });
 </script>

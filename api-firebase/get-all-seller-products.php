@@ -23,10 +23,8 @@
         $indicator = (isset($_POST['indicator']))?$db->escapeString($fn->xss_clean($_POST['indicator'])):"";
         $category_id = (isset($_POST['category_id']))?$db->escapeString($fn->xss_clean($_POST['category_id'])):"";
 		$sort = (isset($_POST['sort']) && !empty($_POST['sort']))? $db->escapeString($fn->xss_clean($_POST['sort'])) : 'id';
-		$limit=500;
-		$offset=0;
-	    $limit = (isset($_POST['limit']) && !empty($_POST['limit']) && is_numeric($_POST['limit']))? $db->escapeString($fn->xss_clean($_POST['limit'])):'10';
-		$offset = (isset($_POST['offset']) && !empty($_POST['offset']) && is_numeric($_POST['offset']))? $db->escapeString($fn->xss_clean($_POST['offset'])):'0';
+		$limit = (isset($_POST['limit']) && !empty($_POST['limit']) && is_numeric($_POST['limit'])) ? $db->escapeString($fn->xss_clean($_POST['limit'])) : '10';
+		$offset = (isset($_POST['offset']) && !empty($_POST['offset']) && is_numeric($_POST['offset'])) ? $db->escapeString($fn->xss_clean($_POST['offset'])) : '0';
         $where = '';
         if(isset($seller_id) && !empty($seller_id)){
             $where .= " and seller_id = '$seller_id'";
