@@ -81,18 +81,21 @@ if(isset($_POST['type'])){
             // $res[$i]['final_total'] = "$final_total";
             
             $res[$i]['date_added'] = date('d-m-Y h:i:sa', strtotime($res[$i]['date_added']));
-            $sql = "select oi.*,p.name,p.image,v.measurement,(select short_code from unit u where u.id=v.measurement_unit_id) as unit from order_items oi join product_variant v on oi.product_variant_id=v.id join products p on p.id=v.product_id where order_id=".$row['id'];
+            $sql = "select oi.*,p.name,p.image,v.measurement,v.vendor_price as variant_vendor_price,(select short_code from unit u where u.id=v.measurement_unit_id) as unit from order_items oi join product_variant v on oi.product_variant_id=v.id join products p on p.id=v.product_id where order_id=".$row['id'];
             $db->sql($sql);
             $res[$i]['items'] = $db->getResult();
             $res[$i]['status'] = json_decode($res[$i]['status']);
                 
+                $vendor_total = 0;
                 for($j=0; $j < count($res[$i]['items']); $j++){
                     $res[$i]['items'][$j]['status'] = (!empty($res[$i]['items'][$j]['status']))?json_decode($res[$i]['items'][$j]['status']):array();
                     // unset($res[$i]['items'][$j]['status']);
                     $res[$i]['items'][$j]['image'] = DOMAIN_URL.$res[$i]['items'][$j]['image'];
                     
-                    $item_qty         = !empty($res[$i]['items'][$j]['quantity']) ? (float) $res[$i]['items'][$j]['quantity'] : 0;
-                    $item_vendor_price = !empty($res[$i]['items'][$j]['vendor_price']) ? (float) $res[$i]['items'][$j]['vendor_price'] : 0;
+                    $item_qty = !empty($res[$i]['items'][$j]['quantity']) ? (float) $res[$i]['items'][$j]['quantity'] : 0;
+                    $raw_vp = !empty($res[$i]['items'][$j]['vendor_price']) ? $res[$i]['items'][$j]['vendor_price'] : (!empty($res[$i]['items'][$j]['variant_vendor_price']) ? $res[$i]['items'][$j]['variant_vendor_price'] : 0);
+                    $res[$i]['items'][$j]['vendor_price'] = (string)$raw_vp;
+                    $item_vendor_price = (float) $raw_vp;
             
                     $vendor_total += ($item_qty * $item_vendor_price);
                 }
@@ -140,10 +143,11 @@ if(isset($_POST['type'])){
         $final_total = ($res[$i]['final_total']);
         $res[$i]['final_total'] = "$final_total";
         $res[$i]['date_added'] = date('d-m-Y h:i:sa', strtotime($res[$i]['date_added']));
-        $sql = "select oi.*,p.name,p.category_id,p.subcategory_id,p.image,c.name AS category_name,v.measurement,(select short_code from unit u where u.id=v.measurement_unit_id) as unit from order_items oi join product_variant v on oi.product_variant_id=v.id join products p on p.id=v.product_id JOIN category c ON c.id=p.category_id where order_id=".$row['id'];
+        $sql = "select oi.*,p.name,p.category_id,p.subcategory_id,p.image,c.name AS category_name,v.measurement,v.vendor_price as variant_vendor_price,(select short_code from unit u where u.id=v.measurement_unit_id) as unit from order_items oi join product_variant v on oi.product_variant_id=v.id join products p on p.id=v.product_id JOIN category c ON c.id=p.category_id where order_id=".$row['id'];
         $db->sql($sql);
         $res[$i]['items'] = $db->getResult();
         $res[$i]['status'] = json_decode($res[$i]['status']);
+            $vendor_total = 0;
             for($j=0; $j < count($res[$i]['items']); $j++){
                 if($res[$i]['items'][$j]['subcategory_id']==0){
                     $res[$i]['items'][$j]['subcategory_name']='';
@@ -156,7 +160,16 @@ if(isset($_POST['type'])){
                 $res[$i]['items'][$j]['status'] = (!empty($res[$i]['items'][$j]['status']))?json_decode($res[$i]['items'][$j]['status']):array();
                 // unset($res[$i]['items'][$j]['status']);
                 $res[$i]['items'][$j]['image'] = DOMAIN_URL.$res[$i]['items'][$j]['image'];
+
+                $item_qty = !empty($res[$i]['items'][$j]['quantity']) ? (float) $res[$i]['items'][$j]['quantity'] : 0;
+                $raw_vp = !empty($res[$i]['items'][$j]['vendor_price']) ? $res[$i]['items'][$j]['vendor_price'] : (!empty($res[$i]['items'][$j]['variant_vendor_price']) ? $res[$i]['items'][$j]['variant_vendor_price'] : 0);
+                $res[$i]['items'][$j]['vendor_price'] = (string)$raw_vp;
+                $item_vendor_price = (float) $raw_vp;
+
+                $vendor_total += ($item_qty * $item_vendor_price);
             }
+            $res[$i]['total'] = number_format($vendor_total, 2, '.', '');
+            $res[$i]['final_total'] = number_format($vendor_total, 2, '.', '');
         $i++;
     }
         $orders = $order = array();

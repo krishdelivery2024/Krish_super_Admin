@@ -184,7 +184,7 @@ switch ($type) {
                     ), 0), 2) AS amount,
                     (SELECT COUNT(id) FROM order_items WHERE order_id = o.id AND active_status != 'cancelled') AS items_count
                 FROM orders o
-                WHERE o.seller_id = $seller_id AND o.active_status != 'cancelled' $filter
+                WHERE o.seller_id = $seller_id AND o.active_status = 'delivered' $filter
                 ORDER BY o.id DESC";
         break;
 
@@ -197,7 +197,7 @@ switch ($type) {
         $response_data = array();
 
         // 1. Total Orders Count
-        $sql_orders = "SELECT COUNT(id) AS total_orders FROM orders o WHERE o.seller_id = $seller_id AND o.active_status != 'cancelled' $filter";
+        $sql_orders = "SELECT COUNT(id) AS total_orders FROM orders o WHERE o.seller_id = $seller_id AND o.active_status = 'delivered' $filter";
         $db->sql($sql_orders);
         $total_orders = intval($db->getResult()[0]['total_orders'] ?? 0);
 
@@ -207,7 +207,7 @@ switch ($type) {
                        JOIN order_items oi ON oi.order_id = o.id
                        LEFT JOIN product_variant pv ON pv.id = oi.product_variant_id
                        WHERE o.seller_id = $seller_id 
-                       AND o.active_status != 'cancelled' 
+                       AND o.active_status = 'delivered' 
                        AND oi.active_status != 'cancelled' $filter";
         $db->sql($sql_amount);
         $total_amount = floatval($db->getResult()[0]['total_amount'] ?? 0);

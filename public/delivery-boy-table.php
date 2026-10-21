@@ -162,8 +162,14 @@ if ($is_sub_admin) {
             <div class="box">
                 <div class="box-header">
                     <h3 class="box-title">Delivery Boys</h3>
-                    <div class="box-tools pull-right">
-                        <select id="online_filter" class="form-control input-sm" style="width:150px;">
+                    <div class="box-tools pull-right" style="display:flex; gap:8px; align-items:center;">
+                        <select id="table_zone_filter" class="form-control input-sm" style="width:160px; display:inline-block;">
+                            <option value="">All Zones</option>
+                            <?php foreach($zones as $zone){ ?>
+                                <option value="<?=$zone['id']?>"><?=$zone['name']?></option>
+                            <?php } ?>
+                        </select>
+                        <select id="online_filter" class="form-control input-sm" style="width:150px; display:inline-block;">
                             <option value="">All (Online &amp; Offline)</option>
                             <option value="online">Online</option>
                             <option value="offline">Offline</option>
@@ -185,6 +191,7 @@ if ($is_sub_admin) {
                             <th data-field="name" data-sortable="true">Name</th>
                             <th data-field="mobile" data-sortable="true">Mobile</th>
                             <th data-field="address" data-sortable="true">Address</th>
+                            <th data-field="zone_name" data-sortable="true">Zone</th>
                             <th data-field="bonus" data-sortable="true">Bonus(%)</th>
                             <th data-field="commission" data-sortable="true">Commission (&#8377;)</th>
                             <th data-field="balance" data-sortable="true">Balance</th>
@@ -209,17 +216,21 @@ if ($is_sub_admin) {
         <div class="separator"> </div>
     </div>
     <script>
-    // Sends the selected online/offline filter along with each table request.
+    // Sends the selected filters along with each table request.
     // bootstrap-table resolves the data-query-params attribute to this global
     // function, so the filter survives paging, sorting and refreshing.
     window.deliveryBoyQueryParams = function (p) {
         var online = $('#online_filter').val();
+        var zone_id = $('#table_zone_filter').val();
         if (online) {
             p.online = online;
         }
+        if (zone_id) {
+            p.zone_id = zone_id;
+        }
         return p;
     };
-    $(document).on('change', '#online_filter', function () {
+    $(document).on('change', '#online_filter, #table_zone_filter', function () {
         $('#delivery-boys').bootstrapTable('refresh');
     });
     </script>
