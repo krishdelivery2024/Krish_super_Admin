@@ -55,10 +55,7 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'verify-user')) {
 
 		$template_id = "1207178351325943342";
 
-        if (sms_daily_limit_reached($db)) {
-            echo json_encode(["error" => true, "message" => "SMS limit reached. Please try again later."]);
-            exit;
-        }
+		// SMS limit restriction removed
 		
 		if($num_rows > 0){
 		    if($res[0]['status'] == 1){

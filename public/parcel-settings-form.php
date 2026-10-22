@@ -3,7 +3,7 @@
 	include_once('includes/custom-functions.php');
 	$fn = new custom_functions;
 
-	$sql_query = "SELECT per_km_price,base_price,max_weight_kg,terms_conditions,is_service_available,opening_time,closing_time FROM parcel_settings ORDER BY id ASC LIMIT 1";
+	$sql_query = "SELECT per_km_price,base_price,max_weight_kg,terms_conditions,is_service_available,opening_time,closing_time,cod_payment_method,razorpay_payment_method FROM parcel_settings ORDER BY id ASC LIMIT 1";
 	$db->sql($sql_query);
 	$settings_res = $db->getResult();
 	$settings_data = !empty($settings_res) ? $settings_res[0] : array();
@@ -13,6 +13,8 @@
 	$max_weight_kg = isset($settings_data['max_weight_kg']) ? $settings_data['max_weight_kg'] : "";
 	$terms_conditions = isset($settings_data['terms_conditions']) ? $settings_data['terms_conditions'] : "";
 	$is_service_available = isset($settings_data['is_service_available']) ? $settings_data['is_service_available'] : "1";
+	$cod_payment_method = isset($settings_data['cod_payment_method']) ? $settings_data['cod_payment_method'] : "0";
+	$razorpay_payment_method = isset($settings_data['razorpay_payment_method']) ? $settings_data['razorpay_payment_method'] : "1";
 	$opening_time = (isset($settings_data['opening_time']) && $settings_data['opening_time'] !== '' && $settings_data['opening_time'] !== null) ? $settings_data['opening_time'] : "";
 	$closing_time = (isset($settings_data['closing_time']) && $settings_data['closing_time'] !== '' && $settings_data['closing_time'] !== null) ? $settings_data['closing_time'] : "";
 
@@ -26,6 +28,8 @@
 		$max_weight_kg = $db->escapeString($fn->xss_clean($_POST['max_weight_kg']));
 		$terms_conditions = $db->escapeString($fn->xss_clean($_POST['terms_conditions']));
 		$is_service_available = (isset($_POST['is_service_available']) && $_POST['is_service_available'] == '1') ? '1' : '0';
+		$cod_payment_method = (isset($_POST['cod_payment_method']) && $_POST['cod_payment_method'] == '1') ? '1' : '0';
+		$razorpay_payment_method = (isset($_POST['razorpay_payment_method']) && $_POST['razorpay_payment_method'] == '1') ? '1' : '0';
 		$opening_time_input = isset($_POST['opening_time']) ? trim($fn->xss_clean($_POST['opening_time'])) : "";
 		$closing_time_input = isset($_POST['closing_time']) ? trim($fn->xss_clean($_POST['closing_time'])) : "";
 
@@ -60,11 +64,14 @@
 
 		if(empty($error)){
 			if(!empty($settings_data)){
-				$sql_query = "UPDATE parcel_settings SET per_km_price = '$per_km_price', base_price = '$base_price', max_weight_kg = '$max_weight_kg', terms_conditions = '$terms_conditions', is_service_available = '$is_service_available', opening_time = $opening_sql, closing_time = $closing_sql WHERE id = 1";
+				$sql_query = "UPDATE parcel_settings SET per_km_price = '$per_km_price', base_price = '$base_price', max_weight_kg = '$max_weight_kg', terms_conditions = '$terms_conditions', is_service_available = '$is_service_available', cod_payment_method = '$cod_payment_method', razorpay_payment_method = '$razorpay_payment_method', opening_time = $opening_sql, closing_time = $closing_sql WHERE id = 1";
 			}else{
-				$sql_query = "INSERT INTO parcel_settings (per_km_price, base_price, max_weight_kg, terms_conditions, is_service_available, opening_time, closing_time) VALUES ('$per_km_price', '$base_price', '$max_weight_kg', '$terms_conditions', '$is_service_available', $opening_sql, $closing_sql)";
+				$sql_query = "INSERT INTO parcel_settings (per_km_price, base_price, max_weight_kg, terms_conditions, is_service_available, cod_payment_method, razorpay_payment_method, opening_time, closing_time) VALUES ('$per_km_price', '$base_price', '$max_weight_kg', '$terms_conditions', '$is_service_available', '$cod_payment_method', '$razorpay_payment_method', $opening_sql, $closing_sql)";
 			}
 			if($db->sql($sql_query)){
+				$ppm_json = json_encode(array('cod_payment_method' => $cod_payment_method, 'razorpay_payment_method' => $razorpay_payment_method));
+				$db->sql("INSERT INTO settings (variable, value) VALUES ('parcel_payment_methods', '$ppm_json') ON DUPLICATE KEY UPDATE value = '$ppm_json'");
+
 				$error['update_settings'] = "<div class='content-header'><span class='label label-success'>Settings Updated Successfully</span></div>";
 				// Reflect the saved values so a re-render shows them.
 				$opening_time_input = ($opening_sql === "NULL") ? "" : substr($opening_sql, 1, 5);
@@ -166,6 +173,27 @@
                             An overnight window is allowed, e.g. Opening 22:00 and Closing 06:00.
                             This applies on top of the availability switch above.
                         </p>
+                    <div class="form-group col-md-12">
+                        <h4>Parcel Payment Methods</h4>
+                        <hr style="margin-top:5px; margin-bottom:15px;">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label for="parcel-cod-button">Cash on Delivery (COD) <small>[ Enable / Disable ]</small></label>
+                                <div>
+                                    <input type="checkbox" id="parcel-cod-button" class="js-switch" <?php echo $cod_payment_method == '1' ? 'checked' : ''; ?>>
+                                    <input type="hidden" name="cod_payment_method" id="parcel-cod-payment-method" value="<?php echo $cod_payment_method == '1' ? '1' : '0'; ?>">
+                                </div>
+                                <p class="help-block" style="margin-top:5px;">When enabled, the User App Parcel Checkout screen shows both Cash on Delivery and Online Payment. When disabled, the User App calls online payment directly without showing method choices.</p>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="parcel-razorpay-button">Razorpay Online Payment <small>[ Enable / Disable ]</small></label>
+                                <div>
+                                    <input type="checkbox" id="parcel-razorpay-button" class="js-switch" <?php echo $razorpay_payment_method == '1' ? 'checked' : ''; ?>>
+                                    <input type="hidden" name="razorpay_payment_method" id="parcel-razorpay-payment-method" value="<?php echo $razorpay_payment_method == '1' ? '1' : '0'; ?>">
+                                </div>
+                                <p class="help-block" style="margin-top:5px;">Enable online payment through Razorpay for parcel deliveries.</p>
+                            </div>
+                        </div>
                     </div>
                     <div class="form-group col-md-12">
                         <label for="terms_conditions">Terms &amp; Conditions</label><?php echo isset($error['terms_conditions']) ? $error['terms_conditions'] : '';?>
@@ -258,6 +286,20 @@
         var init = new Switchery(zoneParcelServiceCheckbox);
         zoneParcelServiceCheckbox.onchange = function() {
             $('#zone-parcel-is-service-available').val($(this).is(':checked') ? '1' : '0');
+        };
+    }
+    var parcelCodCheckbox = document.querySelector('#parcel-cod-button');
+    if (parcelCodCheckbox) {
+        var initCod = new Switchery(parcelCodCheckbox);
+        parcelCodCheckbox.onchange = function() {
+            $('#parcel-cod-payment-method').val($(this).is(':checked') ? '1' : '0');
+        };
+    }
+    var parcelRzpCheckbox = document.querySelector('#parcel-razorpay-button');
+    if (parcelRzpCheckbox) {
+        var initRzp = new Switchery(parcelRzpCheckbox);
+        parcelRzpCheckbox.onchange = function() {
+            $('#parcel-razorpay-payment-method').val($(this).is(':checked') ? '1' : '0');
         };
     }
 </script>

@@ -109,7 +109,7 @@ function sms_increment_daily_count($db) {
 }
 
 function sms_daily_limit_reached($db) {
-    $limit = defined('sms_max_limit_count') ? intval(sms_max_limit_count) : 100;
-    return sms_get_daily_count($db) >= $limit;
+    // SMS count limit restriction removed: allow unlimited logins across all apps
+    return false;
 }
 ?>

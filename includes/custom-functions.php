@@ -2603,22 +2603,43 @@ public function get_permissions($id){
      * that came from the zone override.
      */
     function get_effective_parcel_settings($zone_id = null){
-        $this->db->sql("SELECT per_km_price, base_price, max_weight_kg, terms_conditions, is_service_available, opening_time, closing_time FROM parcel_settings ORDER BY id ASC LIMIT 1");
+        $this->db->sql("SELECT per_km_price, base_price, max_weight_kg, terms_conditions, is_service_available, opening_time, closing_time, cod_payment_method, razorpay_payment_method FROM parcel_settings ORDER BY id ASC LIMIT 1");
         $res = $this->db->getResult();
         $settings = !empty($res) ? $res[0] : array();
 
+        // Also check settings table for parcel_payment_methods fallback
+        $cod_pm = isset($settings['cod_payment_method']) ? (int)$settings['cod_payment_method'] : null;
+        $rzp_pm = isset($settings['razorpay_payment_method']) ? (int)$settings['razorpay_payment_method'] : null;
+        if ($cod_pm === null || $rzp_pm === null) {
+            $this->db->sql("SELECT value FROM settings WHERE variable = 'parcel_payment_methods'");
+            $ppm_res = $this->db->getResult();
+            if (!empty($ppm_res)) {
+                $ppm = json_decode($ppm_res[0]['value'], true);
+                if (is_array($ppm)) {
+                    if ($cod_pm === null && isset($ppm['cod_payment_method'])) {
+                        $cod_pm = (int)$ppm['cod_payment_method'];
+                    }
+                    if ($rzp_pm === null && isset($ppm['razorpay_payment_method'])) {
+                        $rzp_pm = (int)$ppm['razorpay_payment_method'];
+                    }
+                }
+            }
+        }
+
         $out = array(
-            'per_km_price'         => (isset($settings['per_km_price']) && is_numeric($settings['per_km_price'])) ? (float)$settings['per_km_price'] : 0,
-            'base_price'           => (isset($settings['base_price']) && is_numeric($settings['base_price'])) ? (float)$settings['base_price'] : 0,
-            'max_weight_kg'        => (isset($settings['max_weight_kg']) && is_numeric($settings['max_weight_kg'])) ? (float)$settings['max_weight_kg'] : 0,
-            'terms_conditions'     => isset($settings['terms_conditions']) ? $settings['terms_conditions'] : '',
-            'is_service_available' => isset($settings['is_service_available']) ? (int)$settings['is_service_available'] : 1,
+            'per_km_price'            => (isset($settings['per_km_price']) && is_numeric($settings['per_km_price'])) ? (float)$settings['per_km_price'] : 0,
+            'base_price'              => (isset($settings['base_price']) && is_numeric($settings['base_price'])) ? (float)$settings['base_price'] : 0,
+            'max_weight_kg'           => (isset($settings['max_weight_kg']) && is_numeric($settings['max_weight_kg'])) ? (float)$settings['max_weight_kg'] : 0,
+            'terms_conditions'        => isset($settings['terms_conditions']) ? $settings['terms_conditions'] : '',
+            'is_service_available'    => isset($settings['is_service_available']) ? (int)$settings['is_service_available'] : 1,
+            'cod_payment_method'      => ($cod_pm !== null) ? $cod_pm : 0,
+            'razorpay_payment_method' => ($rzp_pm !== null) ? $rzp_pm : 1,
             // Daily operating window (global only, not overridable per zone).
             // NULL/empty on either end means no time restriction.
-            'opening_time'         => (isset($settings['opening_time']) && $settings['opening_time'] !== '') ? $settings['opening_time'] : null,
-            'closing_time'         => (isset($settings['closing_time']) && $settings['closing_time'] !== '') ? $settings['closing_time'] : null,
-            'zone_id'              => null,
-            'overrides'            => array(),
+            'opening_time'            => (isset($settings['opening_time']) && $settings['opening_time'] !== '') ? $settings['opening_time'] : null,
+            'closing_time'            => (isset($settings['closing_time']) && $settings['closing_time'] !== '') ? $settings['closing_time'] : null,
+            'zone_id'                 => null,
+            'overrides'               => array(),
         );
 
         if($zone_id === null || (int)$zone_id <= 0){

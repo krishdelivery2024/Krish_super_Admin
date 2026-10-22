@@ -179,10 +179,7 @@ if (isset($_POST['login_with_mobile'])) {
 			$messagetext = "Hello Partner, your OTP for Krish Delivery login is " . $otpno . ". Ride safe!";
 			$template_id = "1207178368065673587";
 
-			if (sms_daily_limit_reached($db)) {
-				echo json_encode(["error" => true, "message" => "SMS limit reached. Please try again later."]);
-				exit;
-			}
+			// SMS limit restriction removed
 
 			$delivery_boy_id = $res[0]['id'];
 

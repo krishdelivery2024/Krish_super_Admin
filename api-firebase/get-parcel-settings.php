@@ -49,6 +49,8 @@ if(isset($_POST['accesskey'])) {
 			'operating_hours'      => $hours_label,
 			'zone_id'              => $effective['zone_id'],
 			'zone_overrides'       => $effective['overrides'],
+			'cod_payment_method'   => (string)$effective['cod_payment_method'],
+			'razorpay_payment_method' => (string)$effective['razorpay_payment_method'],
 		);
 		{
 			// append platform fee & tax from store settings (system_timezone row)

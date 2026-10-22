@@ -40,7 +40,23 @@ if(isset($_POST['settings']) ) {
             $settings['message'] = "Something went wrong!";
             print_r(json_encode($settings));
         }
-    }if(isset($_POST['get_privacy'])){
+    }
+    if(isset($_POST['get_parcel_payment_methods'])){
+        $sql = "select value from `settings` where `variable`='parcel_payment_methods'";
+        $db->sql($sql);
+        $res = $db->getResult();
+        if(!empty($res)){
+            $settings['error'] = false;
+            $settings['payment_methods'] = json_decode($res[0]['value']);
+            print_r(json_encode($settings));
+        }else{
+            $settings['error'] = true;
+            $settings['settings'] = "No settings found!";
+            $settings['message'] = "Something went wrong!";
+            print_r(json_encode($settings));
+        }
+    }
+    if(isset($_POST['get_privacy'])){
         $sql = "select value from `settings` where variable='privacy_policy'";
         $db->sql($sql);
         $res = $db->getResult();

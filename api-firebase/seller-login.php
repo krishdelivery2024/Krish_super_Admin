@@ -51,12 +51,7 @@ if($num_rows > 0){
         echo json_encode($response);die();
     }else if($res[0]['status'] == 1){
 
-        if (sms_daily_limit_reached($db)) {
-            $response["error"] = true;
-            $response["message"] = "SMS limit reached. Please try again later.";
-            echo json_encode($response);
-            die();
-        }
+        // SMS limit restriction removed
 
         $sql = 'UPDATE `seller` SET `otp`="'.$otpno.'" WHERE `mobile`="'.$mobile.'"';
         $db->sql($sql);

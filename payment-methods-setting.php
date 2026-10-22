@@ -36,7 +36,7 @@ include "header.php"; ?>
                     <!-- general form elements -->
                     <div class="box box-primary">
                         <div class="box-header with-border">
-                            <h3 class="box-title">Payment Methods Settings</h3>
+                            <h3 class="box-title">Food Service Payment Methods Settings</h3>
                         </div>
                         <!-- /.box-header -->
                         <!-- form start -->
