@@ -2024,16 +2024,15 @@ public function get_permissions($id){
 
     /**
      * Zone-wise service rule: can $seller_zone deliver to $address_zone?
-     * - Seller has no zone assigned  => no restriction (every address allowed)
-     * - Address resolves to no zone  => allowed, because we cannot prove it is
-     *   outside the seller's area and must not lock the customer out
+     * - Address resolves to no zone  => disallowed (outside service zones)
+     * - Seller has no zone assigned  => allowed for any valid address zone
      * - Otherwise                   => zones must match exactly
      */
     public function is_address_in_seller_zone($address_zone, $seller_zone) {
+        $address_zone = (int)$address_zone;
+        if ($address_zone <= 0) return false;
         $seller_zone = (int)$seller_zone;
         if ($seller_zone <= 0) return true;
-        $address_zone = (int)$address_zone;
-        if ($address_zone <= 0) return true;
         return $address_zone === $seller_zone;
     }
 
@@ -2951,6 +2950,448 @@ public function get_permissions($id){
         $out['end_label']   = $end_label;
         $out['message']     = 'We are daily serviceable between '.$start_label.' and '.$end_label.'. Please schedule your order anytime in this slot.';
         return $out;
+    }
+
+    /**
+     * Process refund for an order upon cancellation.
+     * - If Razorpay online payment: initiates a refund via Razorpay API back to the
+     *   customer's original payment method (bank/card/UPI account).
+     * - If COD: no online refund needed.
+     * - If pure wallet: credits wallet balance back.
+     * - Any wallet_balance applied to the order is refunded to the customer's wallet.
+     *
+     * @param int|string $order_id
+     * @return array [
+     *    'status' => 'success'|'skipped'|'failed'|'already_refunded',
+     *    'is_online' => bool,
+     *    'refund_id' => string|null,
+     *    'amount' => float,
+     *    'message' => string
+     * ]
+     */
+    public function refund_order_payment($order_id) {
+        $order_id = (int)$order_id;
+        if ($order_id <= 0) {
+            return array('status' => 'failed', 'is_online' => false, 'message' => 'Invalid order ID');
+        }
+
+        $this->db->sql("SELECT id, user_id, payment_method, payment_status, total, delivery_charge, tax_amount, wallet_balance, final_total FROM orders WHERE id = $order_id LIMIT 1");
+        $order_res = $this->db->getResult();
+        if (empty($order_res)) {
+            return array('status' => 'failed', 'is_online' => false, 'message' => 'Order not found');
+        }
+
+        $order = $order_res[0];
+        $user_id = (int)$order['user_id'];
+        $pm = strtolower(trim($order['payment_method']));
+        $is_cod = ($pm === 'cod' || $pm === 'cash on delivery');
+        $is_wallet = ($pm === 'wallet');
+
+        // If user used wallet_balance, credit that portion back to their wallet
+        $wallet_refunded = 0;
+        if (!empty($order['wallet_balance']) && (float)$order['wallet_balance'] > 0) {
+            $wb = (float)$order['wallet_balance'];
+            $current_bal = $this->get_wallet_balance($user_id);
+            $new_bal = $current_bal + $wb;
+            $this->update_wallet_balance($new_bal, $user_id);
+            $this->add_wallet_transaction($user_id, 'credit', $wb, 'Wallet balance refunded against cancellation of Order #'.$order_id);
+            $wallet_refunded = $wb;
+        }
+
+        // Pure wallet payment (paid entirely from wallet)
+        if ($is_wallet) {
+            $order_total = (float)$order['final_total'];
+            if ($order_total <= 0) {
+                $order_total = (float)$order['total'] + (float)$order['delivery_charge'] + (float)$order['tax_amount'];
+            }
+            if ($order_total > 0 && (int)$order['payment_status'] == 1) {
+                $current_bal = $this->get_wallet_balance($user_id);
+                $new_bal = $current_bal + $order_total;
+                $this->update_wallet_balance($new_bal, $user_id);
+                $this->add_wallet_transaction($user_id, 'credit', $order_total, 'Full order amount refunded to wallet against cancellation of Order #'.$order_id);
+            }
+            return array(
+                'status' => 'success',
+                'is_online' => false,
+                'is_wallet' => true,
+                'amount' => $order_total,
+                'message' => 'Order amount refunded to wallet balance.'
+            );
+        }
+
+        // COD orders: no online refund needed
+        if ($is_cod) {
+            return array(
+                'status' => 'skipped',
+                'is_online' => false,
+                'wallet_refunded' => $wallet_refunded,
+                'amount' => 0,
+                'message' => 'Cash on Delivery order; no online refund required.'
+            );
+        }
+
+        // Online payment (Razorpay / other online methods):
+        // 1. Check if already refunded locally
+        $this->db->sql("SELECT * FROM transactions WHERE order_id = '$order_id' AND type = 'refund' AND status = 'success' LIMIT 1");
+        $existing_refund = $this->db->getResult();
+        if (!empty($existing_refund)) {
+            return array(
+                'status' => 'already_refunded',
+                'is_online' => true,
+                'refund_id' => $existing_refund[0]['txn_id'],
+                'amount' => (float)$existing_refund[0]['amount'],
+                'message' => 'Payment has already been refunded.'
+            );
+        }
+
+        // 2. Find the original captured payment transaction
+        $this->db->sql("SELECT * FROM transactions WHERE order_id = '$order_id' AND status = 'success' AND txn_id LIKE 'pay_%' ORDER BY id DESC LIMIT 1");
+        $txn_res = $this->db->getResult();
+        if (empty($txn_res) || empty($txn_res[0]['txn_id'])) {
+            $this->db->sql("SELECT * FROM transactions WHERE order_id = '$order_id' AND status = 'success' ORDER BY id DESC LIMIT 1");
+            $txn_res = $this->db->getResult();
+        }
+
+        if (empty($txn_res) || empty($txn_res[0]['txn_id'])) {
+            return array(
+                'status' => 'failed',
+                'is_online' => true,
+                'message' => 'No online payment transaction found for this order.'
+            );
+        }
+
+        $payment_id = trim($txn_res[0]['txn_id']);
+        if (strpos($payment_id, 'pay_') !== 0) {
+            return array(
+                'status' => 'failed',
+                'is_online' => true,
+                'message' => 'Invalid Razorpay payment ID: ' . $payment_id
+            );
+        }
+
+        $refund_amount = (float)$txn_res[0]['amount'];
+        if ($refund_amount <= 0) {
+            $refund_amount = (float)$order['final_total'];
+        }
+
+        // 3. Fetch Razorpay API keys from settings
+        $payment_settings = $this->get_settings('payment_methods', true);
+        $keyId = isset($payment_settings['razorpay_key']) ? trim($payment_settings['razorpay_key']) : '';
+        $keySecret = isset($payment_settings['razorpay_secret_key']) ? trim($payment_settings['razorpay_secret_key']) : '';
+
+        if (empty($keyId) || empty($keySecret)) {
+            return array(
+                'status' => 'failed',
+                'is_online' => true,
+                'message' => 'Razorpay API keys not configured in settings.'
+            );
+        }
+
+        // 4. Call Razorpay Refund API
+        $amount_in_paise = (int)round($refund_amount * 100);
+        $post_fields = json_encode(array(
+            'amount' => $amount_in_paise,
+            'reverse_all' => 1,
+            'notes' => array(
+                'order_id' => (string)$order_id,
+                'reason' => 'Order cancelled'
+            )
+        ));
+
+        $ch = curl_init("https://api.razorpay.com/v1/payments/{$payment_id}/refund");
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_USERPWD, "{$keyId}:{$keySecret}");
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $post_fields);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: application/json'));
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+
+        $raw_response = curl_exec($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curl_err = curl_error($ch);
+        curl_close($ch);
+
+        $rzp_response = json_decode($raw_response, true);
+
+        if (($http_code == 200 || $http_code == 201) && !empty($rzp_response['id'])) {
+            $refund_id = $rzp_response['id'];
+            $refunded_amt = isset($rzp_response['amount']) ? ($rzp_response['amount'] / 100) : $refund_amount;
+
+            // Record refund in transactions table
+            $txn_data = array(
+                'user_id' => $user_id,
+                'order_id' => (string)$order_id,
+                'type' => 'refund',
+                'txn_id' => $refund_id,
+                'payu_txn_id' => $payment_id,
+                'amount' => $refunded_amt,
+                'status' => 'success',
+                'message' => 'Refund processed to original payment account via Razorpay',
+                'transaction_date' => date('Y-m-d H:i:s')
+            );
+            $this->db->insert('transactions', $txn_data);
+
+            return array(
+                'status' => 'success',
+                'is_online' => true,
+                'refund_id' => $refund_id,
+                'amount' => $refunded_amt,
+                'message' => 'Refund of Rs. ' . number_format($refunded_amt, 2) . ' initiated to customer account successfully.'
+            );
+        } else {
+            // Check if already refunded on Razorpay side
+            $err_desc = isset($rzp_response['error']['description']) ? $rzp_response['error']['description'] : ($curl_err ? $curl_err : 'Unknown error');
+            if (stripos($err_desc, 'already') !== false && stripos($err_desc, 'refund') !== false) {
+                $txn_data = array(
+                    'user_id' => $user_id,
+                    'order_id' => (string)$order_id,
+                    'type' => 'refund',
+                    'txn_id' => 'rfnd_already_processed',
+                    'payu_txn_id' => $payment_id,
+                    'amount' => $refund_amount,
+                    'status' => 'success',
+                    'message' => 'Already refunded on Razorpay',
+                    'transaction_date' => date('Y-m-d H:i:s')
+                );
+                $this->db->insert('transactions', $txn_data);
+
+                return array(
+                    'status' => 'already_refunded',
+                    'is_online' => true,
+                    'amount' => $refund_amount,
+                    'message' => 'Payment has already been refunded on Razorpay.'
+                );
+            }
+
+            return array(
+                'status' => 'failed',
+                'is_online' => true,
+                'error_code' => isset($rzp_response['error']['code']) ? $rzp_response['error']['code'] : 'RZP_ERROR',
+                'message' => 'Razorpay refund failed: ' . $err_desc
+            );
+        }
+    }
+
+    /**
+     * Issue an automatic refund for a parcel order when it is cancelled.
+     *
+     * Rules:
+     * - COD / Cash on Delivery: no online refund needed.
+     * - Pure Wallet payment: credit order grand_total back to the user's wallet.
+     * - Online payment via Razorpay: call Razorpay Refund API
+     *   (https://api.razorpay.com/v1/payments/{payment_id}/refund)
+     *   using keys stored in settings table, record in transactions table.
+     */
+    public function refund_parcel_payment($order_id) {
+        $order_id = (int)$order_id;
+        if ($order_id <= 0) {
+            return array('status' => 'failed', 'is_online' => false, 'message' => 'Invalid parcel order ID');
+        }
+
+        $this->db->sql("SELECT id, user_id, grand_total, total_price, payment_method, payment_status, payment_id, status FROM parcel_requests WHERE id = $order_id LIMIT 1");
+        $res = $this->db->getResult();
+        if (empty($res)) {
+            return array('status' => 'failed', 'is_online' => false, 'message' => 'Parcel order not found');
+        }
+
+        $order = $res[0];
+        $user_id = (int)$order['user_id'];
+        $pm = strtolower(trim($order['payment_method']));
+        $p_status = strtolower(trim($order['payment_status']));
+        $is_cod = ($pm === 'cod' || $pm === 'cash on delivery');
+        $is_wallet = ($pm === 'wallet');
+
+        // COD orders: no online refund needed
+        if ($is_cod) {
+            return array(
+                'status' => 'skipped',
+                'is_online' => false,
+                'amount' => 0,
+                'message' => 'Cash on Delivery parcel order; no online refund required.'
+            );
+        }
+
+        // If not paid, no refund needed
+        if ($p_status !== 'paid') {
+            return array(
+                'status' => 'skipped',
+                'is_online' => false,
+                'amount' => 0,
+                'message' => 'Parcel order was not paid; no refund required.'
+            );
+        }
+
+        // Pure wallet payment
+        if ($is_wallet) {
+            $order_total = (float)$order['grand_total'];
+            if ($order_total <= 0) {
+                $order_total = (float)$order['total_price'];
+            }
+            if ($order_total > 0) {
+                $current_bal = $this->get_wallet_balance($user_id);
+                $new_bal = $current_bal + $order_total;
+                $this->update_wallet_balance($new_bal, $user_id);
+                $this->add_wallet_transaction($user_id, 'credit', $order_total, 'Full parcel order amount refunded to wallet against cancellation of Parcel Order #'.$order_id);
+            }
+            return array(
+                'status' => 'success',
+                'is_online' => false,
+                'is_wallet' => true,
+                'amount' => $order_total,
+                'message' => 'Parcel order amount refunded to wallet balance.'
+            );
+        }
+
+        // Online payment (Razorpay):
+        // 1. Check if already refunded in transactions table
+        $this->db->sql("SELECT * FROM transactions WHERE order_id = '$order_id' AND (type = 'refund' OR type = 'parcel_refund') AND status = 'success' LIMIT 1");
+        $existing_refund = $this->db->getResult();
+        if (!empty($existing_refund)) {
+            return array(
+                'status' => 'already_refunded',
+                'is_online' => true,
+                'refund_id' => $existing_refund[0]['txn_id'],
+                'amount' => (float)$existing_refund[0]['amount'],
+                'message' => 'Payment has already been refunded.'
+            );
+        }
+
+        // 2. Find the original payment ID
+        $payment_id = trim($order['payment_id']);
+        if (empty($payment_id) || strpos($payment_id, 'pay_') !== 0) {
+            // Fallback to transactions table
+            $this->db->sql("SELECT * FROM transactions WHERE order_id = '$order_id' AND status = 'success' AND txn_id LIKE 'pay_%' ORDER BY id DESC LIMIT 1");
+            $txn_res = $this->db->getResult();
+            if (!empty($txn_res) && !empty($txn_res[0]['txn_id'])) {
+                $payment_id = trim($txn_res[0]['txn_id']);
+            }
+        }
+
+        if (empty($payment_id) || strpos($payment_id, 'pay_') !== 0) {
+            return array(
+                'status' => 'failed',
+                'is_online' => true,
+                'message' => 'No valid Razorpay payment ID found for this parcel order.'
+            );
+        }
+
+        $refund_amount = (float)$order['grand_total'];
+        if ($refund_amount <= 0) {
+            $this->db->sql("SELECT amount FROM transactions WHERE order_id = '$order_id' AND txn_id = '$payment_id' LIMIT 1");
+            $amt_res = $this->db->getResult();
+            if (!empty($amt_res) && (float)$amt_res[0]['amount'] > 0) {
+                $refund_amount = (float)$amt_res[0]['amount'];
+            }
+        }
+
+        if ($refund_amount <= 0) {
+            return array(
+                'status' => 'failed',
+                'is_online' => true,
+                'message' => 'Invalid refund amount for parcel order.'
+            );
+        }
+
+        // 3. Fetch Razorpay API keys from settings
+        $payment_settings = $this->get_settings('payment_methods', true);
+        $keyId = isset($payment_settings['razorpay_key']) ? trim($payment_settings['razorpay_key']) : '';
+        $keySecret = isset($payment_settings['razorpay_secret_key']) ? trim($payment_settings['razorpay_secret_key']) : '';
+
+        if (empty($keyId) || empty($keySecret)) {
+            return array(
+                'status' => 'failed',
+                'is_online' => true,
+                'message' => 'Razorpay API keys not configured in settings.'
+            );
+        }
+
+        // 4. Call Razorpay Refund API
+        $amount_in_paise = (int)round($refund_amount * 100);
+        $post_fields = json_encode(array(
+            'amount' => $amount_in_paise,
+            'reverse_all' => 1,
+            'notes' => array(
+                'parcel_order_id' => (string)$order_id,
+                'reason' => 'Parcel order cancelled'
+            )
+        ));
+
+        $ch = curl_init("https://api.razorpay.com/v1/payments/{$payment_id}/refund");
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_USERPWD, "{$keyId}:{$keySecret}");
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $post_fields);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: application/json'));
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+
+        $raw_response = curl_exec($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curl_err = curl_error($ch);
+        curl_close($ch);
+
+        $rzp_response = json_decode($raw_response, true);
+
+        if (($http_code == 200 || $http_code == 201) && !empty($rzp_response['id'])) {
+            $refund_id = $rzp_response['id'];
+            $refunded_amt = isset($rzp_response['amount']) ? ($rzp_response['amount'] / 100) : $refund_amount;
+
+            // Record refund in transactions table
+            $txn_data = array(
+                'user_id' => $user_id,
+                'order_id' => (string)$order_id,
+                'type' => 'refund',
+                'txn_id' => $refund_id,
+                'payu_txn_id' => $payment_id,
+                'amount' => $refunded_amt,
+                'status' => 'success',
+                'message' => 'Parcel Refund processed to original payment account via Razorpay',
+                'transaction_date' => date('Y-m-d H:i:s')
+            );
+            $this->db->insert('transactions', $txn_data);
+
+            return array(
+                'status' => 'success',
+                'is_online' => true,
+                'refund_id' => $refund_id,
+                'amount' => $refunded_amt,
+                'message' => 'Refund of Rs. ' . number_format($refunded_amt, 2) . ' initiated to customer account successfully.'
+            );
+        } else {
+            // Check if already refunded on Razorpay side
+            $err_desc = isset($rzp_response['error']['description']) ? $rzp_response['error']['description'] : ($curl_err ? $curl_err : 'Unknown error');
+            if (stripos($err_desc, 'already') !== false && stripos($err_desc, 'refund') !== false) {
+                $txn_data = array(
+                    'user_id' => $user_id,
+                    'order_id' => (string)$order_id,
+                    'type' => 'refund',
+                    'txn_id' => 'rfnd_already_processed',
+                    'payu_txn_id' => $payment_id,
+                    'amount' => $refund_amount,
+                    'status' => 'success',
+                    'message' => 'Parcel Already refunded on Razorpay',
+                    'transaction_date' => date('Y-m-d H:i:s')
+                );
+                $this->db->insert('transactions', $txn_data);
+
+                return array(
+                    'status' => 'already_refunded',
+                    'is_online' => true,
+                    'amount' => $refund_amount,
+                    'message' => 'Payment has already been refunded on Razorpay.'
+                );
+            }
+
+            return array(
+                'status' => 'failed',
+                'is_online' => true,
+                'error_code' => isset($rzp_response['error']['code']) ? $rzp_response['error']['code'] : 'RZP_ERROR',
+                'message' => 'Razorpay refund failed: ' . $err_desc
+            );
+        }
     }
 }
 

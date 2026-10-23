@@ -225,15 +225,23 @@ if(isset($_POST['type'])){
 		    $resp['name']=$res[$i]['name'];
 		    $resp['email']=$res[$i]['email'];
 		    $resp['user_id']=$res[$i]['id'];
-		    $sql="SELECT name FROM city WHERE id=".$res[$i]['city'];
-		    $db->sql($sql);
-		    $city_query = $db->getResult();
-		    $resp['city']=$city_query[0]['name'];
+		    if (is_numeric($res[$i]['city']) && intval($res[$i]['city']) > 0) {
+		        $sql="SELECT name FROM city WHERE id=".intval($res[$i]['city']);
+		        $db->sql($sql);
+		        $city_query = $db->getResult();
+		        $resp['city']=!empty($city_query[0]['name']) ? $city_query[0]['name'] : $res[$i]['city'];
+		    } else {
+		        $resp['city']=$res[$i]['city'];
+		    }
 		    
-		    $sql="SELECT name FROM area WHERE id=".$res[$i]['area'];
-		    $db->sql($sql);
-		    $area_query = $db->getResult();
-		    $resp['area']=$area_query[0]['name'];
+		    if (is_numeric($res[$i]['area']) && intval($res[$i]['area']) > 0) {
+		        $sql="SELECT name FROM area WHERE id=".intval($res[$i]['area']);
+		        $db->sql($sql);
+		        $area_query = $db->getResult();
+		        $resp['area']=!empty($area_query[0]['name']) ? $area_query[0]['name'] : $res[$i]['area'];
+		    } else {
+		        $resp['area']=$res[$i]['area'];
+		    }
 		    $resp['country_code']=$res[$i]['country_code'];
 		    $resp['mobile']=$res[$i]['mobile'];
 		    $resp['street']=$res[$i]['street'];

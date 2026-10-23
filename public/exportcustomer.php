@@ -22,7 +22,10 @@ $db->connect();
 		foreach($res as $row)
 			$total = $row['total'];
 		
-		$sql = "SELECT id,name,email,country_code,mobile,referral_code,friends_code,dob,street,pincode,balance,(SELECT name FROM area a WHERE a.id=u.area) as area_name,(SELECT name FROM city c WHERE c.id=u.city) as city_name FROM `users` u ";
+		$sql = "SELECT id,name,email,country_code,mobile,referral_code,friends_code,dob,street,pincode,balance,
+			CASE WHEN u.area REGEXP '^[0-9]+$' THEN (SELECT name FROM area a WHERE a.id=u.area) ELSE u.area END as area_name,
+			CASE WHEN u.city REGEXP '^[0-9]+$' THEN (SELECT name FROM city c WHERE c.id=u.city) ELSE u.city END as city_name 
+			FROM `users` u ";
 		$db->sql($sql);
 		$res = $db->getResult();
         foreach ($res as $line) {

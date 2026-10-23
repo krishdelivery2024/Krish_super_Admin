@@ -61,6 +61,18 @@
 					$db->sql($sql_query);
 					$flash_success = "Parcel status updated successfully.";
 
+					// If parcel is cancelled, process automatic refund
+					if($new_status == 'cancelled'){
+						$refund_info = $fn->refund_parcel_payment($ID);
+						if(isset($refund_info) && $refund_info['status'] == 'success'){
+							$flash_success = "Parcel order cancelled and refund of Rs. " . number_format($refund_info['amount'], 2) . " initiated successfully.";
+						} else if(isset($refund_info) && $refund_info['status'] == 'already_refunded'){
+							$flash_success = "Parcel order cancelled. Payment was already refunded.";
+						} else if(isset($refund_info) && $refund_info['status'] == 'failed' && !empty($refund_info['is_online'])){
+							$flash_error = "Parcel order status set to cancelled, but refund failed: " . $refund_info['message'];
+						}
+					}
+
 					// Notify nearby online delivery boys when the parcel order is accepted
 					if($new_status == 'accepted'){
 						$fn->dispatch_new_order('parcel', $ID, 'New Parcel Order', "New parcel delivery request #".$ID." is ready. Open the app to view the details.");

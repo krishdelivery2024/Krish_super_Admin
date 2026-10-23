@@ -155,30 +155,11 @@ if(isset($_POST['id'])) {
             			$db->sql($sql);
                     }
         	    }
-    	    }
-    	     if($res[0]['payment_method'] != 'cod' && $res[0]['payment_method'] !='COD'){
-            	/* update user's wallet */
-                $user_id = $res[0]['user_id'];
-                $total = $res[0]['total']+$res[0]['delivery_charge']+$res[0]['tax_amount'];
-                $user_wallet_balance = $function->get_wallet_balance($user_id);
-                $new_balance = $user_wallet_balance + $total;
-                // return false;
-                $function->update_wallet_balance($new_balance,$user_id);
-                /* add wallet transaction */
-        	    $wallet_txn_id = $function->add_wallet_transaction($user_id,'credit',$sub_total,'Balance credited against item cancellation.');
-            }else{
-            if($res[0]['wallet_balance']!=0){
-                /* update user's wallet */
-                $user_id = $res[0]['user_id'];
-                // $total = $res[0]['total'];
-                $user_wallet_balance = $function->get_wallet_balance($user_id);
-                $new_balance = ($user_wallet_balance + $res[0]['wallet_balance']);
-                $function->update_wallet_balance($new_balance,$user_id);
-    	        /* add wallet transaction */
-    		    $wallet_txn_id = $function->add_wallet_transaction($user_id,'credit',$sub_total,'Balance credited against item cancellation.');
-            }
-                
-       }
+    	    // Payment Refund:
+    	    // - If online payment via Razorpay: refund back to user's original payment method
+    	    // - If COD: no online refund needed
+    	    // - Any wallet balance used is credited back to wallet
+    	    $refund_info = $function->refund_order_payment($id);
     	}
     	
     	if($postStatus=='delivered'){
@@ -496,7 +477,16 @@ if ($total == 0) {
     	//$db->update('order_items',$final_status,'order_id='.$id);
      	if($db->update('orders',$final_status,'id='.$id)){// Table name, column names and respective values
     		$response['error'] = false;
-    		if($postStatus=='cancelled'){$response['message'] = "Order has been cancelled!";}
+    		if($postStatus=='cancelled'){
+                $response['message'] = "Order has been cancelled!";
+                if (isset($refund_info) && $refund_info['status'] == 'success') {
+                    $response['message'] .= " Refund of Rs. " . number_format($refund_info['amount'], 2) . " has been initiated to customer's payment account.";
+                } elseif (isset($refund_info) && $refund_info['status'] == 'already_refunded') {
+                    $response['message'] .= " Refund was already processed.";
+                } elseif (isset($refund_info) && $refund_info['status'] == 'failed' && !empty($refund_info['is_online'])) {
+                    $response['message'] .= " (Note: Online refund failed: " . $refund_info['message'] . ")";
+                }
+            }
     		elseif($postStatus=='returned'){$response['message'] = "Order has been returned!";}
     		else{$response['message'] = "Order updated successfully.";}
     		    

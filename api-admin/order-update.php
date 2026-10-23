@@ -241,66 +241,11 @@ $sub_total = (float)$res_query[0]['sub_total'];
             			$db->sql($sql);
                     }
         	    }
-    	    }
-    	     if(
-    strtolower(trim($res[0]['payment_method'])) != 'cod' &&
-    strtolower(trim($res[0]['payment_method'])) != 'cash on delivery'
-){
-    if($res[0]['wallet_balance']!=0 && $res[0]['payment_status'] =='0'){
-        /* update user's wallet */
-        $user_id = $res[0]['user_id'];
-        $user_wallet_balance = $function->get_wallet_balance($user_id);
-        $new_balance = ($user_wallet_balance + $res[0]['wallet_balance']);
-        $function->update_wallet_balance($new_balance,$user_id);
-
-        /* add wallet transaction */
-        $wallet_txn_id = $function->add_wallet_transaction(
-            $user_id,
-            'credit',
-            $res[0]['wallet_balance'],
-            'Balance credited against item cancellation.'
-        );
-
-    }else{
-        /* update user's wallet */
-        $user_id = $res[0]['user_id'];
-
-        $total = $res[0]['total']
-               + $res[0]['delivery_charge']
-               + $res[0]['tax_amount'];
-
-        $user_wallet_balance = $function->get_wallet_balance($user_id);
-        $new_balance = $user_wallet_balance + $total;
-
-        if($res[0]['payment_method']=='wallet' OR $res[0]['payment_status']==1){
-            $function->update_wallet_balance($new_balance,$user_id);
-
-            /* add wallet transaction */
-            $wallet_txn_id = $function->add_wallet_transaction(
-                $user_id,
-                'credit',
-                $total,
-                'Balance credited against item cancellation.'
-            );
-        }
-    }
-}else{
-    if($res[0]['wallet_balance']!=0){
-        /* update user's wallet */
-        $user_id = $res[0]['user_id'];
-        $user_wallet_balance = $function->get_wallet_balance($user_id);
-        $new_balance = ($user_wallet_balance + $res[0]['wallet_balance']);
-        $function->update_wallet_balance($new_balance,$user_id);
-
-        /* add wallet transaction */
-        $wallet_txn_id = $function->add_wallet_transaction(
-            $user_id,
-            'credit',
-            $res[0]['wallet_balance'],
-            'Balance credited against item cancellation.'
-        );
-    }
-}
+    	    // Payment Refund:
+    	    // - If online payment via Razorpay: refund back to user's original payment method
+    	    // - If COD: no online refund needed
+    	    // - Any wallet balance used is credited back to wallet
+    	    $refund_info = $function->refund_order_payment($id);
     	}
     	
     	if($postStatus=='delivered'){
@@ -637,7 +582,21 @@ if ($total == 0) {
     	//$db->update('order_items',$final_status,'order_id='.$id);
      	if($db->update('orders',$final_status,'id='.$id)){// Table name, column names and respective values
     		$response['error'] = false;
-    		if($postStatus=='cancelled'){$response['message'] = "Order has been cancelled!";}
+    		if($postStatus=='cancelled'){
+                $response['message'] = "Order has been cancelled!";
+                if (isset($refund_info) && $refund_info['status'] == 'success') {
+                    $response['message'] .= " Refund of Rs. " . number_format($refund_info['amount'], 2) . " has been initiated to customer's payment account.";
+                    $response['refund_status'] = 'success';
+                    $response['refund_id'] = $refund_info['refund_id'];
+                    $response['refund_amount'] = $refund_info['amount'];
+                } elseif (isset($refund_info) && $refund_info['status'] == 'already_refunded') {
+                    $response['message'] .= " Refund was already processed.";
+                    $response['refund_status'] = 'already_refunded';
+                } elseif (isset($refund_info) && $refund_info['status'] == 'failed' && !empty($refund_info['is_online'])) {
+                    $response['refund_status'] = 'failed';
+                    $response['refund_error'] = $refund_info['message'];
+                }
+            }
     		elseif($postStatus=='returned'){$response['message'] = "Order has been returned!";}
     		else{$response['message'] = "Order updated successfully.";}
     		    

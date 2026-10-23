@@ -141,6 +141,7 @@ class Database{
             exit;
         }
 
+        $this->result = array();
         $this->numResults = 0;
 
         if (isset($query->num_rows) && $query->num_rows > 0) {

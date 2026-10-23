@@ -235,12 +235,20 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'register')) {
 	);
 	//$db->insert('user_address',$data1);
 	$res23 = $db->getResult();
-	$db->sql('SELECT name FROM city WHERE id='.$data['city']);
-	$res24 = $db->getResult();
-	$city_name=$res24[0]['name'] ?? '';
-	$db->sql('SELECT name FROM area WHERE id='.$data['area']);
-	$res25 = $db->getResult();
-	$area_name=$res25[0]['name'] ?? '';
+	if (!empty($data['city']) && is_numeric($data['city']) && intval($data['city']) > 0) {
+		$db->sql('SELECT name FROM city WHERE id='.intval($data['city']));
+		$res24 = $db->getResult();
+		$city_name=$res24[0]['name'] ?? '';
+	} else {
+		$city_name=$data['city'] ?? '';
+	}
+	if (!empty($data['area']) && is_numeric($data['area']) && intval($data['area']) > 0) {
+		$db->sql('SELECT name FROM area WHERE id='.intval($data['area']));
+		$res25 = $db->getResult();
+		$area_name=$res25[0]['name'] ?? '';
+	} else {
+		$area_name=$data['area'] ?? '';
+	}
 	
 	$response["error"]   = false;
 	$response["message"] = "User registered successfully";

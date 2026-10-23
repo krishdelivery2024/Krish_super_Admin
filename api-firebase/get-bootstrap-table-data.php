@@ -1071,7 +1071,10 @@
 		foreach($res as $row)
 			$total = $row['total'];
 		
-		$sql = "SELECT *,(SELECT name FROM area a WHERE a.id=u.area) as area_name,(SELECT name FROM city c WHERE c.id=u.city) as city_name FROM `users` u ".$where." ORDER BY `".$sort."` ".$order." LIMIT ".$offset.", ".$limit;
+		$sql = "SELECT *,
+			CASE WHEN u.area REGEXP '^[0-9]+$' THEN (SELECT name FROM area a WHERE a.id=u.area) ELSE u.area END as area_name,
+			CASE WHEN u.city REGEXP '^[0-9]+$' THEN (SELECT name FROM city c WHERE c.id=u.city) ELSE u.city END as city_name
+			FROM `users` u ".$where." ORDER BY `".$sort."` ".$order." LIMIT ".$offset.", ".$limit;
 		$db->sql($sql);
 		$res = $db->getResult();
 // 		print_r($res);
@@ -1091,9 +1094,9 @@
 			$tempRow['referral_code'] = $row['referral_code'];
 			$tempRow['friends_code'] = !empty($row['friends_code'])?$row['friends_code']:'-';
 			$tempRow['city_id'] = $row['city'];
-			$tempRow['city'] = $row['city_name'];
+			$tempRow['city'] = !empty($row['city_name']) ? $row['city_name'] : $row['city'];
 			$tempRow['area_id'] = $row['area'];
-			$tempRow['area'] = $row['area_name'];
+			$tempRow['area'] = !empty($row['area_name']) ? $row['area_name'] : $row['area'];
 			$tempRow['street'] = $row['street'];
 			$tempRow['apikey'] = $row['apikey'];
 			$tempRow['status'] = $row['status'];
@@ -1282,7 +1285,10 @@
 		foreach($res as $row)
 			$total = $row['total'];
 		
-		$sql = "SELECT *,(SELECT name FROM area a WHERE a.id=u.area) as area_name,(SELECT name FROM city c WHERE c.id=u.city) as city_name FROM `users` u ".$where." ORDER BY `".$sort."` ".$order." LIMIT ".$offset.", ".$limit;
+		$sql = "SELECT *,
+			CASE WHEN u.area REGEXP '^[0-9]+$' THEN (SELECT name FROM area a WHERE a.id=u.area) ELSE u.area END as area_name,
+			CASE WHEN u.city REGEXP '^[0-9]+$' THEN (SELECT name FROM city c WHERE c.id=u.city) ELSE u.city END as city_name
+			FROM `users` u ".$where." ORDER BY `".$sort."` ".$order." LIMIT ".$offset.", ".$limit;
 		//echo $sql;die;
 		
 		$db->sql($sql);
@@ -1311,9 +1317,9 @@
 			$tempRow['friends_code'] = $friends_code;
 			//$tempRow['referred_by'] = !empty($referred_by)?$referred_by:'';
 			$tempRow['city_id'] = $row['city'];
-			$tempRow['city'] = $row['city_name'];
+			$tempRow['city'] = !empty($row['city_name']) ? $row['city_name'] : $row['city'];
 			$tempRow['area_id'] = $row['area'];
-			$tempRow['area'] = $row['area_name'];
+			$tempRow['area'] = !empty($row['area_name']) ? $row['area_name'] : $row['area'];
 			$tempRow['street'] = $row['street'];
 			$tempRow['apikey'] = $row['apikey'];
 			$tempRow['status'] = !empty($row['status'])?'Active':'';
@@ -2447,7 +2453,7 @@ if ($role === 'sub admin') {
 		
 		$offset = 0; $limit = 10;
 		$sort = 't.id'; $order = 'DESC';
-		$where = "WHERE t.message = 'Parcel Payment Success'";
+		$where = "WHERE (t.message = 'Parcel Payment Success' OR t.message LIKE 'Parcel Refund%' OR t.message LIKE 'Parcel Already%')";
 		if(isset($_GET['offset']))
 			$offset = (int)$_GET['offset'];
 		if(isset($_GET['limit']))

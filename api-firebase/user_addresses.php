@@ -30,9 +30,8 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'list_address')) {
     $user_id = $db->escapeString($_POST['user_id']);
 
     /* Zone-wise service: when a seller is supplied, flag each address with
-       is_zone_valid (1 = selectable, 0 = greyed out). Seller without a zone
-       imposes no restriction. An address that resolves to no zone stays
-       selectable so customers are never locked out. */
+       is_zone_valid (1 = selectable, 0 = greyed out). Addresses outside all service
+       zones or outside the seller's service zone are marked as invalid (0). */
     $seller_id = isset($_POST['seller_id']) ? (int)$_POST['seller_id'] : 0;
     $seller_zone_id = $fn->get_seller_zone($seller_id);
     

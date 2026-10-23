@@ -1002,6 +1002,7 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 		$tempRow['seller_image'] = (!empty($row['seller_image'])) ? DOMAIN_URL . 'upload/sellers/' . $row['seller_image'] : '';
 		$tempRow['items'] = $items1;
 		$tempRow['total'] = number_format((float) $row['total'], 2, '.', '');
+		$tempRow['delivery_charge'] = number_format((float) (isset($row['delivery_charge']) ? $row['delivery_charge'] : 0), 2, '.', '');
 		$tempRow['tax'] = $row['tax_amount'] . '(' . $row['tax_percentage'] . '%)';
 		$tempRow['promo_discount'] = number_format((float) $row['promo_discount'], 2, '.', '');
 		$tempRow['wallet_balance'] = number_format((float) $row['wallet_balance'], 2, '.', '');
@@ -1022,7 +1023,7 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 		$tempRow['latitude'] = $row['user_latitude'];
 		$tempRow['longitude'] = $row['user_longitude'];
 
-		$tempRow['distance'] = round($distance);
+		$tempRow['distance'] = number_format((float)$distance, 1, '.', '');
 
 		$tempRow['accept_status'] = $row['accept_status'];
 		$tempRow['delivery_time'] = $row['delivery_time'];
@@ -1309,13 +1310,15 @@ if (isset($_POST['get_parcel_orders'])) {
 		$tempRow['seller_company_address'] = $row['pickup_location'];
 		$tempRow['seller_image'] = $first_image;
 		$tempRow['items'] = $items;
-		$tempRow['total'] = number_format($row['total_price'], 2, '.', '');
+		$grand_total = (!empty($row['grand_total']) && floatval($row['grand_total']) > 0) ? floatval($row['grand_total']) : floatval($row['total_price']);
+		$tempRow['total'] = number_format($grand_total, 2, '.', '');
+		$tempRow['delivery_charge'] = number_format($row['total_price'], 2, '.', '');
 		$tempRow['tax'] = '0(0%)';
 		$tempRow['promo_discount'] = '0';
 		$tempRow['wallet_balance'] = '0';
 		$tempRow['discount'] = '0(0%)';
 		$tempRow['qty'] = '1';
-		$tempRow['final_total'] = ceil($row['total_price']);
+		$tempRow['final_total'] = round($grand_total, 2);
 		$tempRow['promo_code'] = '';
 		$tempRow['deliver_by'] = '';
 		$tempRow['payment_method'] = ($row['payment_status'] == 'paid') ? 'Paid' : 'Not Paid';
@@ -1326,7 +1329,7 @@ if (isset($_POST['get_parcel_orders'])) {
 		$tempRow['seller_longitude'] = $pickup_lng;
 		$tempRow['latitude'] = $drop_lat;
 		$tempRow['longitude'] = $drop_lng;
-		$tempRow['distance'] = round($distance);
+		$tempRow['distance'] = number_format((float)$distance, 1, '.', '');
 		$tempRow['accept_status'] = $row['accept_status'];
 		$tempRow['delivery_time'] = date('d F Y, l h:i a', strtotime($row['created_at']));
 		$tempRow['order_date_time'] = !empty($row['created_at']) ? date('d-m-Y h:i A', strtotime($row['created_at'])) : '';
@@ -1356,9 +1359,9 @@ if (isset($_POST['get_parcel_orders'])) {
 		$sql_today = "
 			SELECT
 				COUNT(p.id) AS cnt,
-				IFNULL(SUM(CASE WHEN p.payment_status = 'paid' THEN p.total_price ELSE 0 END),0) AS total_online,
-				IFNULL(SUM(CASE WHEN p.payment_status != 'paid' THEN p.total_price ELSE 0 END),0) AS total_cod,
-				IFNULL(SUM(p.base_price + p.per_km_price),0) AS total_delivery_charge
+				IFNULL(SUM(CASE WHEN p.payment_status = 'paid' THEN IF(p.grand_total > 0, p.grand_total, p.total_price) ELSE 0 END),0) AS total_online,
+				IFNULL(SUM(CASE WHEN p.payment_status != 'paid' THEN IF(p.grand_total > 0, p.grand_total, p.total_price) ELSE 0 END),0) AS total_cod,
+				IFNULL(SUM(p.total_price),0) AS total_delivery_charge
 			FROM parcel_requests p" . $boy_scope . "
 			AND p.status = 'delivered'
 			AND DATE(p.created_at) = CURDATE()
@@ -1376,7 +1379,7 @@ if (isset($_POST['get_parcel_orders'])) {
 		// scope so settlement figures line up with what the list shows.
 		$sql_sub_amount = "
 			SELECT
-				IFNULL(SUM(p.total_price),0) AS sub_amount,
+				IFNULL(SUM(IF(p.grand_total > 0, p.grand_total, p.total_price)),0) AS sub_amount,
 				IFNULL(SUM(p.platform_fee),0) AS platform_charges,
 				IFNULL(SUM(p.gst),0) AS gst_amount
 			FROM parcel_requests p" . $boy_scope . "

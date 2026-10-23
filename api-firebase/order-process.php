@@ -152,8 +152,28 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 	$quantity_arr=json_decode($function->xss_clean($_POST['quantity']),1);
 	$notes 	= (isset($_POST['notes']))?$db->escapeString($_POST['notes']):"";
 	
-	// Zone validation is handled by get_order_delivery_charge (called on address selection).
-	// Removing the duplicate check here prevents a double error popup on the frontend.
+	// Zone-wise service validation: delivery is only possible when the delivery address
+	// falls inside one of the active zones and matches the seller's service zone.
+	$order_zone_id = null;
+	if(empty($delivery_method) || $delivery_method != 'storepickup'){
+	    $order_zone_id = $function->get_zone_id_from_latlng($latitude, $longitude);
+	    if($order_zone_id === null){
+	        $response['error'] = true;
+	        $response['message'] = "Delivery is not available to this address. This location is outside our service zones.";
+	        log_order_debug("Order rejected in place_order, address outside service zones. Lat: " . $latitude . ", Lng: " . $longitude);
+	        print_r(json_encode($response));
+	        return false;
+	    }
+	    if(!empty($seller_id) && !$function->is_address_in_seller_zone($order_zone_id, $function->get_seller_zone($seller_id))){
+	        $response['error'] = true;
+	        $response['message'] = "This restaurant does not deliver to your address. Please select an address inside the restaurant's service zone.";
+	        log_order_debug("Order rejected in place_order, address zone (" . $order_zone_id . ") does not match seller zone");
+	        print_r(json_encode($response));
+	        return false;
+	    }
+	} else {
+	    $order_zone_id = $function->get_zone_id_from_latlng($latitude, $longitude);
+	}
 
 
 	$item_details=$function->get_product_by_variant_id($items);
@@ -237,7 +257,9 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 	
 	// Resolved up front because both the delivery charge and the platform /
     // convenience fees depend on which zone the order is delivered to.
-	$order_zone_id = $function->get_zone_id_from_latlng($latitude, $longitude);
+	if($order_zone_id === null){
+	    $order_zone_id = $function->get_zone_id_from_latlng($latitude, $longitude);
+	}
 
 	if($delivery_charge == 'Free'){
 	    $delivery_charge=0;
@@ -1366,40 +1388,11 @@ if(isset($_POST['update_order_status']) && isset($_POST['id'])) {
         	    }
     	    }
     	    
-    	    if($res[0]['payment_method'] != 'cod' && $res[0]['payment_method'] !='COD'){
-    	        if($res[0]['wallet_balance']!=0 && $res[0]['payment_status'] =='0'){
-                   /* update user's wallet */
-                    $user_id = $res[0]['user_id'];
-                    // $total = $res[0]['total'];
-                    $user_wallet_balance = $function->get_wallet_balance($user_id);
-                    $new_balance = ($user_wallet_balance + $res[0]['wallet_balance']);
-                    $function->update_wallet_balance($new_balance,$user_id);
-        	        /* add wallet transaction */
-        		    $wallet_txn_id = $function->add_wallet_transaction($user_id,'credit',$sub_total,'Balance credited against item cancellation.');
-                }else{
-                	/* update user's wallet */
-                    $user_id = $res[0]['user_id'];
-                    $total = $res[0]['total']+$res[0]['delivery_charge']+$res[0]['tax_amount'];
-                    $user_wallet_balance = $function->get_wallet_balance($user_id);
-                    $new_balance = $user_wallet_balance + $total;
-                    // return false;
-                    $function->update_wallet_balance($new_balance,$user_id);
-                    /* add wallet transaction */
-            	    $wallet_txn_id = $function->add_wallet_transaction($user_id,'credit',$sub_total,'Balance credited against item cancellation.');
-                }
-            }else{
-                if($res[0]['wallet_balance']!=0){
-                    /* update user's wallet */
-                    $user_id = $res[0]['user_id'];
-                    // $total = $res[0]['total'];
-                    $user_wallet_balance = $function->get_wallet_balance($user_id);
-                    $new_balance = ($user_wallet_balance + $res[0]['wallet_balance']);
-                    $function->update_wallet_balance($new_balance,$user_id);
-        	        /* add wallet transaction */
-        		    $wallet_txn_id = $function->add_wallet_transaction($user_id,'credit',$sub_total,'Balance credited against item cancellation.');
-                }
-                
-            }
+    	    // Payment Refund:
+    	    // - If online payment via Razorpay: refund back to user's original payment method
+    	    // - If COD: no online refund needed
+    	    // - Any wallet balance used is credited back to wallet
+    	    $refund_info = $function->refund_order_payment($id);
         }
     	
     	if($postStatus=='delivered'){
@@ -1749,6 +1742,21 @@ if(isset($_POST['update_order_status']) && isset($_POST['id'])) {
     		$response['error'] = false;
     		if ($postStatus == 'cancelled') {
                 $response['message'] = "Order has been cancelled!";
+                if (isset($refund_info) && $refund_info['status'] == 'success') {
+                    $response['message'] = "Order has been cancelled! Refund of Rs. " . number_format($refund_info['amount'], 2) . " has been initiated to your payment account.";
+                    $response['refund_status'] = 'success';
+                    $response['refund_id'] = $refund_info['refund_id'];
+                    $response['refund_amount'] = $refund_info['amount'];
+                } elseif (isset($refund_info) && $refund_info['status'] == 'already_refunded') {
+                    $response['message'] = "Order has been cancelled! Payment was already refunded.";
+                    $response['refund_status'] = 'already_refunded';
+                    $response['refund_amount'] = isset($refund_info['amount']) ? $refund_info['amount'] : 0;
+                } elseif (isset($refund_info) && $refund_info['status'] == 'failed' && !empty($refund_info['is_online'])) {
+                    $response['refund_status'] = 'failed';
+                    $response['refund_message'] = $refund_info['message'];
+                } elseif (isset($refund_info) && $refund_info['status'] == 'skipped') {
+                    $response['refund_status'] = 'skipped';
+                }
                 $response['order_id'] = $id;
             }
 

@@ -67,8 +67,27 @@ if ($status != 'pending') {
 $sql = "UPDATE `parcel_requests` SET status = 'cancelled' WHERE id = '" . $order_id . "' AND user_id = '" . $user_id . "'";
 $db->sql($sql);
 
+$refund_info = $fn->refund_parcel_payment($order_id);
+
 $response['error'] = false;
 $response['message'] = "Parcel order cancelled successfully.";
+if (isset($refund_info) && $refund_info['status'] == 'success') {
+    $response['message'] = "Parcel order has been cancelled! Refund of Rs. " . number_format($refund_info['amount'], 2) . " has been initiated to your payment account.";
+    $response['refund_status'] = 'success';
+    $response['refund_id'] = $refund_info['refund_id'];
+    $response['refund_amount'] = $refund_info['amount'];
+} elseif (isset($refund_info) && $refund_info['status'] == 'already_refunded') {
+    $response['message'] = "Parcel order has been cancelled! Payment was already refunded.";
+    $response['refund_status'] = 'already_refunded';
+    $response['refund_amount'] = isset($refund_info['amount']) ? $refund_info['amount'] : 0;
+} elseif (isset($refund_info) && $refund_info['status'] == 'failed' && !empty($refund_info['is_online'])) {
+    $response['refund_status'] = 'failed';
+    $response['refund_message'] = $refund_info['message'];
+} elseif (isset($refund_info) && $refund_info['status'] == 'skipped') {
+    $response['refund_status'] = 'skipped';
+}
+
+$response['order_id'] = $order_id;
 $response['data'] = array('id' => $order_id);
 print_r(json_encode($response));
 return false;
