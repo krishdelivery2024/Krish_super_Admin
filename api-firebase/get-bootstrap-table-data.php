@@ -898,7 +898,7 @@
 			$total = $row['total'];
 		
 // 		$sql = "SELECT * FROM products ".$where." ORDER BY ".$sort." ".$order." LIMIT ".$offset.", ".$limit;
-        $sql = "SELECT p.id AS id, p.name, p.image, p.is_offer, p.offer_price, p.offer_limit_per_user, pv.price, pv.discounted_price, pv.measurement, pv.serve_for, pv.stock,pv.barcode_data, u.short_code ,p.is_active, p.available_time
+        $sql = "SELECT p.id AS id, p.name, p.image, pv.is_offer as variant_is_offer, pv.offer_price as variant_offer_price, pv.offer_limit_per_user as variant_offer_limit, pv.price, pv.discounted_price, pv.measurement, pv.serve_for, pv.stock,pv.barcode_data, u.short_code ,p.is_active, p.available_time
             FROM `products` p
             $join 
             $where ORDER BY $sort $order LIMIT $offset, $limit";
@@ -932,8 +932,8 @@
 			$tempRow['measurement'] = $row['measurement']." ".$row['short_code'];
 			$tempRow['price'] = $currency." ".$row['price'];
 			$tempRow['discounted_price'] = $currency." ".$row['discounted_price'];
-			$tempRow['offer'] = ($row['is_offer'] == 1)
-				? "<span class='label label-success'>₹".$row['offer_price']." (Limit: ".($row['offer_limit_per_user'] > 0 ? $row['offer_limit_per_user'] : 'No limit').")</span>"
+			$tempRow['offer'] = ($row['variant_is_offer'] == 1)
+				? "<span class='label label-success'>₹".$row['variant_offer_price']." (Limit: ".($row['variant_offer_limit'] > 0 ? $row['variant_offer_limit'] : 'No limit').")</span>"
 				: "<span class='label label-default'>No</span>";
 			$tempRow['serve_for'] = $row['serve_for'];
 			$tempRow['stock'] = $row['stock'];

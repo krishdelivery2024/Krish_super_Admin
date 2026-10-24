@@ -69,9 +69,6 @@
             $min_order_qty = $db->escapeString($fn->xss_clean($_POST['min_order_qty']));
             $indicator = $db->escapeString($fn->xss_clean($_POST['indicator']));
             $available_time = !empty($_POST['available_time']) ? implode(',', array_map(function($value) use ($fn, $db){ return $db->escapeString($fn->xss_clean($value)); }, $_POST['available_time'])) : '';
-            $is_offer = isset($_POST['is_offer']) && $_POST['is_offer'] == 1 ? 1 : 0;
-            $offer_price = (!empty($_POST['offer_price']) && is_numeric($_POST['offer_price'])) ? $db->escapeString($fn->xss_clean($_POST['offer_price'])) : 0;
-            $offer_limit_per_user = (!empty($_POST['offer_limit_per_user']) && is_numeric($_POST['offer_limit_per_user'])) ? $db->escapeString($fn->xss_clean($_POST['offer_limit_per_user'])) : 0;
             // $quantity = $_POST['quantity'];
             
             // get image info
@@ -230,10 +227,10 @@
                     }
       
                     $upload_image = 'upload/images/'.$image;
-                    $sql_query = "UPDATE products SET name = '$name' ,slug = '$slug' , category_id = '$category_id' ,subcategory_id = '$subcategory_id', brand_id = '$brand_id',price_type='$price_type', hsn = '$hsn',sgst = '$sgst',cgst = '$cgst',igst = '$igst', image = '$upload_image', description = '$description', available_time = '$available_time', min_stock = '$min_stock', min_order_qty = '$min_order_qty', status = '$product_status', indicator = '$indicator', is_offer = '$is_offer', offer_price = '$offer_price', offer_limit_per_user = '$offer_limit_per_user' WHERE id = $ID";
+                    $sql_query = "UPDATE products SET name = '$name' ,slug = '$slug' , category_id = '$category_id' ,subcategory_id = '$subcategory_id', brand_id = '$brand_id',price_type='$price_type', hsn = '$hsn',sgst = '$sgst',cgst = '$cgst',igst = '$igst', image = '$upload_image', description = '$description', available_time = '$available_time', min_stock = '$min_stock', min_order_qty = '$min_order_qty', status = '$product_status', indicator = '$indicator' WHERE id = $ID";
                     $db->sql($sql_query);
                 }else{
-                    $sql_query = "UPDATE products SET name = '$name' ,slug = '$slug' ,category_id = '$category_id' ,subcategory_id = '$subcategory_id' , brand_id = '$brand_id',price_type='$price_type', hsn = '$hsn',sgst = '$sgst',cgst = '$cgst',igst = '$igst', description = '$description', available_time = '$available_time', min_stock = '$min_stock', min_order_qty = '$min_order_qty', status = '$product_status', indicator = '$indicator', is_offer = '$is_offer', offer_price = '$offer_price', offer_limit_per_user = '$offer_limit_per_user' WHERE id = $ID";
+                    $sql_query = "UPDATE products SET name = '$name' ,slug = '$slug' ,category_id = '$category_id' ,subcategory_id = '$subcategory_id' , brand_id = '$brand_id',price_type='$price_type', hsn = '$hsn',sgst = '$sgst',cgst = '$cgst',igst = '$igst', description = '$description', available_time = '$available_time', min_stock = '$min_stock', min_order_qty = '$min_order_qty', status = '$product_status', indicator = '$indicator' WHERE id = $ID";
                     $db->sql($sql_query);
                 }
                 //print_r($sql_query);die;
@@ -385,8 +382,6 @@
                         }
                     }
                 }
-                // Sync product is_offer: 1 if any variant has active offer, else 0
-                $db->sql("UPDATE products SET is_offer = (SELECT IF(COUNT(*) > 0, 1, 0) FROM product_variant WHERE product_id = $ID AND is_offer = 1) WHERE id = $ID");
                 $error['update_data'] = "<div class='content-header'>
                                                 <span class='label label-success'>Product Updated Successfully</span>
                                                 <h4><small><a  href='products.php'><i class='fa fa-angle-double-left'></i>&nbsp;&nbsp;&nbsp;Back to Products</a></small></h4>

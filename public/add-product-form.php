@@ -49,9 +49,6 @@
     	
     	$min_order_qty = $db->escapeString($fn->xss_clean($_POST['min_order_qty']));
     	$available_time = !empty($_POST['available_time']) ? implode(',', array_map(function($value) use ($fn, $db){ return $db->escapeString($fn->xss_clean($value)); }, $_POST['available_time'])) : '';
-    	$is_offer = isset($_POST['is_offer']) && $_POST['is_offer'] == 1 ? 1 : 0;
-    	$offer_price = (!empty($_POST['offer_price']) && is_numeric($_POST['offer_price'])) ? $db->escapeString($fn->xss_clean($_POST['offer_price'])) : 0;
-    	$offer_limit_per_user = (!empty($_POST['offer_limit_per_user']) && is_numeric($_POST['offer_limit_per_user'])) ? $db->escapeString($fn->xss_clean($_POST['offer_limit_per_user'])) : 0;
     	// get image info
     	$image = $db->escapeString($fn->xss_clean($_FILES['image']['name']));
     	$image_error = $db->escapeString($fn->xss_clean($_FILES['image']['error']));
@@ -216,7 +213,7 @@
     		    );
     		   // $product_id=$db->insert('products',$data);
                 //$sql='INSERT INTO products (name,slug,category_id,subcategory_id,brand_id,image,other_images,description,min_stock) VALUES("'.$name.'","'.$slug.'","'.$category_id.'","'.$subcategory_id.'","'.$brand_id.'","'.$upload_image.'","'.$other_images.'","'.$description.'","'.$min_stock.'")';
-                $sql="INSERT INTO products (name,slug,category_id,subcategory_id,brand_id,price_type,hsn,sgst,cgst,igst,image,other_images,description,available_time,min_stock,min_order_qty,status,seller_id,indicator,is_offer,offer_price,offer_limit_per_user) VALUES('".$name."','".$slug."','".$category_id."','".$subcategory_id."','".$brand_id."','".$price_type."','".$hsn."','".$sgst."','".$cgst."','".$igst."','".$upload_image."','".$other_images."','".$description."','".$available_time."','".$min_stock."','".$min_order_qty."','".$product_status."','".$seller_id."','".$indicator."','".$is_offer."','".$offer_price."','".$offer_limit_per_user."')";
+                $sql="INSERT INTO products (name,slug,category_id,subcategory_id,brand_id,price_type,hsn,sgst,cgst,igst,image,other_images,description,available_time,min_stock,min_order_qty,status,seller_id,indicator) VALUES('".$name."','".$slug."','".$category_id."','".$subcategory_id."','".$brand_id."','".$price_type."','".$hsn."','".$sgst."','".$cgst."','".$igst."','".$upload_image."','".$other_images."','".$description."','".$available_time."','".$min_stock."','".$min_order_qty."','".$product_status."','".$seller_id."','".$indicator."')";
                 // print_r($sql);die;
                 $db->sql($sql);
     			$product_id = $db->getResult();
@@ -302,7 +299,6 @@
                 // print_r($product_variant);
 			}
     		if($product_variant==1){
-    		    $db->sql("UPDATE products SET is_offer = (SELECT IF(COUNT(*) > 0, 1, 0) FROM product_variant WHERE product_id = '$product_id' AND is_offer = 1) WHERE id = '$product_id'");
     			$error['add_menu'] = "<div class='content-header'>
     			
                                                 <span class='label label-success'>Product Added Successfully</span>
