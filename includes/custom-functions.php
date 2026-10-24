@@ -3201,11 +3201,12 @@ public function get_permissions($id){
             $refund_id = $rzp_response['id'];
             $refunded_amt = isset($rzp_response['amount']) ? ($rzp_response['amount'] / 100) : $refund_amount;
             $rzp_status = isset($rzp_response['status']) ? strtolower(trim($rzp_response['status'])) : 'processing';
+            $rrn = isset($rzp_response['acquirer_data']['rrn']) ? $rzp_response['acquirer_data']['rrn'] : (isset($rzp_response['acquirer_data']['arn']) ? $rzp_response['acquirer_data']['arn'] : '');
 
             $db_status = ($rzp_status === 'processed') ? 'success' : 'process';
             $msg_text = ($rzp_status === 'processed')
-                ? 'Razorpay: Processed (Completed) | ID: ' . $refund_id
-                : 'Razorpay: Processing (Bank settlement in 5-7 business days) | ID: ' . $refund_id;
+                ? 'Razorpay: Processed (Completed)' . ($rrn ? ' | RRN: ' . $rrn : '') . ' | ID: ' . $refund_id
+                : 'Razorpay: Processing (Bank settlement in 5-7 business days)' . ($rrn ? ' | RRN: ' . $rrn : '') . ' | ID: ' . $refund_id;
 
             // Record refund in transactions table
             $txn_data = array(
@@ -3231,6 +3232,7 @@ public function get_permissions($id){
                 'is_online' => true,
                 'refund_id' => $refund_id,
                 'amount' => $refunded_amt,
+                'rrn' => $rrn,
                 'message' => $user_msg
             );
         } else {
@@ -3765,6 +3767,7 @@ public function get_permissions($id){
         $refund_date = '';
         $refund_message = '';
 
+        $rrn = '';
         if ($refund_txn !== null) {
             $r_st = strtolower(trim((string)$refund_txn['status']));
             $r_msg = strtolower(trim((string)$refund_txn['message']));
@@ -3774,6 +3777,9 @@ public function get_permissions($id){
             $refund_amount = (float)$refund_txn['amount'];
             $refund_date = $refund_txn['transaction_date'];
             $refund_message = $refund_txn['message'];
+            if (preg_match('/RRN:\s*([0-9a-zA-Z]+)/i', $refund_message, $m)) {
+                $rrn = $m[1];
+            }
         } elseif ($failed_refund_txn !== null) {
             $refund_state = 'failed';
             $refund_id = $failed_refund_txn['txn_id'];
@@ -3807,6 +3813,7 @@ public function get_permissions($id){
             'is_wallet' => $is_wallet,
             'refund_state' => $refund_state,
             'refund_id' => $refund_id,
+            'rrn' => $rrn,
             'refund_amount' => $refund_amount > 0 ? $refund_amount : $order_amount,
             'refund_date' => $refund_date,
             'refund_message' => $refund_message,

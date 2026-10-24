@@ -186,6 +186,12 @@
 									<th>Refund Amount</th>
 									<td><strong>Rs. <?=number_format((float)$refund_details['refund_amount'], 2)?></strong></td>
 								</tr>
+								<?php if(!empty($refund_details['rrn'])){ ?>
+								<tr>
+									<th>Bank RRN (Tracking #)</th>
+									<td><code style="font-weight:bold;color:#0073b7;"><?=htmlspecialchars($refund_details['rrn'])?></code> <small class="text-muted">(Customer bank reference)</small></td>
+								</tr>
+								<?php } ?>
 								<?php if(!empty($refund_details['refund_date'])){ ?>
 								<tr>
 									<th>Recorded Date</th>
