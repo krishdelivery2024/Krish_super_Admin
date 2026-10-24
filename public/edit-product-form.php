@@ -69,6 +69,9 @@
             $min_order_qty = $db->escapeString($fn->xss_clean($_POST['min_order_qty']));
             $indicator = $db->escapeString($fn->xss_clean($_POST['indicator']));
             $available_time = !empty($_POST['available_time']) ? implode(',', array_map(function($value) use ($fn, $db){ return $db->escapeString($fn->xss_clean($value)); }, $_POST['available_time'])) : '';
+            $is_offer = isset($_POST['is_offer']) && $_POST['is_offer'] == 1 ? 1 : 0;
+            $offer_price = (!empty($_POST['offer_price']) && is_numeric($_POST['offer_price'])) ? $db->escapeString($fn->xss_clean($_POST['offer_price'])) : 0;
+            $offer_limit_per_user = (!empty($_POST['offer_limit_per_user']) && is_numeric($_POST['offer_limit_per_user'])) ? $db->escapeString($fn->xss_clean($_POST['offer_limit_per_user'])) : 0;
             // $quantity = $_POST['quantity'];
             
             // get image info
@@ -227,10 +230,10 @@
                     }
       
                     $upload_image = 'upload/images/'.$image;
-                    $sql_query = "UPDATE products SET name = '$name' ,slug = '$slug' , category_id = '$category_id' ,subcategory_id = '$subcategory_id', brand_id = '$brand_id',price_type='$price_type', hsn = '$hsn',sgst = '$sgst',cgst = '$cgst',igst = '$igst', image = '$upload_image', description = '$description', available_time = '$available_time', min_stock = '$min_stock', min_order_qty = '$min_order_qty', status = '$product_status',  indicator = '$indicator'  WHERE id = $ID";
+                    $sql_query = "UPDATE products SET name = '$name' ,slug = '$slug' , category_id = '$category_id' ,subcategory_id = '$subcategory_id', brand_id = '$brand_id',price_type='$price_type', hsn = '$hsn',sgst = '$sgst',cgst = '$cgst',igst = '$igst', image = '$upload_image', description = '$description', available_time = '$available_time', min_stock = '$min_stock', min_order_qty = '$min_order_qty', status = '$product_status', indicator = '$indicator', is_offer = '$is_offer', offer_price = '$offer_price', offer_limit_per_user = '$offer_limit_per_user' WHERE id = $ID";
                     $db->sql($sql_query);
                 }else{
-                    $sql_query = "UPDATE products SET name = '$name' ,slug = '$slug' ,category_id = '$category_id' ,subcategory_id = '$subcategory_id' , brand_id = '$brand_id',price_type='$price_type', hsn = '$hsn',sgst = '$sgst',cgst = '$cgst',igst = '$igst', description = '$description', available_time = '$available_time', min_stock = '$min_stock', min_order_qty = '$min_order_qty', status = '$product_status',  indicator = '$indicator' WHERE id = $ID";
+                    $sql_query = "UPDATE products SET name = '$name' ,slug = '$slug' ,category_id = '$category_id' ,subcategory_id = '$subcategory_id' , brand_id = '$brand_id',price_type='$price_type', hsn = '$hsn',sgst = '$sgst',cgst = '$cgst',igst = '$igst', description = '$description', available_time = '$available_time', min_stock = '$min_stock', min_order_qty = '$min_order_qty', status = '$product_status', indicator = '$indicator', is_offer = '$is_offer', offer_price = '$offer_price', offer_limit_per_user = '$offer_limit_per_user' WHERE id = $ID";
                     $db->sql($sql_query);
                 }
                 //print_r($sql_query);die;
@@ -1079,6 +1082,26 @@
                             <label class="checkbox-inline"><input type="checkbox" name="available_time[]" value="Lunch" <?=(in_array('Lunch',$available_time_arr))?'checked':''; ?>> Lunch</label>
                             <label class="checkbox-inline"><input type="checkbox" name="available_time[]" value="Dinner" <?=(in_array('Dinner',$available_time_arr))?'checked':''; ?>> Dinner</label>
                         </div>
+
+                        <div class="clearfix"></div>
+                        <div class="form-group col-md-12" style="margin-top: 10px;">
+                            <label class="checkbox-inline" style="font-weight: bold; font-size: 14px; cursor: pointer;">
+                                <input type="checkbox" name="is_offer" id="is_offer" value="1" <?=(isset($data['is_offer']) && $data['is_offer'] == 1) ? 'checked' : ''?>> Special Offer Product
+                            </label>
+                        </div>
+                        <div id="offer_fields_div" style="<?=(isset($data['is_offer']) && $data['is_offer'] == 1) ? '' : 'display:none;'?>" class="col-md-12">
+                            <div class="row">
+                                <div class="form-group col-md-3">
+                                    <label for="offer_price">Offer Price (<?=$settings['currency']?>) :</label>
+                                    <input type="number" step="0.01" min="0" class="form-control" name="offer_price" id="offer_price" value="<?=(isset($data['offer_price']) && $data['offer_price'] > 0) ? $data['offer_price'] : ''?>" placeholder="Enter Offer Price">
+                                </div>
+                                <div class="form-group col-md-4">
+                                    <label for="offer_limit_per_user">No. of Order for One User (Limit Count) :</label>
+                                    <input type="number" min="0" class="form-control" name="offer_limit_per_user" id="offer_limit_per_user" value="<?=(isset($data['offer_limit_per_user']) && $data['offer_limit_per_user'] > 0) ? $data['offer_limit_per_user'] : ''?>" placeholder="e.g. 1 or 2 (0 = unlimited)">
+                                    <small class="text-muted">Restrict how many count a single user can add to cart.</small>
+                                </div>
+                            </div>
+                        </div>
                     
                             
                     </div>
@@ -1337,6 +1360,16 @@
 			width: '100%',
 			minimumResultsForSearch: 0,
 			placeholder: "type in brand name to search"
+		});
+
+		$('#is_offer').on('change', function() {
+			if ($(this).is(':checked')) {
+				$('#offer_fields_div').slideDown();
+			} else {
+				$('#offer_fields_div').slideUp();
+				$('#offer_price').val('');
+				$('#offer_limit_per_user').val('');
+			}
 		});
 	});
 </script>

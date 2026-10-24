@@ -42,6 +42,31 @@
 #delivery_boy_table .status-completed  { background-color: #5cb85c; } /* green */
 #delivery_boy_table .status-cancelled  { background-color: #d9534f; } /* red   */
 #delivery_boy_table .status-default    { background-color: #777777; } /* gray  */
+
+/* Sticky table header styles */
+#wrapper {
+    transform: none !important;
+    -webkit-transform: none !important;
+    overflow: visible !important;
+}
+.fixed-navbar {
+    z-index: 105 !important;
+}
+.fix-sticky {
+    z-index: 99 !important;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.12);
+}
+.fix-sticky table thead th {
+    background-color: #f8f9fa !important;
+    border-bottom: 2px solid #ccc !important;
+    color: #333 !important;
+}
+#delivery_boy_table thead th {
+    background-color: #f8f9fa;
+}
+.box-body.table-responsive {
+    overflow-x: visible !important;
+}
 </style>
 <?php
     if($permissions['reports']['read']==1) { 
@@ -153,7 +178,9 @@
                         data-export-types='["excel","pdf"]'
                         data-export-data-type="all"
                         data-show-footer="true"
-                        data-export-footer="true">
+                        data-export-footer="true"
+                        data-sticky-header="true"
+                        data-sticky-header-offset-y="50">
                         <thead>
                         <tr>
                             <th data-field="id" data-sortable="true" data-footer-formatter="dbTotalLabel">ID</th>
@@ -166,6 +193,7 @@
                             <th data-field="delivery_charge" data-sortable="true" data-align="right" data-footer-formatter="dbMoneyFormatter">Delivery Charge (&#8377;)</th>
                             <th data-field="final_total" data-sortable="true" data-align="right" data-footer-formatter="dbMoneyFormatter">Final Total (&#8377;)</th>
                             <th data-field="commission_amount" data-sortable="false" data-align="right" data-footer-formatter="dbMoneyFormatter">Commission (&#8377;)</th>
+                            <th data-field="delivery_boy_received" data-sortable="false" data-align="right" data-footer-formatter="dbMoneyFormatter">Delivery Boy Received (&#8377;)</th>
                             <th data-field="platform_fee" data-sortable="true" data-align="right" data-footer-formatter="dbMoneyFormatter">Platform Fee (&#8377;)</th>
                             <th data-field="convenience_fee" data-sortable="true" data-align="right" data-footer-formatter="dbMoneyFormatter">Convenience Fee (&#8377;)</th>
                             <th data-field="payment_method" data-sortable="true">Payment Method</th>

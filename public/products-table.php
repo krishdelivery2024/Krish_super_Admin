@@ -68,6 +68,7 @@
                             <th data-field="name" data-sortable="true">Name</th>
                             <th data-field="image">Image</th>
                             <th data-field="price" data-sortable="true">Price</th> 
+                            <th data-field="offer" data-sortable="true">Offer</th>
                             <th data-field="measurement" data-sortable="true">Measurement (Kg, gm, Ltr)</th> 
                             <th data-field="stock" data-sortable="true" >Stock</th>
                             <th data-field="serve_for" data-sortable="true">Availability</th>

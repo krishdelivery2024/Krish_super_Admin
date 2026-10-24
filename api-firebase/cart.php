@@ -81,8 +81,8 @@
         $stock = $result[0]['stock'];
         $serve_for = $result[0]['serve_for'];       
 
-        // Meal-time availability check
-        $sql = "SELECT p.available_time FROM product_variant pv JOIN products p ON p.id = pv.product_id WHERE pv.id='$product_variant_id'";
+        // Meal-time availability check & Offer check
+        $sql = "SELECT p.available_time, p.is_offer, p.offer_price, p.offer_limit_per_user FROM product_variant pv JOIN products p ON p.id = pv.product_id WHERE pv.id='$product_variant_id'";
         $db->sql($sql);
         $prod_res = $db->getResult();
         $available_time = !empty($prod_res[0]['available_time']) ? $prod_res[0]['available_time'] : '';
@@ -96,6 +96,8 @@
             die;
         }       
 
+        $is_offer = !empty($prod_res[0]['is_offer']) ? (int)$prod_res[0]['is_offer'] : 0;
+        $offer_limit_per_user = !empty($prod_res[0]['offer_limit_per_user']) ? (int)$prod_res[0]['offer_limit_per_user'] : 0;
 
         $sql_query="SELECT * FROM `carts` WHERE user_id='$user_id' AND product_variant_id='$product_variant_id'";  
         $db->sql($sql_query);
@@ -104,6 +106,14 @@
 		if($num > 0){
           $id = $res[0]['id'];
           $quantity = $res[0]['quantity'] + 1;
+
+          if($is_offer == 1 && $offer_limit_per_user > 0 && $quantity > $offer_limit_per_user){
+              $output = json_encode(array('error' => true,
+              'message' => "Offer limit reached! You can add maximum $offer_limit_per_user of this offer item to your cart."));
+              echo $output;
+              $db->disconnect();
+              die;  
+          }
 
           if($stock < $quantity || $serve_for == "Sold Out"){
                 $output = json_encode(array('error' => true,
@@ -116,6 +126,14 @@
           $sql =  "UPDATE `carts` SET `quantity`='$quantity' WHERE `id`='$id'";
           $db->sql($sql);
         }else{    
+            if($is_offer == 1 && $offer_limit_per_user > 0 && 1 > $offer_limit_per_user){
+                $output = json_encode(array('error' => true,
+                'message' => "Offer limit reached! You can add maximum $offer_limit_per_user of this offer item to your cart."));
+                echo $output;
+                $db->disconnect();
+                die;  
+            }
+
             if($stock < 1 || $serve_for == "Sold Out"){
                 $output = json_encode(array('error' => true,
                 'message' => 'Sold Out'));
@@ -270,6 +288,21 @@
                 die;
         }
 
+        $sql_prod_check = "SELECT p.is_offer, p.offer_limit_per_user FROM product_variant pv JOIN products p ON p.id = pv.product_id WHERE pv.id='$product_variant_id'";
+        $db->sql($sql_prod_check);
+        $prod_res = $db->getResult();
+        if(!empty($prod_res)){
+            $is_offer = !empty($prod_res[0]['is_offer']) ? (int)$prod_res[0]['is_offer'] : 0;
+            $offer_limit_per_user = !empty($prod_res[0]['offer_limit_per_user']) ? (int)$prod_res[0]['offer_limit_per_user'] : 0;
+            if($is_offer == 1 && $offer_limit_per_user > 0 && 1 > $offer_limit_per_user){
+                $output = json_encode(array('error' => true,
+                'message' => "Offer limit reached! You can add maximum $offer_limit_per_user of this offer item to your cart."));
+                echo $output;
+                $db->disconnect();
+                die;
+            }
+        }
+
             $sql =  "DELETE FROM `carts` WHERE `user_id`='$user_id'";
             $db->sql($sql);
 
@@ -296,7 +329,7 @@
             die;
         }   
 
-            $sql="SELECT c.*,p.name as product_name,p.image,pv.type,pv.measurement,pv.weight,pv.price,pv.discounted_price,pv.product_price,pv.stock,pv.stock_unit_id,u.name as unit_name,u.short_code as unit_short_code
+            $sql="SELECT c.*,p.name as product_name,p.image,p.is_offer,p.offer_price,p.offer_limit_per_user,pv.type,pv.measurement,pv.weight,pv.price,pv.discounted_price,pv.product_price,pv.stock,pv.stock_unit_id,u.name as unit_name,u.short_code as unit_short_code
             FROM carts c
             INNER JOIN products p ON c.product_id = p.id
             INNER JOIN product_variant pv ON c.product_variant_id = pv.id

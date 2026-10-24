@@ -156,6 +156,7 @@ if(isset($_POST['id'])) {
 	$sql="select user_id,payment_method,payment_status, wallet_balance,total,delivery_charge,tax_amount,status,active_status,delivery_boy_id,delivery_method,delivery_time from orders where id=".$id;
 	$db->sql($sql); // Table name, Column Names, JOIN, WHERE conditions, ORDER BY conditions
 	$res = $db->getResult();
+	$order_info = isset($res[0]) ? $res[0] : array();
 	$is_store_pickup = (strtolower(trim(isset($res[0]['delivery_method']) ? $res[0]['delivery_method'] : '')) == 'storepickup');
 	$order_delivery_time = isset($res[0]['delivery_time']) ? trim($res[0]['delivery_time']) : '';
 	$is_book_for_later = (stripos($order_delivery_time, 'Book for later') === 0);
@@ -241,6 +242,7 @@ $sub_total = (float)$res_query[0]['sub_total'];
             			$db->sql($sql);
                     }
         	    }
+    	    }
     	    // Payment Refund:
     	    // - If online payment via Razorpay: refund back to user's original payment method
     	    // - If COD: no online refund needed
@@ -620,16 +622,17 @@ if ($total == 0) {
     		// sendSm  // Notify delivery boy about status update if assigned
 			
             if (!$is_store_pickup) {
-            if ($res[0]['delivery_boy_id'] != 0 && (!isset($_POST['delivery_boy_id']) || empty($_POST['delivery_boy_id']))) {
-                $sql_dboy = "select name from delivery_boys where id='".$res[0]['delivery_boy_id']."'";
+            $dboy_id = isset($order_info['delivery_boy_id']) ? (int)$order_info['delivery_boy_id'] : 0;
+            if ($dboy_id != 0 && (!isset($_POST['delivery_boy_id']) || empty($_POST['delivery_boy_id']))) {
+                $sql_dboy = "select name from delivery_boys where id='".$dboy_id."'";
                 $db->sql($sql_dboy);
                 $res_dboy = $db->getResult();
                 if (!empty($res_dboy)) {
                     $message_delivery_boy = "Hello, Dear ".ucwords($res_dboy[0]['name']).", Here is the new update on your assigned order ID : #".$id.". The order status has been updated to ".ucwords($postStatus).".";
-                    $function->send_notification_to_delivery_boy($res[0]['delivery_boy_id'],"Order Status Updated to ".ucwords($postStatus),$message_delivery_boy,'delivery_boys',$id);
-                    $function->store_delivery_boy_notification($res[0]['delivery_boy_id'],$id,"Order Status Updated to ".ucwords($postStatus),$message_delivery_boy,'order_status');
+                    $function->send_notification_to_delivery_boy($dboy_id,"Order Status Updated to ".ucwords($postStatus),$message_delivery_boy,'delivery_boys',$id);
+                    $function->store_delivery_boy_notification($dboy_id,$id,"Order Status Updated to ".ucwords($postStatus),$message_delivery_boy,'order_status');
                 }
-            } else if ($res[0]['delivery_boy_id'] == 0 && $postStatus == 'processed') {
+            } else if ($dboy_id == 0 && $postStatus == 'processed') {
             
 $message_delivery_boy = "Hello, A new order (ID : #".$id.") is ready for delivery. Please check your app to accept it.";
 

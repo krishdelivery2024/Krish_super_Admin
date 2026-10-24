@@ -96,3 +96,17 @@ input:checked + .slider:before {
     max-height: calc(100vh - 60px); 
     overflow-y: auto;
 }
+
+/* Sticky table header styles */
+.fixed-navbar {
+    z-index: 105 !important;
+}
+.fix-sticky {
+    z-index: 99 !important;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.12);
+}
+.fix-sticky table thead th {
+    background-color: #f8f9fa !important;
+    border-bottom: 2px solid #ccc !important;
+    color: #333 !important;
+}

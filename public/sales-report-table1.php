@@ -19,6 +19,31 @@
 #sales_table .status-completed  { background-color: #5cb85c; } /* green */
 #sales_table .status-cancelled  { background-color: #d9534f; } /* red   */
 #sales_table .status-default    { background-color: #777777; } /* gray  */
+
+/* Sticky table header styles */
+#wrapper {
+    transform: none !important;
+    -webkit-transform: none !important;
+    overflow: visible !important;
+}
+.fixed-navbar {
+    z-index: 105 !important;
+}
+.fix-sticky {
+    z-index: 99 !important;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.12);
+}
+.fix-sticky table thead th {
+    background-color: #f8f9fa !important;
+    border-bottom: 2px solid #ccc !important;
+    color: #333 !important;
+}
+#sales_table thead th {
+    background-color: #f8f9fa;
+}
+.box-body.table-responsive {
+    overflow-x: visible !important;
+}
 </style>
     <div class="row small-spacing">
         <div class="col-xs-12">
@@ -127,7 +152,9 @@
                         data-export-types='["excel","pdf"]'
                         data-export-data-type="all"
                         data-show-footer="true"
-                        data-export-footer="true">
+                        data-export-footer="true"
+                        data-sticky-header="true"
+                        data-sticky-header-offset-y="50">
                         <thead>
                         <tr>
                             <th data-field="id" data-sortable="true" data-footer-formatter="salesTotalLabel">ID</th>
@@ -148,6 +175,7 @@
                             <th data-field="discounted_price" data-formatter="priceListFormatter" data-align="right" data-footer-formatter="salesMoneyFormatter">Discounted Price (&#8377;)</th>
                             <th data-field="commission_percent" data-sortable="false" data-align="center">Commission (%)</th>
                             <th data-field="commission_amount" data-sortable="false" data-align="right" data-footer-formatter="salesMoneyFormatter">Commission (&#8377;)</th>
+                            <th data-field="seller_received" data-formatter="priceListFormatter" data-align="right" data-footer-formatter="salesMoneyFormatter">Seller Received (&#8377;)</th>
                             <?php } ?>
                             <th data-field="final_total" data-sortable="true" data-align="right" data-footer-formatter="salesMoneyFormatter">Final Total (&#8377;)</th>
                             <th data-field="platform_fee" data-sortable="true" data-align="right" data-footer-formatter="salesMoneyFormatter">Platform Fee (&#8377;)</th>

@@ -178,9 +178,10 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 
 	$item_details=$function->get_product_by_variant_id($items);
 	
-	// Meal-time availability check for every ordered item
+	// Meal-time availability and offer limit check for every ordered item
 	if(!empty($item_details)){
-	    foreach($item_details as $item){
+	    for($k=0; $k<count($item_details); $k++){
+	        $item = $item_details[$k];
 	        $avail_time = isset($item['available_time']) ? $item['available_time'] : '';
 	        $avail_info = $function->get_meal_availability_info($avail_time);
 	        if(!$avail_info['available_now']){
@@ -189,6 +190,17 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 	            $response['error'] = true;
 	            $response['message'] = ucfirst($item_name).' is '.$avail_label.'. Please remove unavailable items and try again.';
 	            log_order_debug("Order rejected, item not available: " . $item_name);
+	            print_r(json_encode($response));
+	            return false;
+	        }
+	        $is_offer_item = isset($item['is_offer']) ? (int)$item['is_offer'] : 0;
+	        $offer_limit_check = isset($item['offer_limit_per_user']) ? (int)$item['offer_limit_per_user'] : 0;
+	        $ordered_qty = isset($quantity_arr[$k]) ? (int)$quantity_arr[$k] : 1;
+	        if($is_offer_item == 1 && $offer_limit_check > 0 && $ordered_qty > $offer_limit_check){
+	            $item_name = isset($item['name']) ? $item['name'] : 'this offer item';
+	            $response['error'] = true;
+	            $response['message'] = "Offer limit reached for $item_name! Maximum $offer_limit_check allowed per order.";
+	            log_order_debug("Order rejected, offer limit exceeded for: " . $item_name);
 	            print_r(json_encode($response));
 	            return false;
 	        }
@@ -411,6 +423,8 @@ $db->sql("SELECT * FROM delivery_method WHERE id=1");
 		$price = $item_details[$i]['price'];
 		$discounted_price = $item_details[$i]['discounted_price'];
 		$vendor_price = $item_details[$i]['vendor_price'];
+		$is_offer = isset($item_details[$i]['is_offer']) ? (int)$item_details[$i]['is_offer'] : 0;
+		$offer_price = isset($item_details[$i]['offer_price']) ? (float)$item_details[$i]['offer_price'] : 0;
 		
 		$sgstp = $item_details[$i]['sgst'];
 		$cgstp = $item_details[$i]['cgst'];
@@ -420,7 +434,12 @@ $db->sql("SELECT * FROM delivery_method WHERE id=1");
 		$total_stock = $item_details[$i]['stock'];
 		$quantity = $quantity_arr[$i];
 		
-		$sub_total=$discounted_price != 0?$discounted_price * $quantity:$price * $quantity;
+		if($is_offer == 1 && $offer_price > 0){
+			$unit_price_used = $offer_price;
+		}else{
+			$unit_price_used = ($discounted_price != 0) ? $discounted_price : $price;
+		}
+		$sub_total = $unit_price_used * $quantity;
  
 		$data = array(
 		    'user_id'=>$user_id,
@@ -428,7 +447,7 @@ $db->sql("SELECT * FROM delivery_method WHERE id=1");
 		    'product_variant_id'=>$db->escapeString($product_variant_id),
 		    'quantity'=>$db->escapeString($quantity),
 		    'price'=>$db->escapeString($price),
-		    'discounted_price'=>$db->escapeString($discounted_price),
+		    'discounted_price'=>($is_offer == 1 && $offer_price > 0) ? $db->escapeString($offer_price) : $db->escapeString($discounted_price),
 		    'vendor_price'=>$db->escapeString($vendor_price),
 		    'discount'=>$discount,
 		    'sgst'=>$sgstp,

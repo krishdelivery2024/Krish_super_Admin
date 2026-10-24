@@ -898,7 +898,7 @@
 			$total = $row['total'];
 		
 // 		$sql = "SELECT * FROM products ".$where." ORDER BY ".$sort." ".$order." LIMIT ".$offset.", ".$limit;
-        $sql = "SELECT p.id AS id, p.name, p.image, pv.price, pv.discounted_price, pv.measurement, pv.serve_for, pv.stock,pv.barcode_data, u.short_code ,p.is_active, p.available_time
+        $sql = "SELECT p.id AS id, p.name, p.image, p.is_offer, p.offer_price, p.offer_limit_per_user, pv.price, pv.discounted_price, pv.measurement, pv.serve_for, pv.stock,pv.barcode_data, u.short_code ,p.is_active, p.available_time
             FROM `products` p
             $join 
             $where ORDER BY $sort $order LIMIT $offset, $limit";
@@ -932,6 +932,9 @@
 			$tempRow['measurement'] = $row['measurement']." ".$row['short_code'];
 			$tempRow['price'] = $currency." ".$row['price'];
 			$tempRow['discounted_price'] = $currency." ".$row['discounted_price'];
+			$tempRow['offer'] = ($row['is_offer'] == 1)
+				? "<span class='label label-success'>₹".$row['offer_price']." (Limit: ".($row['offer_limit_per_user'] > 0 ? $row['offer_limit_per_user'] : 'No limit').")</span>"
+				: "<span class='label label-default'>No</span>";
 			$tempRow['serve_for'] = $row['serve_for'];
 			$tempRow['stock'] = $row['stock'];
 			$tempRow['available_time'] = !empty($row['available_time']) ? $row['available_time'] : 'n/a';
@@ -3044,8 +3047,15 @@ if ($role === 'sub admin') {
                 ? floatval($row['delivery_boy_commission'])
                 : $global_db_comm;
 
+            $del_charge = !empty($row['delivery_charge']) ? floatval($row['delivery_charge']) : 0.0;
+            $db_received = round($del_charge - $db_comm_amt, 2);
+            if ($db_received < 0) {
+                $db_received = 0.0;
+            }
+
             $tempRow['commission_percent'] = '₹' . number_format($db_comm_amt, 2);
             $tempRow['commission_amount']  = number_format($db_comm_amt, 2, '.', '');
+            $tempRow['delivery_boy_received'] = number_format($db_received, 2, '.', '');
 
             // NOTE: payment_method used as-is (assumed already stored as
             // "Cash on Delivery" / "Online Payment"), same as sales report.
@@ -3214,7 +3224,7 @@ if ($role === 'sub admin') {
                 -- No DISTINCT here, and same ORDER BY oi.id as above, so this
                 -- list stays the same length/order as product_details.
                 GROUP_CONCAT(
-                    COALESCE(pv.vendor_price, 0)
+                    COALESCE(NULLIF(oi.vendor_price, ''), pv.vendor_price, 0)
                     ORDER BY oi.id SEPARATOR '||'
                 ) AS vendor_price_list,
      
@@ -3390,11 +3400,26 @@ if ($role === 'sub admin') {
                 $comm_pct = (isset($row['seller_commission']) && $row['seller_commission'] !== '' && floatval($row['seller_commission']) > 0)
                     ? floatval($row['seller_commission'])
                     : $global_seller_comm;
-                $final_tot = isset($row['final_total']) ? floatval($row['final_total']) : 0.0;
-                $comm_amt = round(($final_tot * $comm_pct) / 100, 2);
+
+                $vp_list = !empty($row['vendor_price_list']) ? explode('||', $row['vendor_price_list']) : array();
+                $seller_received_list = array();
+                $total_comm_amt = 0.0;
+
+                foreach ($vp_list as $vp_val) {
+                    $vp_num = floatval($vp_val);
+                    $comm_for_item = round(($vp_num * $comm_pct) / 100, 2);
+                    $seller_recv = round($vp_num - $comm_for_item, 2);
+                    if ($seller_recv < 0) { $seller_recv = 0.0; }
+                    $seller_received_list[] = number_format($seller_recv, 2, '.', '');
+                    $total_comm_amt += $comm_for_item;
+                }
+                if (empty($seller_received_list)) {
+                    $seller_received_list = array('0.00');
+                }
 
                 $tempRow['commission_percent'] = $comm_pct . '%';
-                $tempRow['commission_amount']  = number_format($comm_amt, 2, '.', '');
+                $tempRow['commission_amount']  = number_format($total_comm_amt, 2, '.', '');
+                $tempRow['seller_received']    = $seller_received_list;
             }
      
             $rows[] = $tempRow;

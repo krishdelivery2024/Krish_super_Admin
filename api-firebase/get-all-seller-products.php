@@ -103,6 +103,9 @@ $row['image'] = DOMAIN_URL.$row['image'];
                     $row['available_now'] = $avail_info['available_now'];
                     $row['available_now_label'] = $avail_info['label'];
                     for($k=0;$k<count($variants);$k++){
+                        $variants[$k]['is_offer'] = (string)(isset($row['is_offer']) ? $row['is_offer'] : '0');
+                        $variants[$k]['offer_price'] = (string)(isset($row['offer_price']) ? $row['offer_price'] : '0');
+                        $variants[$k]['offer_limit_per_user'] = (string)(isset($row['offer_limit_per_user']) ? $row['offer_limit_per_user'] : '0');
             		    if($variants[$k]['serve_for']=='Available'){
             				if($variants[$k]['stock']<=0){
     							$variants[$k]['serve_for']='Sold Out';
