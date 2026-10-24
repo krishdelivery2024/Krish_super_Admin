@@ -240,6 +240,10 @@
                 $res = $db->getResult();
                 for($i=0;$i<count($_POST['product_variant_id']);$i++){
                     if($_POST['type']=="packet"){
+                        $v_is_offer = (!empty($_POST['packate_is_offer'][$i]) && $_POST['packate_is_offer'][$i] == 1) ? 1 : 0;
+                        $variant_offer_price = ($v_is_offer == 1 && !empty($_POST['packate_offer_price'][$i])) ? $db->escapeString($fn->xss_clean($_POST['packate_offer_price'][$i])) : 0.00;
+                        $variant_offer_limit = ($v_is_offer == 1 && !empty($_POST['packate_offer_limit_per_user'][$i])) ? (int)$_POST['packate_offer_limit_per_user'][$i] : 0;
+
                         $data = array(
                             'type'=>$db->escapeString($fn->xss_clean($_POST['type'])),
                             'measurement'=>$db->escapeString($fn->xss_clean($_POST['packate_measurement'][$i])),
@@ -248,6 +252,9 @@
                             'price'=>$db->escapeString($fn->xss_clean($_POST['packate_price'][$i])),
                             'vendor_price'=>$db->escapeString($fn->xss_clean($_POST['packate_vendor_price'][$i])),
                             'discounted_price'=>$db->escapeString($fn->xss_clean($_POST['packate_discounted_price'][$i])),
+                            'is_offer'=>$v_is_offer,
+                            'offer_price'=>$variant_offer_price,
+                            'offer_limit_per_user'=>$variant_offer_limit,
                             'product_price'=>$db->escapeString($fn->xss_clean($_POST['packate_product_price'][$i])),
                             'item_sgst'=>$db->escapeString($fn->xss_clean($_POST['packate_item_sgst'][$i])),
                             'item_cgst'=>$db->escapeString($fn->xss_clean($_POST['packate_item_cgst'][$i])),
@@ -270,6 +277,10 @@
                         }
                         // print_r($res);
                     }else if($_POST['type']=="loose"){ //echo $_POST['product_variant_id'][$i];die();
+                        $v_is_offer = (!empty($_POST['loose_is_offer'][$i]) && $_POST['loose_is_offer'][$i] == 1) ? 1 : 0;
+                        $variant_offer_price = ($v_is_offer == 1 && !empty($_POST['loose_offer_price'][$i])) ? $db->escapeString($fn->xss_clean($_POST['loose_offer_price'][$i])) : 0.00;
+                        $variant_offer_limit = ($v_is_offer == 1 && !empty($_POST['loose_offer_limit_per_user'][$i])) ? (int)$_POST['loose_offer_limit_per_user'][$i] : 0;
+
                         $data = array(
                             'type'=>$db->escapeString($fn->xss_clean($_POST['type'])),
                             'measurement'=>$db->escapeString($fn->xss_clean($_POST['loose_measurement'][$i])),
@@ -278,6 +289,9 @@
                             'price'=>$db->escapeString($fn->xss_clean($_POST['loose_price'][$i])),
                             'vendor_price'=>$db->escapeString($fn->xss_clean($_POST['loose_vendor_price'][$i])),
                             'discounted_price'=>$db->escapeString($fn->xss_clean($_POST['loose_discounted_price'][$i])),
+                            'is_offer'=>$v_is_offer,
+                            'offer_price'=>$variant_offer_price,
+                            'offer_limit_per_user'=>$variant_offer_limit,
                             'product_price'=>$db->escapeString($fn->xss_clean($_POST['loose_product_price'][$i])),
                             'item_sgst'=>$db->escapeString($fn->xss_clean($_POST['loose_item_sgst'][$i])),
                             'item_cgst'=>$db->escapeString($fn->xss_clean($_POST['loose_item_cgst'][$i])),
@@ -303,6 +317,10 @@
                 && isset($_POST['insert_packate_stock'])){
                     
                     for($i=0;$i<count($_POST['insert_packate_measurement']);$i++){
+                        $v_is_offer = (!empty($_POST['insert_packate_is_offer'][$i]) && $_POST['insert_packate_is_offer'][$i] == 1) ? 1 : 0;
+                        $variant_offer_price = ($v_is_offer == 1 && !empty($_POST['insert_packate_offer_price'][$i])) ? $db->escapeString($fn->xss_clean($_POST['insert_packate_offer_price'][$i])) : 0.00;
+                        $variant_offer_limit = ($v_is_offer == 1 && !empty($_POST['insert_packate_offer_limit_per_user'][$i])) ? (int)$_POST['insert_packate_offer_limit_per_user'][$i] : 0;
+
                         $data = array(
                             "product_id"=>$db->escapeString($ID),
                             "type"=>$db->escapeString($fn->xss_clean($_POST['type'])),
@@ -312,6 +330,9 @@
                             "price"=>$db->escapeString($fn->xss_clean($_POST['insert_packate_price'][$i])),
                             "vendor_price"=>$db->escapeString($fn->xss_clean($_POST['insert_packate_vendor_price'][$i])),
                             "discounted_price"=>$db->escapeString($fn->xss_clean($_POST['insert_packate_discounted_price'][$i])),
+                            'is_offer'=>$v_is_offer,
+                            "offer_price"=>$variant_offer_price,
+                            'offer_limit_per_user'=>$variant_offer_limit,
                             'product_price'=>$db->escapeString($fn->xss_clean($_POST['insert_packate_product_price'][$i])),
                             'item_sgst'=>$db->escapeString($fn->xss_clean($_POST['insert_packate_item_sgst'][$i])),
                             'item_cgst'=>$db->escapeString($fn->xss_clean($_POST['insert_packate_item_cgst'][$i])),
@@ -333,6 +354,10 @@
                 if(isset($_POST['insert_loose_measurement']) && isset($_POST['insert_loose_measurement_unit_id']) 
                 && isset($_POST['insert_loose_price']) && isset($_POST['insert_loose_discounted_price'])){
                     for($i=0;$i<count($_POST['insert_loose_measurement']);$i++){
+                        $v_is_offer = (!empty($_POST['insert_loose_is_offer'][$i]) && $_POST['insert_loose_is_offer'][$i] == 1) ? 1 : 0;
+                        $variant_offer_price = ($v_is_offer == 1 && !empty($_POST['insert_loose_offer_price'][$i])) ? $db->escapeString($fn->xss_clean($_POST['insert_loose_offer_price'][$i])) : 0.00;
+                        $variant_offer_limit = ($v_is_offer == 1 && !empty($_POST['insert_loose_offer_limit_per_user'][$i])) ? (int)$_POST['insert_loose_offer_limit_per_user'][$i] : 0;
+
                         $data = array(
                             "product_id"=>$db->escapeString($ID),
                             "type"=>$db->escapeString($fn->xss_clean($_POST['type'])),
@@ -342,6 +367,9 @@
                             "price"=>$db->escapeString($fn->xss_clean($_POST['insert_loose_price'][$i])),
                             "vendor_price"=>$db->escapeString($fn->xss_clean($_POST['insert_loose_vendor_price'][$i])),
                             "discounted_price"=>$db->escapeString($fn->xss_clean($_POST['insert_loose_discounted_price'][$i])),
+                            'is_offer'=>$v_is_offer,
+                            "offer_price"=>$variant_offer_price,
+                            'offer_limit_per_user'=>$variant_offer_limit,
                             'product_price'=>$db->escapeString($fn->xss_clean($_POST['insert_loose_product_price'][$i])),
                             'item_sgst'=>$db->escapeString($fn->xss_clean($_POST['insert_loose_item_sgst'][$i])),
                             'item_cgst'=>$db->escapeString($fn->xss_clean($_POST['insert_loose_item_cgst'][$i])),
@@ -357,6 +385,8 @@
                         }
                     }
                 }
+                // Sync product is_offer: 1 if any variant has active offer, else 0
+                $db->sql("UPDATE products SET is_offer = (SELECT IF(COUNT(*) > 0, 1, 0) FROM product_variant WHERE product_id = $ID AND is_offer = 1) WHERE id = $ID");
                 $error['update_data'] = "<div class='content-header'>
                                                 <span class='label label-success'>Product Updated Successfully</span>
                                                 <h4><small><a  href='products.php'><i class='fa fa-angle-double-left'></i>&nbsp;&nbsp;&nbsp;Back to Products</a></small></h4>
@@ -459,14 +489,15 @@
                             </div>
                         </div>
                     </div>
-                <div>
-                <label for="type">Type</label><?php echo isset($error['type']) ? $error['type'] : '';?>
-                    <div class="form-group">
-                      <label class="radio-inline"><input type="radio" name="type"  id="packate" value="packet" <?=($res[0]['type']=="packet")?"checked":""; ?> >Packet</label>
-                      <label class="radio-inline"><input type="radio" name="type" id ="loose" value="loose" <?=($res[0]['type']=="loose")?"checked":""; ?> >Loose</label>
+                <div class="row">
+                    <div class="col-md-4">
+                        <label for="type">Type</label><?php echo isset($error['type']) ? $error['type'] : '';?>
+                        <div class="form-group">
+                          <label class="radio-inline"><input type="radio" name="type"  id="packate" value="packet" <?=($res[0]['type']=="packet")?"checked":""; ?> >Packet</label>
+                          <label class="radio-inline"><input type="radio" name="type" id ="loose" value="loose" <?=($res[0]['type']=="loose")?"checked":""; ?> >Loose</label>
+                        </div>
                     </div>
-                    </div>
-                <hr>
+                </div>
                 <div id="variations">
                     <h5>Product Variations</h5>
                     <hr>
@@ -531,6 +562,25 @@
                                     <div class="form-group packate_div">
                                         <label for="discounted_price">Selling Price(<?=$settings['currency']?>):</label>
                                         <input type="text" class="form-control discounted_price" name="packate_discounted_price[]"  value='<?=$row['discounted_price'];?>' <?=($data['price_type']=='including')?'':'readonly';?>/>
+                                    </div>
+                                </div>
+                                <div class="col-item" style="width:7%;">
+                                    <div class="form-group packate_div">
+                                        <label>Offer?</label><br>
+                                        <input type="hidden" name="packate_is_offer[]" class="variant_offer_val" value="<?=(isset($row['is_offer']) && $row['is_offer'] == 1) ? '1' : '0'?>">
+                                        <input type="checkbox" class="variant_offer_toggle" value="1" <?=(isset($row['is_offer']) && $row['is_offer'] == 1) ? 'checked' : ''?> style="width:18px;height:18px;margin-top:4px;cursor:pointer;">
+                                    </div>
+                                </div>
+                                <div class="col-item variant_offer_field" style="width:11%; <?=(isset($row['is_offer']) && $row['is_offer'] == 1) ? '' : 'display:none;'?>">
+                                    <div class="form-group packate_div">
+                                        <label class="text-success"><i class="fa fa-tag"></i> Offer Price(<?=$settings['currency']?>):</label>
+                                        <input type="number" step="0.01" min="0" class="form-control variant_offer_price_input" name="packate_offer_price[]" value="<?=(isset($row['offer_price'])) ? $row['offer_price'] : '0'?>" placeholder="Offer Price" />
+                                    </div>
+                                </div>
+                                <div class="col-item variant_offer_field" style="width:9%; <?=(isset($row['is_offer']) && $row['is_offer'] == 1) ? '' : 'display:none;'?>">
+                                    <div class="form-group packate_div">
+                                        <label class="text-success">User Limit:</label>
+                                        <input type="number" min="0" class="form-control variant_offer_limit_input" name="packate_offer_limit_per_user[]" value="<?=(isset($row['offer_limit_per_user'])) ? $row['offer_limit_per_user'] : '0'?>" placeholder="Limit" />
                                     </div>
                                 </div>
                                 <div class="col-item pr_price" style="width:12.1%;">
@@ -766,6 +816,25 @@
                                     <input type="text" class="form-control discounted_price" name="loose_discounted_price[]" id="discounted_price"  value='<?=$row['discounted_price'];?>'<?=($data['price_type']=='including')?'':'readonly';?>/>
                                 </div>
                             </div>
+                                <div class="col-item" style="width:7%;">
+                                    <div class="form-group loose_div">
+                                        <label>Offer?</label><br>
+                                        <input type="hidden" name="loose_is_offer[]" class="variant_offer_val" value="<?=(isset($row['is_offer']) && $row['is_offer'] == 1) ? '1' : '0'?>">
+                                        <input type="checkbox" class="variant_offer_toggle" value="1" <?=(isset($row['is_offer']) && $row['is_offer'] == 1) ? 'checked' : ''?> style="width:18px;height:18px;margin-top:4px;cursor:pointer;">
+                                    </div>
+                                </div>
+                                <div class="col-item variant_offer_field" style="width:11%; <?=(isset($row['is_offer']) && $row['is_offer'] == 1) ? '' : 'display:none;'?>">
+                                    <div class="form-group loose_div">
+                                        <label class="text-success"><i class="fa fa-tag"></i> Offer Price(<?=$settings['currency']?>):</label>
+                                        <input type="number" step="0.01" min="0" class="form-control variant_offer_price_input" name="loose_offer_price[]" value="<?=(isset($row['offer_price'])) ? $row['offer_price'] : '0'?>" placeholder="Offer Price" />
+                                    </div>
+                                </div>
+                                <div class="col-item variant_offer_field" style="width:9%; <?=(isset($row['is_offer']) && $row['is_offer'] == 1) ? '' : 'display:none;'?>">
+                                    <div class="form-group loose_div">
+                                        <label class="text-success">User Limit:</label>
+                                        <input type="number" min="0" class="form-control variant_offer_limit_input" name="loose_offer_limit_per_user[]" value="<?=(isset($row['offer_limit_per_user'])) ? $row['offer_limit_per_user'] : '0'?>" placeholder="Limit" />
+                                    </div>
+                                </div>
                             <div class="col-item pr_price" style="width:12%;">
                             	    <div class="form-group loose_div">
                                         <label for="qty">Product Price(<?=$settings['currency']?>):</label>
@@ -1083,27 +1152,6 @@
                             <label class="checkbox-inline"><input type="checkbox" name="available_time[]" value="Dinner" <?=(in_array('Dinner',$available_time_arr))?'checked':''; ?>> Dinner</label>
                         </div>
 
-                        <div class="clearfix"></div>
-                        <div class="form-group col-md-12" style="margin-top: 10px;">
-                            <label class="checkbox-inline" style="font-weight: bold; font-size: 14px; cursor: pointer;">
-                                <input type="checkbox" name="is_offer" id="is_offer" value="1" <?=(isset($data['is_offer']) && $data['is_offer'] == 1) ? 'checked' : ''?>> Special Offer Product
-                            </label>
-                        </div>
-                        <div id="offer_fields_div" style="<?=(isset($data['is_offer']) && $data['is_offer'] == 1) ? '' : 'display:none;'?>" class="col-md-12">
-                            <div class="row">
-                                <div class="form-group col-md-3">
-                                    <label for="offer_price">Offer Price (<?=$settings['currency']?>) :</label>
-                                    <input type="number" step="0.01" min="0" class="form-control" name="offer_price" id="offer_price" value="<?=(isset($data['offer_price']) && $data['offer_price'] > 0) ? $data['offer_price'] : ''?>" placeholder="Enter Offer Price">
-                                </div>
-                                <div class="form-group col-md-4">
-                                    <label for="offer_limit_per_user">No. of Order for One User (Limit Count) :</label>
-                                    <input type="number" min="0" class="form-control" name="offer_limit_per_user" id="offer_limit_per_user" value="<?=(isset($data['offer_limit_per_user']) && $data['offer_limit_per_user'] > 0) ? $data['offer_limit_per_user'] : ''?>" placeholder="e.g. 1 or 2 (0 = unlimited)">
-                                    <small class="text-muted">Restrict how many count a single user can add to cart.</small>
-                                </div>
-                            </div>
-                        </div>
-                    
-                            
                     </div>
                     </div>
                     <!-- /.box-body -->
@@ -1360,16 +1408,6 @@
 			width: '100%',
 			minimumResultsForSearch: 0,
 			placeholder: "type in brand name to search"
-		});
-
-		$('#is_offer').on('change', function() {
-			if ($(this).is(':checked')) {
-				$('#offer_fields_div').slideDown();
-			} else {
-				$('#offer_fields_div').slideUp();
-				$('#offer_price').val('');
-				$('#offer_limit_per_user').val('');
-			}
 		});
 	});
 </script>

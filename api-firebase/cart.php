@@ -82,7 +82,7 @@
         $serve_for = $result[0]['serve_for'];       
 
         // Meal-time availability check & Offer check
-        $sql = "SELECT p.available_time, p.is_offer, p.offer_price, p.offer_limit_per_user FROM product_variant pv JOIN products p ON p.id = pv.product_id WHERE pv.id='$product_variant_id'";
+        $sql = "SELECT p.available_time, pv.is_offer, pv.offer_price, pv.offer_limit_per_user FROM product_variant pv JOIN products p ON p.id = pv.product_id WHERE pv.id='$product_variant_id'";
         $db->sql($sql);
         $prod_res = $db->getResult();
         $available_time = !empty($prod_res[0]['available_time']) ? $prod_res[0]['available_time'] : '';
@@ -288,7 +288,7 @@
                 die;
         }
 
-        $sql_prod_check = "SELECT p.is_offer, p.offer_limit_per_user FROM product_variant pv JOIN products p ON p.id = pv.product_id WHERE pv.id='$product_variant_id'";
+        $sql_prod_check = "SELECT pv.is_offer, pv.offer_limit_per_user FROM product_variant pv JOIN products p ON p.id = pv.product_id WHERE pv.id='$product_variant_id'";
         $db->sql($sql_prod_check);
         $prod_res = $db->getResult();
         if(!empty($prod_res)){
@@ -329,7 +329,7 @@
             die;
         }   
 
-            $sql="SELECT c.*,p.name as product_name,p.image,p.is_offer,p.offer_price,p.offer_limit_per_user,pv.type,pv.measurement,pv.weight,pv.price,pv.discounted_price,pv.product_price,pv.stock,pv.stock_unit_id,u.name as unit_name,u.short_code as unit_short_code
+            $sql="SELECT c.*,p.name as product_name,p.image,pv.is_offer,pv.offer_price,pv.offer_limit_per_user,pv.type,pv.measurement,pv.weight,pv.price,pv.discounted_price,pv.product_price,pv.stock,pv.stock_unit_id,u.name as unit_name,u.short_code as unit_short_code
             FROM carts c
             INNER JOIN products p ON c.product_id = p.id
             INNER JOIN product_variant pv ON c.product_variant_id = pv.id
@@ -342,6 +342,9 @@
 		    if($num > 0){   
                 for($i=0;$i<count($res);$i++){
 				$res[$i]['image'] = (!empty($res[$i]['image']))?DOMAIN_URL.''.$res[$i]['image']:'';
+				$res[$i]['is_offer'] = (string)(isset($res[$i]['is_offer']) ? $res[$i]['is_offer'] : '0');
+				$res[$i]['offer_price'] = (string)(isset($res[$i]['offer_price']) ? $res[$i]['offer_price'] : '0');
+				$res[$i]['offer_limit_per_user'] = (string)(isset($res[$i]['offer_limit_per_user']) ? $res[$i]['offer_limit_per_user'] : '0');
 			}     
                 $output = json_encode(array('error' => false,
                 'data' => $res,

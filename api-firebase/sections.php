@@ -163,9 +163,9 @@ if(isset($_POST['get-all-sections'])) {
         		    $row['other_images'][$j] = DOMAIN_URL.$row['other_images'][$j];
         		}
         		for($k=0;$k<count($variants);$k++){
-        		    $variants[$k]['is_offer'] = (string)(isset($row['is_offer']) ? $row['is_offer'] : '0');
-        		    $variants[$k]['offer_price'] = (string)(isset($row['offer_price']) ? $row['offer_price'] : '0');
-        		    $variants[$k]['offer_limit_per_user'] = (string)(isset($row['offer_limit_per_user']) ? $row['offer_limit_per_user'] : '0');
+        		    $variants[$k]['is_offer'] = (string)(isset($variants[$k]['is_offer']) ? $variants[$k]['is_offer'] : '0');
+        		    $variants[$k]['offer_price'] = (string)(isset($variants[$k]['offer_price']) ? $variants[$k]['offer_price'] : '0');
+        		    $variants[$k]['offer_limit_per_user'] = (string)(isset($variants[$k]['offer_limit_per_user']) ? $variants[$k]['offer_limit_per_user'] : '0');
         		    if($variants[$k]['stock']<=0){
         		        $variants[$k]['serve_for']='Sold Out';
         		    }else{

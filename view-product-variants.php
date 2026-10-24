@@ -62,6 +62,7 @@
                                 <th>Stock</th>
                                 <th>Price(<?=$settings['currency']?>)</th>
                                 <th>Discounted Price(<?=$settings['currency']?>)</th>
+                                <th>Offer</th>
                                 <th>Action</th>
                             </tr>
                             <?php 
@@ -87,6 +88,7 @@
                                 <td><?php echo $row['stock']." ".$row['stock_unit_name'];?></td>
                                 <td><?php echo $row['price'];?></td>
                                 <td><?php echo $row['discounted_price'];?></td>
+                                <td><?php echo ($row['is_offer'] == 1) ? "<span class='label label-success'>₹".$row['offer_price']." (Limit: ".($row['offer_limit_per_user'] > 0 ? $row['offer_limit_per_user'] : 'No limit').")</span>" : "<span class='label label-default'>No</span>"; ?></td>
                                 <td><a href="product-detail.php?id=<?php echo $row['variant_id'];?>"><i class="fa fa-folder-open"></i>View</a> <a href="edit-product.php?id=<?php echo $row['product_id'];?>"><i class="fa fa-edit"></i>Edit</a></td>
 
 

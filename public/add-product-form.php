@@ -240,6 +240,10 @@
                     $price=$db->escapeString($fn->xss_clean($_POST['packate_price'][$i]));
                     $vendorprice=$db->escapeString($fn->xss_clean($_POST['packate_vendor_price'][$i]));
                     $discounted_price=!empty($fn->xss_clean($_POST['packate_discounted_price'][$i])) ? $db->escapeString($fn->xss_clean($_POST['packate_discounted_price'][$i])) : 0;
+                    $v_is_offer = (!empty($_POST['packate_is_offer'][$i]) && $_POST['packate_is_offer'][$i] == 1) ? 1 : 0;
+                    $variant_offer_price = ($v_is_offer == 1 && !empty($_POST['packate_offer_price'][$i])) ? $db->escapeString($fn->xss_clean($_POST['packate_offer_price'][$i])) : 0;
+                    $variant_offer_limit = ($v_is_offer == 1 && !empty($_POST['packate_offer_limit_per_user'][$i])) ? (int)$_POST['packate_offer_limit_per_user'][$i] : 0;
+                    if($v_is_offer == 1) { $has_any_offer = 1; }
                     $product_price=!empty($fn->xss_clean($_POST['packate_product_price'][$i])) ? $db->escapeString($fn->xss_clean($_POST['packate_product_price'][$i])) : 0;
                     $item_sgst=!empty($fn->xss_clean($_POST['packate_item_sgst'][$i])) ? $db->escapeString($fn->xss_clean($_POST['packate_item_sgst'][$i])) : 0;
                     $item_cgst=!empty($fn->xss_clean($_POST['packate_item_cgst'][$i])) ? $db->escapeString($fn->xss_clean($_POST['packate_item_cgst'][$i])) : 0;
@@ -250,7 +254,7 @@
                     $stock=$db->escapeString($fn->xss_clean($_POST['packate_stock'][$i]));
                     $stock_unit_id=!empty($_POST['packate_stock_unit_id'][$i]) ? $db->escapeString($fn->xss_clean($_POST['packate_stock_unit_id'][$i])):'5';
                     $barcode_data=$db->escapeString($fn->xss_clean($_POST['barcode_text'][$i]));
-                    $sql="INSERT INTO product_variant (product_id,type,measurement,measurement_unit_id,weight,price,vendor_price,discounted_price,product_price,item_sgst,item_cgst,item_igst,serve_for,stock,stock_unit_id,barcode_data) VALUES('$product_id','$type','$measurement','$measurement_unit_id','$weight','$price','$vendorprice','$discounted_price','$product_price','$item_sgst','$item_cgst','$item_igst','$serve_for','$stock','$stock_unit_id','$barcode_data')";
+                    $sql="INSERT INTO product_variant (product_id,type,measurement,measurement_unit_id,weight,price,vendor_price,discounted_price,is_offer,offer_price,offer_limit_per_user,product_price,item_sgst,item_cgst,item_igst,serve_for,stock,stock_unit_id,barcode_data) VALUES('$product_id','$type','$measurement','$measurement_unit_id','$weight','$price','$vendorprice','$discounted_price','$v_is_offer','$variant_offer_price','$variant_offer_limit','$product_price','$item_sgst','$item_cgst','$item_igst','$serve_for','$stock','$stock_unit_id','$barcode_data')";
                      $db->sql($sql);
                      $product_variant = $db->getResult();   
 			    }
@@ -272,6 +276,10 @@
                     $price=$db->escapeString($fn->xss_clean($_POST['loose_price'][$i]));
                     $vendorprice=$db->escapeString($fn->xss_clean($_POST['loose_vendor_price'][$i]));
                     $discounted_price=!empty($fn->xss_clean($_POST['loose_discounted_price'][$i])) ? $db->escapeString($fn->xss_clean($_POST['loose_discounted_price'][$i])) : 0;
+                    $v_is_offer = (!empty($_POST['loose_is_offer'][$i]) && $_POST['loose_is_offer'][$i] == 1) ? 1 : 0;
+                    $variant_offer_price = ($v_is_offer == 1 && !empty($_POST['loose_offer_price'][$i])) ? $db->escapeString($fn->xss_clean($_POST['loose_offer_price'][$i])) : 0;
+                    $variant_offer_limit = ($v_is_offer == 1 && !empty($_POST['loose_offer_limit_per_user'][$i])) ? (int)$_POST['loose_offer_limit_per_user'][$i] : 0;
+                    if($v_is_offer == 1) { $has_any_offer = 1; }
                     $product_price=!empty($fn->xss_clean($_POST['loose_product_price'][$i])) ? $db->escapeString($fn->xss_clean($_POST['loose_product_price'][$i])) : 0;
                     $item_sgst=!empty($fn->xss_clean($_POST['loose_item_sgst'][$i])) ? $db->escapeString($fn->xss_clean($_POST['loose_item_sgst'][$i])) : 0;
                     $item_cgst=!empty($fn->xss_clean($_POST['loose_item_cgst'][$i])) ? $db->escapeString($fn->xss_clean($_POST['loose_item_cgst'][$i])) : 0;
@@ -280,7 +288,7 @@
                     $stock=$db->escapeString($fn->xss_clean($_POST['loose_stock']));
                     $stock_unit_id=$db->escapeString($fn->xss_clean($_POST['loose_stock_unit_id']));
                     $barcode_data=$db->escapeString($fn->xss_clean($_POST['loose_barcode_text']));
-                    $sql="INSERT INTO product_variant (product_id,type,measurement,measurement_unit_id,weight,price,vendor_price,discounted_price,product_price,item_sgst,item_cgst,item_igst,serve_for,stock,stock_unit_id,barcode_data) VALUES('$product_id','$type','$measurement','$measurement_unit_id','$weight','$price','$vendorprice','$discounted_price','$product_price','$item_sgst','$item_cgst','$item_igst','$serve_for','$stock','$stock_unit_id',$barcode_data)";
+                    $sql="INSERT INTO product_variant (product_id,type,measurement,measurement_unit_id,weight,price,vendor_price,discounted_price,is_offer,offer_price,offer_limit_per_user,product_price,item_sgst,item_cgst,item_igst,serve_for,stock,stock_unit_id,barcode_data) VALUES('$product_id','$type','$measurement','$measurement_unit_id','$weight','$price','$vendorprice','$discounted_price','$v_is_offer','$variant_offer_price','$variant_offer_limit','$product_price','$item_sgst','$item_cgst','$item_igst','$serve_for','$stock','$stock_unit_id',$barcode_data)";
                      $db->sql($sql);
                      $product_variant = $db->getResult();
                
@@ -294,7 +302,7 @@
                 // print_r($product_variant);
 			}
     		if($product_variant==1){
-    		    
+    		    $db->sql("UPDATE products SET is_offer = (SELECT IF(COUNT(*) > 0, 1, 0) FROM product_variant WHERE product_id = '$product_id' AND is_offer = 1) WHERE id = '$product_id'");
     			$error['add_menu'] = "<div class='content-header'>
     			
                                                 <span class='label label-success'>Product Added Successfully</span>
@@ -445,6 +453,25 @@
                             	        <input type="text" class="form-control discounted_price" name="packate_discounted_price[]" />
                             	    </div>
                             	</div>
+                            	<div class="col-item" style="width:7%;">
+                                    <div class="form-group packate_div">
+                            	        <label>Offer?</label><br>
+                            	        <input type="hidden" name="packate_is_offer[]" class="variant_offer_val" value="0">
+                            	        <input type="checkbox" class="variant_offer_toggle" value="1" style="width:18px;height:18px;margin-top:4px;cursor:pointer;">
+                            	    </div>
+                            	</div>
+                            	<div class="col-item variant_offer_field" style="width:11%;display:none;">
+                                    <div class="form-group packate_div">
+                            	        <label class="text-success"><i class="fa fa-tag"></i> Offer Price(<?=$settings['currency']?>):</label>
+                            	        <input type="number" step="0.01" min="0" class="form-control variant_offer_price_input" name="packate_offer_price[]" value="0" placeholder="Offer Price" />
+                            	    </div>
+                            	</div>
+                            	<div class="col-item variant_offer_field" style="width:9%;display:none;">
+                                    <div class="form-group packate_div">
+                            	        <label class="text-success">User Limit:</label>
+                            	        <input type="number" min="0" class="form-control variant_offer_limit_input" name="packate_offer_limit_per_user[]" value="0" placeholder="Limit" />
+                            	    </div>
+                            	</div>
                             	<div class="col-item pr_price" style="width:12.1%;">
                             	    <div class="form-group packate_div">
                                         <label for="qty">Product Price(<?=$settings['currency']?>):</label>
@@ -534,6 +561,25 @@
                         		    <div class="form-group loose_div">
                                 		<label for="discounted_price">Selling Price(<?=$settings['currency']?>):</label>
                                 		<input type="text" class="form-control discounted_price" name="loose_discounted_price[]" />
+                        		    </div>
+                        		</div>
+                        		<div class="col-item" style="width:7%;">
+                        		    <div class="form-group loose_div">
+                                		<label>Offer?</label><br>
+                                		<input type="hidden" name="loose_is_offer[]" class="variant_offer_val" value="0">
+                                		<input type="checkbox" class="variant_offer_toggle" value="1" style="width:18px;height:18px;margin-top:4px;cursor:pointer;">
+                        		    </div>
+                        		</div>
+                        		<div class="col-item variant_offer_field" style="width:11%;display:none;">
+                        		    <div class="form-group loose_div">
+                                		<label class="text-success"><i class="fa fa-tag"></i> Offer Price(<?=$settings['currency']?>):</label>
+                                		<input type="number" step="0.01" min="0" class="form-control variant_offer_price_input" name="loose_offer_price[]" value="0" placeholder="Offer Price" />
+                        		    </div>
+                        		</div>
+                        		<div class="col-item variant_offer_field" style="width:9%;display:none;">
+                        		    <div class="form-group loose_div">
+                                		<label class="text-success">User Limit:</label>
+                                		<input type="number" min="0" class="form-control variant_offer_limit_input" name="loose_offer_limit_per_user[]" value="0" placeholder="Limit" />
                         		    </div>
                         		</div>
                         		<div class="col-item pr_price" style="width:12%;">
@@ -688,26 +734,6 @@
                             <label class="checkbox-inline"><input type="checkbox" name="available_time[]" value="Dinner"> Dinner</label>
                         </div>
 
-                        <div class="clearfix"></div>
-                        <div class="form-group col-md-12" style="margin-top: 10px;">
-                            <label class="checkbox-inline" style="font-weight: bold; font-size: 14px; cursor: pointer;">
-                                <input type="checkbox" name="is_offer" id="is_offer" value="1"> Special Offer Product
-                            </label>
-                        </div>
-                        <div id="offer_fields_div" style="display:none;" class="col-md-12">
-                            <div class="row">
-                                <div class="form-group col-md-3">
-                                    <label for="offer_price">Offer Price (<?=$settings['currency']?>) :</label>
-                                    <input type="number" step="0.01" min="0" class="form-control" name="offer_price" id="offer_price" placeholder="Enter Offer Price">
-                                </div>
-                                <div class="form-group col-md-4">
-                                    <label for="offer_limit_per_user">No. of Order for One User (Limit Count) :</label>
-                                    <input type="number" min="0" class="form-control" name="offer_limit_per_user" id="offer_limit_per_user" placeholder="e.g. 1 or 2 (0 = unlimited)">
-                                    <small class="text-muted">Restrict how many count a single user can add to cart.</small>
-                                </div>
-                            </div>
-                        </div>
-                        
                     </div>
                     <!-- /.box-body -->
                     <div class="box-footer">
@@ -960,24 +986,10 @@
 	<script src="dist/plugin/select2/js/select2.min.js"></script>
 	<script>
 		$(document).ready(function(){
-			// Select2's built-in matcher already does what we need: it lists every
-			// brand when the search box is empty, and filters as the seller types.
-			// Do NOT pass a custom matcher here - in select2 4.0.3 overriding it
-			// makes the results render blank.
 			$('#brand_id').select2({
 				width: '100%',
 				minimumResultsForSearch: 0,
 				placeholder: "type in brand name to search"
-			});
-
-			$('#is_offer').on('change', function() {
-				if ($(this).is(':checked')) {
-					$('#offer_fields_div').slideDown();
-				} else {
-					$('#offer_fields_div').slideUp();
-					$('#offer_price').val('');
-					$('#offer_limit_per_user').val('');
-				}
 			});
 		});
 	</script>

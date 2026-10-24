@@ -127,9 +127,12 @@ class custom_functions{
             // print_r($arr);
             $i=0;
             foreach($arr as $id){
-                $sql="SELECT *,pv.id,(SELECT short_code FROM unit u WHERE u.id=pv.measurement_unit_id) as measurement_unit_name,(SELECT short_code FROM unit u WHERE u.id=pv.stock_unit_id) as stock_unit_name FROM product_variant pv JOIN products p ON pv.product_id=p.id WHERE pv.id=".$id;
+                $sql="SELECT p.*, pv.*, pv.id, pv.is_offer as is_offer, pv.offer_price as offer_price, pv.offer_limit_per_user as offer_limit_per_user, (SELECT short_code FROM unit u WHERE u.id=pv.measurement_unit_id) as measurement_unit_name,(SELECT short_code FROM unit u WHERE u.id=pv.stock_unit_id) as stock_unit_name FROM product_variant pv JOIN products p ON pv.product_id=p.id WHERE pv.id=".$id;
                 $this->db->sql($sql);
                 $res[$i] = $this->db->getResult()[0];
+                $res[$i]['is_offer'] = (string)(isset($res[$i]['is_offer']) ? $res[$i]['is_offer'] : '0');
+                $res[$i]['offer_price'] = (string)(isset($res[$i]['offer_price']) ? $res[$i]['offer_price'] : '0');
+                $res[$i]['offer_limit_per_user'] = (string)(isset($res[$i]['offer_limit_per_user']) ? $res[$i]['offer_limit_per_user'] : '0');
                 $i++;
             }
             if(!empty($res)){

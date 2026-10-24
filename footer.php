@@ -3702,14 +3702,16 @@ $('#add_loose_variation').on('click',function(){
 		+'<input type="text" class="form-control" name="insert_loose_vendor_price[]" required=""></div></div>';
 		if(price_type=="including"){
     		html+='<div class="col-item di_price" style="width:14%"><div class="form-group"><label for="discounted_price">Selling Price(<?=$settings['currency']?>):</label>'
-    		+'<input type="text" class="form-control discounted_price" name="insert_loose_discounted_price[]" /></div></div>'
-    		+'<div class="col-item pr_price" style="width:12%;"><div class="form-group"><label for="qty">Product Price(<?=$settings['currency']?>):</label><input type="text" class="form-control product_price" name="insert_loose_product_price[]" readonly/></div></div>';
+    		+'<input type="text" class="form-control discounted_price" name="insert_loose_discounted_price[]" /></div></div>';
 		}
 		if(price_type=="excluding"){
     		html+='<div class="col-item di_price" style="width:14%;"><div class="form-group"><label for="discounted_price">Selling Price(<?=$settings['currency']?>):</label>'
-    		+'<input type="text" class="form-control discounted_price" name="insert_loose_discounted_price[]" readonly/></div></div>'
-    		+'<div class="col-item pr_price" style="width:12%;"><div class="form-group"><label for="qty">Product Price(<?=$settings['currency']?>):</label><input type="text" class="form-control product_price" name="insert_loose_product_price[]" /></div></div>';
+    		+'<input type="text" class="form-control discounted_price" name="insert_loose_discounted_price[]" readonly/></div></div>';
 		}
+		html+='<div class="col-item" style="width:7%;"><div class="form-group"><label>Offer?</label><br><input type="hidden" name="insert_loose_is_offer[]" class="variant_offer_val" value="0"><input type="checkbox" class="variant_offer_toggle" value="1" style="width:18px;height:18px;margin-top:4px;cursor:pointer;"></div></div>'
+		+'<div class="col-item variant_offer_field" style="width:11%;display:none;"><div class="form-group"><label class="text-success"><i class="fa fa-tag"></i> Offer Price(<?=$settings["currency"]?>):</label><input type="number" step="0.01" min="0" class="form-control variant_offer_price_input" name="insert_loose_offer_price[]" value="0" placeholder="Offer Price" /></div></div>'
+		+'<div class="col-item variant_offer_field" style="width:9%;display:none;"><div class="form-group"><label class="text-success">User Limit:</label><input type="number" min="0" class="form-control variant_offer_limit_input" name="insert_loose_offer_limit_per_user[]" value="0" placeholder="Limit" /></div></div>'
+		+'<div class="col-item pr_price" style="width:12%;"><div class="form-group"><label for="qty">Product Price(<?=$settings['currency']?>):</label><input type="text" class="form-control product_price" name="insert_loose_product_price[]" '+(price_type=="including"?'readonly':'')+'/></div></div>';
 		html+='<div class="col-item col-item-1 t_pr" style="display:none"><div class="form-group"><label for="qty">SGST(<?=$settings['currency']?>):</label><input type="text" class="form-control item_sgst" name="insert_loose_item_sgst[]" readonly/></div></div>'
 		+'<div class="col-item col-item-1 t_pr"  style="display:none"><div class="form-group"><label for="qty">CGST(<?=$settings['currency']?>):</label><input type="text" class="form-control item_cgst" name="insert_loose_item_cgst[]" readonly/></div></div>'
 		+'<div class="col-item col-item-1 t_pr"style="display:none"><div class="form-group"><label for="qty">IGST(<?=$settings['currency']?>):</label><input type="text" class="form-control item_igst" name="insert_loose_item_igst[]" readonly/></div></div>'
@@ -3741,14 +3743,16 @@ $('#add_packate_variation').on('click',function(){
 		
 		if(price_type=="including"){
     		html+='<div class="col-item di_price" style="width:11.3%"><div class="form-group"><label for="discounted_price">Selling Price(<?=$settings['currency']?>):</label>'
-    		+'<input type="text" class="form-control discounted_price" name=insert_packate_discounted_price[]" /></div></div>'
-    		+'<div class="col-item pr_price" style="width:12.1%;"><div class="form-group"><label for="qty">Product Price(<?=$settings['currency']?>):</label><input type="text" class="form-control product_price" name="insert_packate_product_price[]" readonly/></div></div>';
+    		+'<input type="text" class="form-control discounted_price" name="insert_packate_discounted_price[]" /></div></div>';
 		}
 		if(price_type=="excluding"){
     		html+='<div class="col-item di_price" style="width:11.3%;"><div class="form-group"><label for="discounted_price">Selling Price(<?=$settings['currency']?>):</label>'
-    		+'<input type="text" class="form-control discounted_price" name="insert_packate_discounted_price[]" readonly/></div></div>'
-    		+'<div class="col-item pr_price" style="width:12.1%;"><div class="form-group"><label for="qty">Product Price(<?=$settings['currency']?>):</label><input type="text" class="form-control product_price" name="insert_packate_product_price[]" /></div></div>';
+    		+'<input type="text" class="form-control discounted_price" name="insert_packate_discounted_price[]" readonly/></div></div>';
 		}
+		html+='<div class="col-item" style="width:7%;"><div class="form-group"><label>Offer?</label><br><input type="hidden" name="insert_packate_is_offer[]" class="variant_offer_val" value="0"><input type="checkbox" class="variant_offer_toggle" value="1" style="width:18px;height:18px;margin-top:4px;cursor:pointer;"></div></div>'
+		+'<div class="col-item variant_offer_field" style="width:11%;display:none;"><div class="form-group"><label class="text-success"><i class="fa fa-tag"></i> Offer Price(<?=$settings["currency"]?>):</label><input type="number" step="0.01" min="0" class="form-control variant_offer_price_input" name="insert_packate_offer_price[]" value="0" placeholder="Offer Price" /></div></div>'
+		+'<div class="col-item variant_offer_field" style="width:9%;display:none;"><div class="form-group"><label class="text-success">User Limit:</label><input type="number" min="0" class="form-control variant_offer_limit_input" name="insert_packate_offer_limit_per_user[]" value="0" placeholder="Limit" /></div></div>'
+		+'<div class="col-item pr_price" style="width:12.1%;"><div class="form-group"><label for="qty">Product Price(<?=$settings['currency']?>):</label><input type="text" class="form-control product_price" name="insert_packate_product_price[]" '+(price_type=="including"?'readonly':'')+'/></div></div>';
 		html+='<div class="col-item col-item-1 t_pr" style="display:none"><div class="form-group"><label for="qty">SGST(<?=$settings['currency']?>):</label><input type="text" class="form-control item_sgst" name="insert_packate_item_sgst[]" readonly/></div></div>'
 		+'<div class="col-item col-item-1 t_pr"  style="display:none"><div class="form-group"><label for="qty">CGST(<?=$settings['currency']?>):</label><input type="text" class="form-control item_cgst" name="insert_packate_item_cgst[]" readonly/></div></div>'
 		+'<div class="col-item col-item-1 t_pr"style="display:none"><div class="form-group"><label for="qty">IGST(<?=$settings['currency']?>):</label><input type="text" class="form-control item_igst" name="insert_packate_item_igst[]" readonly/></div></div>'
@@ -4313,14 +4317,16 @@ $('#add_packate_variation').on('click',function(){
 		
 		if(price_type=="including"){
     		html+='<div class="col-item di_price" style="width:11.3%"><div class="form-group"><label for="discounted_price">Selling Price(<?=$settings['currency']?>):</label>'
-    		+'<input type="text" class="form-control discounted_price" name="packate_discounted_price[]" /></div></div>'
-    		+'<div class="col-item pr_price" style="width:12.1%;"><div class="form-group"><label for="qty">Product Price(<?=$settings['currency']?>):</label><input type="text" class="form-control product_price" name="packate_product_price[]" readonly/></div></div>';
+    		+'<input type="text" class="form-control discounted_price" name="packate_discounted_price[]" /></div></div>';
 		}
 		if(price_type=="excluding"){
     		html+='<div class="col-item di_price" style="width:11.3%;"><div class="form-group"><label for="discounted_price">Selling Price(<?=$settings['currency']?>):</label>'
-    		+'<input type="text" class="form-control discounted_price" name="packate_discounted_price[]" readonly/></div></div>'
-    		+'<div class="col-item pr_price" style="width:12.1%;"><div class="form-group"><label for="qty">Product Price(<?=$settings['currency']?>):</label><input type="text" class="form-control product_price" name="packate_product_price[]" /></div></div>';
+    		+'<input type="text" class="form-control discounted_price" name="packate_discounted_price[]" readonly/></div></div>';
 		}
+		html+='<div class="col-item" style="width:7%;"><div class="form-group"><label>Offer?</label><br><input type="hidden" name="packate_is_offer[]" class="variant_offer_val" value="0"><input type="checkbox" class="variant_offer_toggle" value="1" style="width:18px;height:18px;margin-top:4px;cursor:pointer;"></div></div>'
+		+'<div class="col-item variant_offer_field" style="width:11%;display:none;"><div class="form-group"><label class="text-success"><i class="fa fa-tag"></i> Offer Price(<?=$settings["currency"]?>):</label><input type="number" step="0.01" min="0" class="form-control variant_offer_price_input" name="packate_offer_price[]" value="0" placeholder="Offer Price" /></div></div>'
+		+'<div class="col-item variant_offer_field" style="width:9%;display:none;"><div class="form-group"><label class="text-success">User Limit:</label><input type="number" min="0" class="form-control variant_offer_limit_input" name="packate_offer_limit_per_user[]" value="0" placeholder="Limit" /></div></div>'
+		+'<div class="col-item pr_price" style="width:12.1%;"><div class="form-group"><label for="qty">Product Price(<?=$settings['currency']?>):</label><input type="text" class="form-control product_price" name="packate_product_price[]" '+(price_type=="including"?'readonly':'')+'/></div></div>';
 		html+='<div class="col-item col-item-1 t_pr" style="display:none"><div class="form-group"><label for="qty">SGST(<?=$settings['currency']?>):</label><input type="text" class="form-control item_sgst" name="packate_item_sgst[]" readonly/></div></div>'
 		+'<div class="col-item col-item-1 t_pr"  style="display:none"><div class="form-group"><label for="qty">CGST(<?=$settings['currency']?>):</label><input type="text" class="form-control item_cgst" name="packate_item_cgst[]" readonly/></div></div>'
 		+'<div class="col-item col-item-1 t_pr"style="display:none"><div class="form-group"><label for="qty">IGST(<?=$settings['currency']?>):</label><input type="text" class="form-control item_igst" name="packate_item_igst[]" readonly/></div></div>'
@@ -4355,14 +4361,16 @@ $('#add_loose_variation').on('click',function(){
 		+'<input type="text" class="form-control" name="loose_vendor_price[]" required=""></div></div>';
 		if(price_type=="including"){
     		html+='<div class="col-item di_price" style="width:14%"><div class="form-group"><label for="discounted_price">Selling Price(<?=$settings['currency']?>):</label>'
-    		+'<input type="text" class="form-control discounted_price" name="loose_discounted_price[]" /></div></div>'
-    		+'<div class="col-item pr_price" style="width:12%;"><div class="form-group"><label for="qty">Product Price(<?=$settings['currency']?>):</label><input type="text" class="form-control product_price" name="loose_product_price[]" readonly/></div></div>';
+    		+'<input type="text" class="form-control discounted_price" name="loose_discounted_price[]" /></div></div>';
 		}
 		if(price_type=="excluding"){
     		html+='<div class="col-item di_price" style="width:14%;"><div class="form-group"><label for="discounted_price">Selling Price(<?=$settings['currency']?>):</label>'
-    		+'<input type="text" class="form-control discounted_price" name="loose_discounted_price[]" readonly/></div></div>'
-    		+'<div class="col-item pr_price" style="width:12%;"><div class="form-group"><label for="qty">Product Price(<?=$settings['currency']?>):</label><input type="text" class="form-control product_price" name="loose_product_price[]" /></div></div>';
+    		+'<input type="text" class="form-control discounted_price" name="loose_discounted_price[]" readonly/></div></div>';
 		}
+		html+='<div class="col-item" style="width:7%;"><div class="form-group"><label>Offer?</label><br><input type="hidden" name="loose_is_offer[]" class="variant_offer_val" value="0"><input type="checkbox" class="variant_offer_toggle" value="1" style="width:18px;height:18px;margin-top:4px;cursor:pointer;"></div></div>'
+		+'<div class="col-item variant_offer_field" style="width:11%;display:none;"><div class="form-group"><label class="text-success"><i class="fa fa-tag"></i> Offer Price(<?=$settings["currency"]?>):</label><input type="number" step="0.01" min="0" class="form-control variant_offer_price_input" name="loose_offer_price[]" value="0" placeholder="Offer Price" /></div></div>'
+		+'<div class="col-item variant_offer_field" style="width:9%;display:none;"><div class="form-group"><label class="text-success">User Limit:</label><input type="number" min="0" class="form-control variant_offer_limit_input" name="loose_offer_limit_per_user[]" value="0" placeholder="Limit" /></div></div>'
+		+'<div class="col-item pr_price" style="width:12%;"><div class="form-group"><label for="qty">Product Price(<?=$settings['currency']?>):</label><input type="text" class="form-control product_price" name="loose_product_price[]" '+(price_type=="including"?'readonly':'')+'/></div></div>';
 		html+='<div class="col-item col-item-1 t_pr" style="display:none"><div class="form-group"><label for="qty">SGST(<?=$settings['currency']?>):</label><input type="text" class="form-control item_sgst" name="loose_item_sgst[]" readonly/></div></div>'
 		+'<div class="col-item col-item-1 t_pr"  style="display:none"><div class="form-group"><label for="qty">CGST(<?=$settings['currency']?>):</label><input type="text" class="form-control item_cgst" name="loose_item_cgst[]" readonly/></div></div>'
 		+'<div class="col-item col-item-1 t_pr"style="display:none"><div class="form-group"><label for="qty">IGST(<?=$settings['currency']?>):</label><input type="text" class="form-control item_igst" name="loose_item_igst[]" readonly/></div></div>'
@@ -4374,6 +4382,19 @@ $('#add_loose_variation').on('click',function(){
 <script>
 $(document).on('click','.remove_variation',function(){
 	$(this).closest('.row').remove();
+});
+
+$(document).on('change', '.variant_offer_toggle', function() {
+    var isChecked = $(this).is(':checked');
+    var row = $(this).closest('.row');
+    row.find('.variant_offer_val').val(isChecked ? '1' : '0');
+    if (isChecked) {
+        row.find('.variant_offer_field').show();
+    } else {
+        row.find('.variant_offer_field').hide();
+        row.find('.variant_offer_price_input').val('0');
+        row.find('.variant_offer_limit_input').val('0');
+    }
 });
 
 
