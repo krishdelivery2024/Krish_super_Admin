@@ -3231,7 +3231,17 @@ if ($role === 'sub admin') {
                 GROUP_CONCAT(
                     COALESCE(pv.discounted_price, 0)
                     ORDER BY oi.id SEPARATOR '||'
-                ) AS discounted_price_list
+                ) AS discounted_price_list,
+
+                GROUP_CONCAT(
+                    COALESCE(oi.active_status, 'received')
+                    ORDER BY oi.id SEPARATOR '||'
+                ) AS item_active_status_list,
+
+                GROUP_CONCAT(
+                    COALESCE(oi.sub_total, 0)
+                    ORDER BY oi.id SEPARATOR '||'
+                ) AS item_subtotal_list
      
             FROM orders o
      
@@ -3343,6 +3353,29 @@ if ($role === 'sub admin') {
         $sales_sys_config = $fn->get_configurations();
         $global_seller_comm = isset($sales_sys_config['seller_commission']) && $sales_sys_config['seller_commission'] !== '' ? floatval($sales_sys_config['seller_commission']) : 0.0;
 
+        // Batch load transactions for all orders on the current page to resolve refund statuses
+        $order_ids = array();
+        foreach ($res as $r) {
+            if (!empty($r['id'])) {
+                $order_ids[] = (int)$r['id'];
+            }
+        }
+        $order_txns = array();
+        if (!empty($order_ids)) {
+            $order_ids_str = implode(',', $order_ids);
+            $db->sql("SELECT order_id, type, txn_id, payu_txn_id, amount, status, message, transaction_date FROM transactions WHERE order_id IN ($order_ids_str) ORDER BY id DESC");
+            $raw_txns = $db->getResult();
+            if (is_array($raw_txns)) {
+                foreach ($raw_txns as $t) {
+                    $oid = (string)$t['order_id'];
+                    if (!isset($order_txns[$oid])) {
+                        $order_txns[$oid] = array();
+                    }
+                    $order_txns[$oid][] = $t;
+                }
+            }
+        }
+
         foreach ($res as $row) {
      
             if (!is_array($row)) {
@@ -3383,6 +3416,73 @@ if ($role === 'sub admin') {
             $tempRow['active_status'] = isset($status_labels[$status_key])
                 ? $status_labels[$status_key]
                 : ucfirst($status_key);
+
+            // ================= Compute Refund Status per Product Item =================
+            $oid = (string)$row['id'];
+            $txns = isset($order_txns[$oid]) ? $order_txns[$oid] : array();
+
+            $successful_refund = null;
+            $failed_refund = null;
+            foreach ($txns as $t) {
+                $t_type = strtolower(trim((string)$t['type']));
+                $t_status = strtolower(trim((string)$t['status']));
+                if ($t_type === 'refund' && $t_status === 'success' && $successful_refund === null) {
+                    $successful_refund = $t;
+                }
+                if ($t_type === 'refund' && $t_status !== 'success' && $failed_refund === null) {
+                    $failed_refund = $t;
+                }
+            }
+
+            $is_order_cancelled = in_array($status_key, array('cancelled', 'canceled'));
+            $pm_lower = strtolower(trim((string)$row['payment_method']));
+            $is_cod = ($pm_lower === 'cod' || $pm_lower === 'cash on delivery');
+            $is_wallet = ($pm_lower === 'wallet');
+            $is_online = (!$is_cod && !$is_wallet);
+
+            $item_details = !empty($row['product_details']) ? explode('||', $row['product_details']) : array('-');
+            $item_statuses = !empty($row['item_active_status_list']) ? explode('||', $row['item_active_status_list']) : array();
+
+            $refund_list = array();
+            $has_unrefunded_cancel = false;
+
+            for ($i = 0; $i < count($item_details); $i++) {
+                $item_status = isset($item_statuses[$i]) ? strtolower(trim((string)$item_statuses[$i])) : $status_key;
+                $is_item_cancelled = ($is_order_cancelled || in_array($item_status, array('cancelled', 'canceled')));
+
+                if ($is_item_cancelled) {
+                    if ($is_cod) {
+                        $refund_list[] = 'COD (No Refund)';
+                    } elseif ($is_wallet) {
+                        $refund_list[] = 'Refunded to Wallet';
+                    } else {
+                        // Online payment (Razorpay / etc.)
+                        if ($successful_refund !== null) {
+                            $ref_amt = (!empty($successful_refund['amount']) && (float)$successful_refund['amount'] > 0)
+                                ? ' (Rs. ' . number_format($successful_refund['amount'], 2) . ')'
+                                : '';
+                            $refund_list[] = 'Refunded' . $ref_amt;
+                        } elseif ($failed_refund !== null) {
+                            $refund_list[] = 'Refund Failed';
+                            $has_unrefunded_cancel = true;
+                        } else {
+                            $refund_list[] = 'Not Refunded';
+                            $has_unrefunded_cancel = true;
+                        }
+                    }
+                } else {
+                    $refund_list[] = '-';
+                }
+            }
+
+            $tempRow['refund_status'] = $refund_list;
+            if ($has_unrefunded_cancel && $is_online) {
+                $tempRow['can_retry_refund'] = true;
+                $tempRow['refund_action'] = '<button type="button" class="btn btn-xs btn-danger btn-retry-refund" data-order-id="' . $row['id'] . '" title="Process / Retry Razorpay Refund for Order #' . $row['id'] . '"><i class="fa fa-refresh"></i> Process Refund</button>';
+            } else {
+                $tempRow['can_retry_refund'] = false;
+                $tempRow['refund_action'] = '';
+            }
      
             // Seller/Vendor-price/Discount fields only for non-seller roles
             if (!$is_seller) {

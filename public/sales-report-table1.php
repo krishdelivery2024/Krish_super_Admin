@@ -182,6 +182,7 @@
                             <th data-field="convenience_fee" data-sortable="true" data-align="right" data-footer-formatter="salesMoneyFormatter">Convenience Fee (&#8377;)</th>
                             <th data-field="payment_method" data-sortable="true">Payment Method</th>
                             <th data-field="active_status" data-sortable="true" data-formatter="statusBadgeFormatter">Order Status</th>
+                            <th data-field="refund_status" data-formatter="refundListFormatter">Refund Status</th>
                         </tr>
                         </thead>
                     </table>
@@ -265,6 +266,76 @@
         else if (key === 'cancelled' || key === 'canceled' || key === 'returned') cls = 'status-cancelled';
         return '<span class="status-badge ' + cls + '">' + value + '</span>';
     }
+
+    // refund_status -> bullet list of badges per product item
+    function refundListFormatter(value, row) {
+        if (!value || !value.length) return '-';
+        var items = Array.isArray(value) ? value : [value];
+        var html = '<ul class="bullet-list" style="margin-bottom:2px;">';
+        items.forEach(function (item) {
+            var str = String(item).trim();
+            var lower = str.toLowerCase();
+            var cls = 'default';
+            if (lower.indexOf('refunded') !== -1 && lower.indexOf('not') === -1) {
+                cls = 'success';
+            } else if (lower.indexOf('not refunded') !== -1 || lower.indexOf('failed') !== -1) {
+                cls = 'danger';
+            } else if (lower.indexOf('wallet') !== -1) {
+                cls = 'info';
+            } else if (lower.indexOf('cod') !== -1 || str === '-' || str === 'N/A') {
+                cls = 'default';
+            }
+            html += '<li><span class="label label-' + cls + '" style="font-size:11px;padding:3px 7px;display:inline-block;margin:1px 0;">' + str + '</span></li>';
+        });
+        html += '</ul>';
+
+        if (row && row.can_retry_refund && row.refund_action) {
+            html += '<div style="margin-top:4px;">' + row.refund_action + '</div>';
+        }
+        return html;
+    }
+
+    // Process / Retry refund click handler
+    $(document).on('click', '.btn-retry-refund', function(e) {
+        e.preventDefault();
+        var orderId = $(this).data('order-id');
+        var $btn = $(this);
+
+        var promptMsg = "Are you sure you want to process Razorpay refund for Order #" + orderId + "?\n\nIf you have a specific Razorpay Payment ID (e.g. pay_XXXXX), enter it below, or leave blank to auto-detect from order records:";
+        var manualPaymentId = prompt(promptMsg, "");
+        if (manualPaymentId === null) {
+            return; // user cancelled prompt
+        }
+        manualPaymentId = manualPaymentId.trim();
+
+        $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Processing...');
+
+        $.ajax({
+            url: 'api-firebase/order-process.php',
+            type: 'POST',
+            data: {
+                ajaxCall: 1,
+                process_refund: 1,
+                order_id: orderId,
+                payment_id: manualPaymentId
+            },
+            dataType: 'json',
+            success: function(resp) {
+                $btn.prop('disabled', false).html('<i class="fa fa-refresh"></i> Process Refund');
+                if (resp && resp.error === false) {
+                    alert('SUCCESS: ' + (resp.message || 'Refund initiated successfully.'));
+                    $('#sales_table').bootstrapTable('refresh');
+                } else {
+                    var errMsg = (resp && resp.message) ? resp.message : 'Unknown error processing refund.';
+                    alert('FAILED: ' + errMsg);
+                }
+            },
+            error: function(xhr, status, err) {
+                $btn.prop('disabled', false).html('<i class="fa fa-refresh"></i> Process Refund');
+                alert('Network or server error: ' + (err || status));
+            }
+        });
+    });
 
     // ── Zone → Seller cascade ──────────────────────────────────────────────────
     // When the zone dropdown changes:

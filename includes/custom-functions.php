@@ -2972,7 +2972,7 @@ public function get_permissions($id){
      *    'message' => string
      * ]
      */
-    public function refund_order_payment($order_id) {
+    public function refund_order_payment($order_id, $manual_payment_id = null) {
         $order_id = (int)$order_id;
         if ($order_id <= 0) {
             return array('status' => 'failed', 'is_online' => false, 'message' => 'Invalid order ID');
@@ -3048,31 +3048,60 @@ public function get_permissions($id){
         }
 
         // 2. Find the original captured payment transaction
-        $this->db->sql("SELECT * FROM transactions WHERE order_id = '$order_id' AND status = 'success' AND txn_id LIKE 'pay_%' ORDER BY id DESC LIMIT 1");
-        $txn_res = $this->db->getResult();
-        if (empty($txn_res) || empty($txn_res[0]['txn_id'])) {
-            $this->db->sql("SELECT * FROM transactions WHERE order_id = '$order_id' AND status = 'success' ORDER BY id DESC LIMIT 1");
+        $payment_id = '';
+        $refund_amount = (float)$order['final_total'];
+
+        if (!empty($manual_payment_id) && strpos(trim($manual_payment_id), 'pay_') === 0) {
+            $payment_id = trim($manual_payment_id);
+        } else {
+            // Priority 1: txn_id starting with pay_
+            $this->db->sql("SELECT * FROM transactions WHERE order_id = '$order_id' AND txn_id LIKE 'pay_%' ORDER BY id DESC LIMIT 1");
             $txn_res = $this->db->getResult();
+
+            // Priority 2: payu_txn_id starting with pay_
+            if (empty($txn_res) || empty($txn_res[0]['txn_id'])) {
+                $this->db->sql("SELECT * FROM transactions WHERE order_id = '$order_id' AND payu_txn_id LIKE 'pay_%' ORDER BY id DESC LIMIT 1");
+                $txn_res = $this->db->getResult();
+                if (!empty($txn_res) && !empty($txn_res[0]['payu_txn_id'])) {
+                    $payment_id = trim($txn_res[0]['payu_txn_id']);
+                }
+            }
+
+            // Priority 3: any success transaction for this order
+            if (empty($payment_id) && (empty($txn_res) || empty($txn_res[0]['txn_id']))) {
+                $this->db->sql("SELECT * FROM transactions WHERE order_id = '$order_id' AND LOWER(status) = 'success' ORDER BY id DESC LIMIT 1");
+                $txn_res = $this->db->getResult();
+            }
+
+            // Priority 4: any transaction for this order
+            if (empty($payment_id) && (empty($txn_res) || empty($txn_res[0]['txn_id']))) {
+                $this->db->sql("SELECT * FROM transactions WHERE order_id = '$order_id' ORDER BY id DESC LIMIT 1");
+                $txn_res = $this->db->getResult();
+            }
+
+            if (empty($payment_id) && !empty($txn_res) && !empty($txn_res[0]['txn_id'])) {
+                $cand = trim($txn_res[0]['txn_id']);
+                if (strpos($cand, 'pay_') === 0) {
+                    $payment_id = $cand;
+                } elseif (!empty($txn_res[0]['payu_txn_id']) && strpos(trim($txn_res[0]['payu_txn_id']), 'pay_') === 0) {
+                    $payment_id = trim($txn_res[0]['payu_txn_id']);
+                }
+                if (!empty($txn_res[0]['amount']) && (float)$txn_res[0]['amount'] > 0) {
+                    $refund_amount = (float)$txn_res[0]['amount'];
+                }
+            }
         }
 
-        if (empty($txn_res) || empty($txn_res[0]['txn_id'])) {
+        if (empty($payment_id) || strpos($payment_id, 'pay_') !== 0) {
+            $msg = 'No valid Razorpay payment transaction (pay_*) found for Order #' . $order_id . '.';
+            error_log('[RAZORPAY_REFUND] ' . $msg);
             return array(
                 'status' => 'failed',
                 'is_online' => true,
-                'message' => 'No online payment transaction found for this order.'
+                'message' => $msg
             );
         }
 
-        $payment_id = trim($txn_res[0]['txn_id']);
-        if (strpos($payment_id, 'pay_') !== 0) {
-            return array(
-                'status' => 'failed',
-                'is_online' => true,
-                'message' => 'Invalid Razorpay payment ID: ' . $payment_id
-            );
-        }
-
-        $refund_amount = (float)$txn_res[0]['amount'];
         if ($refund_amount <= 0) {
             $refund_amount = (float)$order['final_total'];
         }
@@ -3082,11 +3111,24 @@ public function get_permissions($id){
         $keyId = isset($payment_settings['razorpay_key']) ? trim($payment_settings['razorpay_key']) : '';
         $keySecret = isset($payment_settings['razorpay_secret_key']) ? trim($payment_settings['razorpay_secret_key']) : '';
 
+        // Fallback to parcel payment methods if missing
         if (empty($keyId) || empty($keySecret)) {
+            $parcel_settings = $this->get_settings('parcel_payment_methods', true);
+            if (empty($keyId) && !empty($parcel_settings['razorpay_key'])) {
+                $keyId = trim($parcel_settings['razorpay_key']);
+            }
+            if (empty($keySecret) && !empty($parcel_settings['razorpay_secret_key'])) {
+                $keySecret = trim($parcel_settings['razorpay_secret_key']);
+            }
+        }
+
+        if (empty($keyId) || empty($keySecret)) {
+            $msg = 'Razorpay API keys (key ID or secret key) not configured in Admin Settings -> Payment Methods.';
+            error_log('[RAZORPAY_REFUND] Order #' . $order_id . ': ' . $msg);
             return array(
                 'status' => 'failed',
                 'is_online' => true,
-                'message' => 'Razorpay API keys not configured in settings.'
+                'message' => $msg
             );
         }
 
@@ -3101,22 +3143,56 @@ public function get_permissions($id){
             )
         ));
 
-        $ch = curl_init("https://api.razorpay.com/v1/payments/{$payment_id}/refund");
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_USERPWD, "{$keyId}:{$keySecret}");
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $post_fields);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: application/json'));
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+        $execute_refund = function($p_id, $k_id, $k_sec, $p_fields) {
+            $ch = curl_init("https://api.razorpay.com/v1/payments/{$p_id}/refund");
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_USERPWD, "{$k_id}:{$k_sec}");
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $p_fields);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: application/json'));
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 
-        $raw_response = curl_exec($ch);
-        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curl_err = curl_error($ch);
-        curl_close($ch);
+            $raw = curl_exec($ch);
+            $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $err = curl_error($ch);
+            curl_close($ch);
+            return array('raw' => $raw, 'code' => $code, 'err' => $err);
+        };
+
+        $res = $execute_refund($payment_id, $keyId, $keySecret, $post_fields);
+        $raw_response = $res['raw'];
+        $http_code = $res['code'];
+        $curl_err = $res['err'];
+
+        error_log("[RAZORPAY_REFUND] Order #$order_id (Payment: $payment_id): HTTP $http_code. Response: " . $raw_response);
 
         $rzp_response = json_decode($raw_response, true);
+
+        // If Razorpay returns "The payment has not been captured yet", auto-capture and retry refund
+        if ($http_code == 400 && isset($rzp_response['error']['description']) && stripos($rzp_response['error']['description'], 'not been captured') !== false) {
+            error_log("[RAZORPAY_REFUND] Order #$order_id payment $payment_id is not captured. Attempting capture now...");
+            $ch_cap = curl_init("https://api.razorpay.com/v1/payments/{$payment_id}/capture");
+            curl_setopt($ch_cap, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch_cap, CURLOPT_USERPWD, "{$keyId}:{$keySecret}");
+            curl_setopt($ch_cap, CURLOPT_POST, true);
+            curl_setopt($ch_cap, CURLOPT_POSTFIELDS, json_encode(array('amount' => $amount_in_paise, 'currency' => 'INR')));
+            curl_setopt($ch_cap, CURLOPT_HTTPHEADER, array('Content-Type: application/json'));
+            curl_setopt($ch_cap, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch_cap, CURLOPT_SSL_VERIFYHOST, false);
+            curl_setopt($ch_cap, CURLOPT_TIMEOUT, 30);
+            $raw_cap = curl_exec($ch_cap);
+            curl_close($ch_cap);
+            error_log("[RAZORPAY_REFUND] Capture response for $payment_id: " . $raw_cap);
+
+            // Retry refund after capture
+            $res = $execute_refund($payment_id, $keyId, $keySecret, $post_fields);
+            $raw_response = $res['raw'];
+            $http_code = $res['code'];
+            $curl_err = $res['err'];
+            $rzp_response = json_decode($raw_response, true);
+        }
 
         if (($http_code == 200 || $http_code == 201) && !empty($rzp_response['id'])) {
             $refund_id = $rzp_response['id'];
@@ -3167,6 +3243,20 @@ public function get_permissions($id){
                     'message' => 'Payment has already been refunded on Razorpay.'
                 );
             }
+
+            // Record failed attempt in transactions table so admin and sales report can see the failure reason
+            $fail_data = array(
+                'user_id' => $user_id,
+                'order_id' => (string)$order_id,
+                'type' => 'refund',
+                'txn_id' => 'rfnd_failed_' . time(),
+                'payu_txn_id' => $payment_id,
+                'amount' => $refund_amount,
+                'status' => 'failed',
+                'message' => substr('Refund failed: ' . $err_desc, 0, 128),
+                'transaction_date' => date('Y-m-d H:i:s')
+            );
+            $this->db->insert('transactions', $fail_data);
 
             return array(
                 'status' => 'failed',

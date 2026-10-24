@@ -1771,6 +1771,7 @@ if(isset($_POST['update_order_status']) && isset($_POST['id'])) {
                     $response['refund_status'] = 'already_refunded';
                     $response['refund_amount'] = isset($refund_info['amount']) ? $refund_info['amount'] : 0;
                 } elseif (isset($refund_info) && $refund_info['status'] == 'failed' && !empty($refund_info['is_online'])) {
+                    $response['message'] = "Order has been cancelled! (Note: Online refund could not be completed automatically: " . $refund_info['message'] . ")";
                     $response['refund_status'] = 'failed';
                     $response['refund_message'] = $refund_info['message'];
                 } elseif (isset($refund_info) && $refund_info['status'] == 'skipped') {
@@ -2235,5 +2236,26 @@ if(isset($_POST['get_order_delivery_charge']) && !empty($_POST['user_id']) && is
         }
     }
 	
+}
+
+if(isset($_POST['process_refund']) && isset($_POST['order_id'])){
+    $order_id = (int)$_POST['order_id'];
+    $manual_payment_id = isset($_POST['payment_id']) && !empty($_POST['payment_id']) ? trim($_POST['payment_id']) : null;
+    $res = $function->refund_order_payment($order_id, $manual_payment_id);
+    if($res['status'] == 'success'){
+        $response['error'] = false;
+        $response['message'] = $res['message'];
+        $response['refund_id'] = isset($res['refund_id']) ? $res['refund_id'] : '';
+        $response['amount'] = isset($res['amount']) ? $res['amount'] : 0;
+    } elseif($res['status'] == 'already_refunded') {
+        $response['error'] = false;
+        $response['message'] = $res['message'];
+        $response['already_refunded'] = true;
+    } else {
+        $response['error'] = true;
+        $response['message'] = $res['message'];
+    }
+    echo json_encode($response);
+    exit;
 }
 ?>
