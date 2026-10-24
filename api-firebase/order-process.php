@@ -2240,17 +2240,51 @@ if(isset($_POST['get_order_delivery_charge']) && !empty($_POST['user_id']) && is
 
 if(isset($_POST['process_refund']) && isset($_POST['order_id'])){
     $order_id = (int)$_POST['order_id'];
+    $order_type = isset($_POST['order_type']) && $_POST['order_type'] === 'parcel' ? 'parcel' : 'food';
     $manual_payment_id = isset($_POST['payment_id']) && !empty($_POST['payment_id']) ? trim($_POST['payment_id']) : null;
-    $res = $function->refund_order_payment($order_id, $manual_payment_id);
-    if($res['status'] == 'success'){
+
+    if ($order_type === 'parcel') {
+        $res = $function->refund_parcel_payment($order_id, $manual_payment_id);
+    } else {
+        $res = $function->refund_order_payment($order_id, $manual_payment_id);
+    }
+
+    if($res['status'] == 'success' || $res['status'] == 'processing'){
         $response['error'] = false;
+        $response['refund_status'] = $res['status'];
+        $response['rzp_status'] = isset($res['rzp_status']) ? $res['rzp_status'] : $res['status'];
         $response['message'] = $res['message'];
         $response['refund_id'] = isset($res['refund_id']) ? $res['refund_id'] : '';
         $response['amount'] = isset($res['amount']) ? $res['amount'] : 0;
     } elseif($res['status'] == 'already_refunded') {
         $response['error'] = false;
+        $response['refund_status'] = 'already_refunded';
         $response['message'] = $res['message'];
         $response['already_refunded'] = true;
+    } else {
+        $response['error'] = true;
+        $response['refund_status'] = 'failed';
+        $response['message'] = $res['message'];
+    }
+    echo json_encode($response);
+    exit;
+}
+
+if(isset($_POST['sync_refund_status']) && isset($_POST['order_id'])){
+    $order_id = (int)$_POST['order_id'];
+    $order_type = isset($_POST['order_type']) && $_POST['order_type'] === 'parcel' ? 'parcel' : 'food';
+    $refund_id_or_payment_id = isset($_POST['query_id']) && !empty($_POST['query_id']) ? trim($_POST['query_id']) : null;
+
+    if (empty($refund_id_or_payment_id)) {
+        $details = $function->get_order_refund_details($order_id, $order_type);
+        $refund_id_or_payment_id = !empty($details['refund_id']) ? $details['refund_id'] : $details['payment_id'];
+    }
+
+    $res = $function->check_live_razorpay_refund($refund_id_or_payment_id, $order_id, $order_type);
+    if($res['status'] == 'success'){
+        $response['error'] = false;
+        $response['data'] = $res;
+        $response['message'] = 'Live status updated: ' . ucfirst($res['rzp_status']) . '. ' . $res['message'];
     } else {
         $response['error'] = true;
         $response['message'] = $res['message'];

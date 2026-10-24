@@ -3034,16 +3034,19 @@ public function get_permissions($id){
         }
 
         // Online payment (Razorpay / other online methods):
-        // 1. Check if already refunded locally
-        $this->db->sql("SELECT * FROM transactions WHERE order_id = '$order_id' AND type = 'refund' AND status = 'success' LIMIT 1");
+        // 1. Check if already refunded or currently processing locally
+        $this->db->sql("SELECT * FROM transactions WHERE order_id = '$order_id' AND type = 'refund' AND (status = 'success' OR status = 'process') ORDER BY id DESC LIMIT 1");
         $existing_refund = $this->db->getResult();
         if (!empty($existing_refund)) {
+            $ex_status = strtolower(trim($existing_refund[0]['status']));
+            $is_proc = ($ex_status === 'process' || stripos($existing_refund[0]['message'], 'processing') !== false);
             return array(
-                'status' => 'already_refunded',
+                'status' => $is_proc ? 'processing' : 'already_refunded',
+                'rzp_status' => $is_proc ? 'processing' : 'processed',
                 'is_online' => true,
                 'refund_id' => $existing_refund[0]['txn_id'],
                 'amount' => (float)$existing_refund[0]['amount'],
-                'message' => 'Payment has already been refunded.'
+                'message' => $is_proc ? 'Refund is currently processing with customer\'s bank (typically takes 5-7 business days).' : 'Payment has already been refunded.'
             );
         }
 
@@ -3197,6 +3200,12 @@ public function get_permissions($id){
         if (($http_code == 200 || $http_code == 201) && !empty($rzp_response['id'])) {
             $refund_id = $rzp_response['id'];
             $refunded_amt = isset($rzp_response['amount']) ? ($rzp_response['amount'] / 100) : $refund_amount;
+            $rzp_status = isset($rzp_response['status']) ? strtolower(trim($rzp_response['status'])) : 'processing';
+
+            $db_status = ($rzp_status === 'processed') ? 'success' : 'process';
+            $msg_text = ($rzp_status === 'processed')
+                ? 'Razorpay: Processed (Completed) | ID: ' . $refund_id
+                : 'Razorpay: Processing (Bank settlement in 5-7 business days) | ID: ' . $refund_id;
 
             // Record refund in transactions table
             $txn_data = array(
@@ -3206,18 +3215,23 @@ public function get_permissions($id){
                 'txn_id' => $refund_id,
                 'payu_txn_id' => $payment_id,
                 'amount' => $refunded_amt,
-                'status' => 'success',
-                'message' => 'Refund processed to original payment account via Razorpay',
+                'status' => $db_status,
+                'message' => substr($msg_text, 0, 128),
                 'transaction_date' => date('Y-m-d H:i:s')
             );
             $this->db->insert('transactions', $txn_data);
 
+            $user_msg = ($rzp_status === 'processed')
+                ? 'Refund of Rs. ' . number_format($refunded_amt, 2) . ' settled successfully.'
+                : 'Refund of Rs. ' . number_format($refunded_amt, 2) . ' initiated to customer account. Razorpay status: Processing (Bank settlement in 5-7 business days).';
+
             return array(
-                'status' => 'success',
+                'status' => ($rzp_status === 'processed') ? 'success' : 'processing',
+                'rzp_status' => $rzp_status,
                 'is_online' => true,
                 'refund_id' => $refund_id,
                 'amount' => $refunded_amt,
-                'message' => 'Refund of Rs. ' . number_format($refunded_amt, 2) . ' initiated to customer account successfully.'
+                'message' => $user_msg
             );
         } else {
             // Check if already refunded on Razorpay side
@@ -3277,7 +3291,7 @@ public function get_permissions($id){
      *   (https://api.razorpay.com/v1/payments/{payment_id}/refund)
      *   using keys stored in settings table, record in transactions table.
      */
-    public function refund_parcel_payment($order_id) {
+    public function refund_parcel_payment($order_id, $manual_payment_id = null) {
         $order_id = (int)$order_id;
         if ($order_id <= 0) {
             return array('status' => 'failed', 'is_online' => false, 'message' => 'Invalid parcel order ID');
@@ -3338,27 +3352,35 @@ public function get_permissions($id){
         }
 
         // Online payment (Razorpay):
-        // 1. Check if already refunded in transactions table
-        $this->db->sql("SELECT * FROM transactions WHERE order_id = '$order_id' AND (type = 'refund' OR type = 'parcel_refund') AND status = 'success' LIMIT 1");
+        // 1. Check if already refunded or currently processing in transactions table
+        $this->db->sql("SELECT * FROM transactions WHERE order_id = '$order_id' AND (type = 'refund' OR type = 'parcel_refund') AND (status = 'success' OR status = 'process') ORDER BY id DESC LIMIT 1");
         $existing_refund = $this->db->getResult();
         if (!empty($existing_refund)) {
+            $ex_status = strtolower(trim($existing_refund[0]['status']));
+            $is_proc = ($ex_status === 'process' || stripos($existing_refund[0]['message'], 'processing') !== false);
             return array(
-                'status' => 'already_refunded',
+                'status' => $is_proc ? 'processing' : 'already_refunded',
+                'rzp_status' => $is_proc ? 'processing' : 'processed',
                 'is_online' => true,
                 'refund_id' => $existing_refund[0]['txn_id'],
                 'amount' => (float)$existing_refund[0]['amount'],
-                'message' => 'Payment has already been refunded.'
+                'message' => $is_proc ? 'Refund is currently processing with customer\'s bank (5-7 business days).' : 'Payment has already been refunded.'
             );
         }
 
         // 2. Find the original payment ID
-        $payment_id = trim($order['payment_id']);
-        if (empty($payment_id) || strpos($payment_id, 'pay_') !== 0) {
-            // Fallback to transactions table
-            $this->db->sql("SELECT * FROM transactions WHERE order_id = '$order_id' AND status = 'success' AND txn_id LIKE 'pay_%' ORDER BY id DESC LIMIT 1");
-            $txn_res = $this->db->getResult();
-            if (!empty($txn_res) && !empty($txn_res[0]['txn_id'])) {
-                $payment_id = trim($txn_res[0]['txn_id']);
+        $payment_id = '';
+        if (!empty($manual_payment_id) && strpos(trim($manual_payment_id), 'pay_') === 0) {
+            $payment_id = trim($manual_payment_id);
+        } else {
+            $payment_id = trim($order['payment_id']);
+            if (empty($payment_id) || strpos($payment_id, 'pay_') !== 0) {
+                // Fallback to transactions table
+                $this->db->sql("SELECT * FROM transactions WHERE order_id = '$order_id' AND status = 'success' AND txn_id LIKE 'pay_%' ORDER BY id DESC LIMIT 1");
+                $txn_res = $this->db->getResult();
+                if (!empty($txn_res) && !empty($txn_res[0]['txn_id'])) {
+                    $payment_id = trim($txn_res[0]['txn_id']);
+                }
             }
         }
 
@@ -3366,7 +3388,7 @@ public function get_permissions($id){
             return array(
                 'status' => 'failed',
                 'is_online' => true,
-                'message' => 'No valid Razorpay payment ID found for this parcel order.'
+                'message' => 'No valid Razorpay payment ID (pay_*) found for this parcel order.'
             );
         }
 
@@ -3377,6 +3399,9 @@ public function get_permissions($id){
             if (!empty($amt_res) && (float)$amt_res[0]['amount'] > 0) {
                 $refund_amount = (float)$amt_res[0]['amount'];
             }
+        }
+        if ($refund_amount <= 0 && (float)$order['total_price'] > 0) {
+            $refund_amount = (float)$order['total_price'];
         }
 
         if ($refund_amount <= 0) {
@@ -3391,6 +3416,17 @@ public function get_permissions($id){
         $payment_settings = $this->get_settings('payment_methods', true);
         $keyId = isset($payment_settings['razorpay_key']) ? trim($payment_settings['razorpay_key']) : '';
         $keySecret = isset($payment_settings['razorpay_secret_key']) ? trim($payment_settings['razorpay_secret_key']) : '';
+
+        // Fallback to parcel payment methods if missing
+        if (empty($keyId) || empty($keySecret)) {
+            $parcel_settings = $this->get_settings('parcel_payment_methods', true);
+            if (empty($keyId) && !empty($parcel_settings['razorpay_key'])) {
+                $keyId = trim($parcel_settings['razorpay_key']);
+            }
+            if (empty($keySecret) && !empty($parcel_settings['razorpay_secret_key'])) {
+                $keySecret = trim($parcel_settings['razorpay_secret_key']);
+            }
+        }
 
         if (empty($keyId) || empty($keySecret)) {
             return array(
@@ -3431,6 +3467,12 @@ public function get_permissions($id){
         if (($http_code == 200 || $http_code == 201) && !empty($rzp_response['id'])) {
             $refund_id = $rzp_response['id'];
             $refunded_amt = isset($rzp_response['amount']) ? ($rzp_response['amount'] / 100) : $refund_amount;
+            $rzp_status = isset($rzp_response['status']) ? strtolower(trim($rzp_response['status'])) : 'processing';
+
+            $db_status = ($rzp_status === 'processed') ? 'success' : 'process';
+            $msg_text = ($rzp_status === 'processed')
+                ? 'Parcel Refund: Processed (Completed) | ID: ' . $refund_id
+                : 'Parcel Refund: Processing (Bank settlement in 5-7 business days) | ID: ' . $refund_id;
 
             // Record refund in transactions table
             $txn_data = array(
@@ -3440,18 +3482,23 @@ public function get_permissions($id){
                 'txn_id' => $refund_id,
                 'payu_txn_id' => $payment_id,
                 'amount' => $refunded_amt,
-                'status' => 'success',
-                'message' => 'Parcel Refund processed to original payment account via Razorpay',
+                'status' => $db_status,
+                'message' => substr($msg_text, 0, 128),
                 'transaction_date' => date('Y-m-d H:i:s')
             );
             $this->db->insert('transactions', $txn_data);
 
+            $user_msg = ($rzp_status === 'processed')
+                ? 'Refund of Rs. ' . number_format($refunded_amt, 2) . ' settled successfully.'
+                : 'Refund of Rs. ' . number_format($refunded_amt, 2) . ' initiated to customer account. Razorpay status: Processing (Bank settlement in 5-7 business days).';
+
             return array(
-                'status' => 'success',
+                'status' => ($rzp_status === 'processed') ? 'success' : 'processing',
+                'rzp_status' => $rzp_status,
                 'is_online' => true,
                 'refund_id' => $refund_id,
                 'amount' => $refunded_amt,
-                'message' => 'Refund of Rs. ' . number_format($refunded_amt, 2) . ' initiated to customer account successfully.'
+                'message' => $user_msg
             );
         } else {
             // Check if already refunded on Razorpay side
@@ -3472,11 +3519,26 @@ public function get_permissions($id){
 
                 return array(
                     'status' => 'already_refunded',
+                    'rzp_status' => 'processed',
                     'is_online' => true,
                     'amount' => $refund_amount,
                     'message' => 'Payment has already been refunded on Razorpay.'
                 );
             }
+
+            // Record failed attempt in transactions table
+            $fail_data = array(
+                'user_id' => $user_id,
+                'order_id' => (string)$order_id,
+                'type' => 'refund',
+                'txn_id' => 'rfnd_failed_' . time(),
+                'payu_txn_id' => $payment_id,
+                'amount' => $refund_amount,
+                'status' => 'failed',
+                'message' => substr('Parcel refund failed: ' . $err_desc, 0, 128),
+                'transaction_date' => date('Y-m-d H:i:s')
+            );
+            $this->db->insert('transactions', $fail_data);
 
             return array(
                 'status' => 'failed',
@@ -3485,6 +3547,272 @@ public function get_permissions($id){
                 'message' => 'Razorpay refund failed: ' . $err_desc
             );
         }
+    }
+
+    /**
+     * Check live refund status directly from Razorpay API.
+     * Can query using either a refund ID (rfnd_*) or payment ID (pay_*).
+     * If order_id is provided, automatically keeps the local transactions table in sync.
+     */
+    public function check_live_razorpay_refund($refund_id_or_payment_id, $order_id = null, $order_type = 'food') {
+        $id = trim((string)$refund_id_or_payment_id);
+        if (empty($id)) {
+            return array('status' => 'failed', 'message' => 'Refund ID or Payment ID is required.');
+        }
+
+        $payment_settings = $this->get_settings('payment_methods', true);
+        $keyId = isset($payment_settings['razorpay_key']) ? trim($payment_settings['razorpay_key']) : '';
+        $keySecret = isset($payment_settings['razorpay_secret_key']) ? trim($payment_settings['razorpay_secret_key']) : '';
+        if (empty($keyId) || empty($keySecret)) {
+            $parcel_settings = $this->get_settings('parcel_payment_methods', true);
+            if (empty($keyId) && !empty($parcel_settings['razorpay_key'])) {
+                $keyId = trim($parcel_settings['razorpay_key']);
+            }
+            if (empty($keySecret) && !empty($parcel_settings['razorpay_secret_key'])) {
+                $keySecret = trim($parcel_settings['razorpay_secret_key']);
+            }
+        }
+
+        if (empty($keyId) || empty($keySecret)) {
+            return array('status' => 'failed', 'message' => 'Razorpay API keys not configured in settings.');
+        }
+
+        $is_refund_id = (strpos($id, 'rfnd_') === 0);
+        $url = $is_refund_id
+            ? "https://api.razorpay.com/v1/refunds/{$id}"
+            : "https://api.razorpay.com/v1/payments/{$id}/refunds";
+
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_USERPWD, "{$keyId}:{$keySecret}");
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: application/json'));
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+
+        $raw = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err = curl_error($ch);
+        curl_close($ch);
+
+        if ($code != 200) {
+            $resp = json_decode($raw, true);
+            $err_msg = isset($resp['error']['description']) ? $resp['error']['description'] : ($err ?: 'Unable to fetch from Razorpay (HTTP ' . $code . ')');
+            return array('status' => 'failed', 'message' => $err_msg, 'http_code' => $code);
+        }
+
+        $resp = json_decode($raw, true);
+        $item = null;
+        if ($is_refund_id) {
+            $item = $resp;
+        } else {
+            if (isset($resp['items']) && is_array($resp['items']) && count($resp['items']) > 0) {
+                $item = $resp['items'][0];
+            }
+        }
+
+        if (empty($item) || empty($item['id'])) {
+            return array('status' => 'failed', 'message' => 'No refund found on Razorpay for ' . $id);
+        }
+
+        $rzp_status = isset($item['status']) ? strtolower(trim($item['status'])) : 'processing';
+        $refund_id = $item['id'];
+        $payment_id = isset($item['payment_id']) ? $item['payment_id'] : '';
+        $amount = isset($item['amount']) ? ($item['amount'] / 100) : 0;
+        $speed = isset($item['speed_processed']) ? $item['speed_processed'] : (isset($item['speed_requested']) ? $item['speed_requested'] : 'normal');
+        $rrn = isset($item['acquirer_data']['rrn']) ? $item['acquirer_data']['rrn'] : (isset($item['acquirer_data']['arn']) ? $item['acquirer_data']['arn'] : '');
+        $created_at = isset($item['created_at']) ? date('d-m-Y H:i:s', $item['created_at']) : '';
+
+        // Auto-update transactions table if order_id is provided
+        if (!empty($order_id)) {
+            $oid = (string)$order_id;
+            $db_status = ($rzp_status === 'processed') ? 'success' : (($rzp_status === 'failed') ? 'failed' : 'process');
+            $status_title = ($rzp_status === 'processed') ? 'Processed (Completed)' : (($rzp_status === 'processing') ? 'Processing (5-7 business days)' : ucfirst($rzp_status));
+            $msg_text = 'Razorpay: ' . $status_title . ($rrn ? ' | RRN: ' . $rrn : '') . ' | ID: ' . $refund_id;
+
+            $this->db->sql("SELECT id FROM transactions WHERE order_id = '$oid' AND (txn_id = '$refund_id' OR payu_txn_id = '$payment_id' OR type = 'refund') ORDER BY id DESC LIMIT 1");
+            $exist = $this->db->getResult();
+            if (!empty($exist)) {
+                $t_id = (int)$exist[0]['id'];
+                $this->db->sql("UPDATE transactions SET status = '$db_status', message = '" . $this->db->escapeString(substr($msg_text, 0, 128)) . "', txn_id = '$refund_id' WHERE id = $t_id");
+            } else {
+                $txn_data = array(
+                    'user_id' => 0,
+                    'order_id' => $oid,
+                    'type' => 'refund',
+                    'txn_id' => $refund_id,
+                    'payu_txn_id' => $payment_id,
+                    'amount' => $amount,
+                    'status' => $db_status,
+                    'message' => substr($msg_text, 0, 128),
+                    'transaction_date' => date('Y-m-d H:i:s')
+                );
+                $this->db->insert('transactions', $txn_data);
+            }
+        }
+
+        $summary_msg = ($rzp_status === 'processed')
+            ? 'Refund completed and settled by customer bank.'
+            : (($rzp_status === 'processing')
+                ? 'Refund is processing with customer\'s bank (typically takes 5 to 7 business days).'
+                : 'Refund failed on bank side.');
+
+        return array(
+            'status' => 'success',
+            'rzp_status' => $rzp_status,
+            'refund_id' => $refund_id,
+            'payment_id' => $payment_id,
+            'amount' => $amount,
+            'speed' => $speed,
+            'rrn' => $rrn,
+            'created_at' => $created_at,
+            'message' => $summary_msg
+        );
+    }
+
+    /**
+     * Get consolidated refund and payment details for any order (food or parcel).
+     * Used by Food Order Detail (order-detail.php) and Parcel Order Detail (parcel-request-status-update.php).
+     */
+    public function get_order_refund_details($order_id, $order_type = 'food') {
+        $order_id = (int)$order_id;
+        $order_type = ($order_type === 'parcel') ? 'parcel' : 'food';
+
+        $is_cancelled = false;
+        $payment_method = '';
+        $payment_status = '';
+        $payment_id = '';
+        $order_amount = 0;
+        $user_id = 0;
+
+        if ($order_type === 'parcel') {
+            $this->db->sql("SELECT id, user_id, grand_total, total_price, payment_method, payment_status, payment_id, status FROM parcel_requests WHERE id = $order_id LIMIT 1");
+            $res = $this->db->getResult();
+            if (!empty($res)) {
+                $row = $res[0];
+                $user_id = (int)$row['user_id'];
+                $payment_method = trim($row['payment_method']);
+                $payment_status = trim($row['payment_status']);
+                $payment_id = trim($row['payment_id']);
+                $order_amount = (float)$row['grand_total'] > 0 ? (float)$row['grand_total'] : (float)$row['total_price'];
+                $is_cancelled = (strtolower(trim($row['status'])) === 'cancelled');
+            }
+        } else {
+            $this->db->sql("SELECT id, user_id, payment_method, payment_status, total, delivery_charge, tax_amount, wallet_balance, final_total, status, active_status FROM orders WHERE id = $order_id LIMIT 1");
+            $res = $this->db->getResult();
+            if (!empty($res)) {
+                $row = $res[0];
+                $user_id = (int)$row['user_id'];
+                $payment_method = trim($row['payment_method']);
+                $payment_status = trim($row['payment_status']);
+                $order_amount = (float)$row['final_total'] > 0 ? (float)$row['final_total'] : ((float)$row['total'] + (float)$row['delivery_charge'] + (float)$row['tax_amount']);
+                $act_status = strtolower(trim($row['active_status']));
+                $is_cancelled = ($act_status === 'cancelled');
+                if (!$is_cancelled && !empty($row['status'])) {
+                    $st_arr = json_decode($row['status'], true);
+                    if (is_array($st_arr)) {
+                        foreach ($st_arr as $st) {
+                            if (isset($st[0]) && strtolower($st[0]) === 'cancelled') {
+                                $is_cancelled = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        $pm_lower = strtolower($payment_method);
+        $is_cod = ($pm_lower === 'cod' || $pm_lower === 'cash on delivery');
+        $is_wallet = ($pm_lower === 'wallet');
+        $is_online = (!$is_cod && !$is_wallet && !empty($payment_method));
+
+        // Fetch transactions for this order
+        $this->db->sql("SELECT * FROM transactions WHERE order_id = '$order_id' ORDER BY id DESC");
+        $txns = $this->db->getResult();
+
+        $refund_txn = null;
+        $failed_refund_txn = null;
+
+        if (is_array($txns)) {
+            foreach ($txns as $t) {
+                $t_type = strtolower(trim((string)$t['type']));
+                $t_status = strtolower(trim((string)$t['status']));
+                $t_msg = strtolower(trim((string)$t['message']));
+
+                // Look for payment ID if not already known
+                if (empty($payment_id)) {
+                    if (strpos((string)$t['txn_id'], 'pay_') === 0) {
+                        $payment_id = trim($t['txn_id']);
+                    } elseif (strpos((string)$t['payu_txn_id'], 'pay_') === 0) {
+                        $payment_id = trim($t['payu_txn_id']);
+                    }
+                }
+
+                if (($t_type === 'refund' || $t_type === 'parcel_refund') && $refund_txn === null) {
+                    if ($t_status === 'success' || $t_status === 'process' || stripos($t_msg, 'processing') !== false) {
+                        $refund_txn = $t;
+                    } elseif ($t_status === 'failed' && $failed_refund_txn === null) {
+                        $failed_refund_txn = $t;
+                    }
+                }
+            }
+        }
+
+        $refund_state = 'none'; // 'processed', 'processing', 'failed', 'not_refunded', 'wallet_refunded', 'cod_skipped', 'none'
+        $refund_id = '';
+        $refund_amount = 0;
+        $refund_date = '';
+        $refund_message = '';
+
+        if ($refund_txn !== null) {
+            $r_st = strtolower(trim((string)$refund_txn['status']));
+            $r_msg = strtolower(trim((string)$refund_txn['message']));
+            $is_proc = ($r_st === 'process' || stripos($r_msg, 'processing') !== false);
+            $refund_state = $is_proc ? 'processing' : 'processed';
+            $refund_id = $refund_txn['txn_id'];
+            $refund_amount = (float)$refund_txn['amount'];
+            $refund_date = $refund_txn['transaction_date'];
+            $refund_message = $refund_txn['message'];
+        } elseif ($failed_refund_txn !== null) {
+            $refund_state = 'failed';
+            $refund_id = $failed_refund_txn['txn_id'];
+            $refund_amount = (float)$failed_refund_txn['amount'];
+            $refund_date = $failed_refund_txn['transaction_date'];
+            $refund_message = $failed_refund_txn['message'];
+        } elseif ($is_cancelled) {
+            if ($is_cod) {
+                $refund_state = 'cod_skipped';
+            } elseif ($is_wallet) {
+                $refund_state = 'wallet_refunded';
+            } elseif ($is_online) {
+                $refund_state = 'not_refunded';
+            }
+        }
+
+        $can_retry = ($is_cancelled && $is_online && in_array($refund_state, array('not_refunded', 'failed')));
+        $can_sync = ($is_online && (!empty($refund_id) || !empty($payment_id)));
+
+        return array(
+            'order_id' => $order_id,
+            'order_type' => $order_type,
+            'user_id' => $user_id,
+            'is_cancelled' => $is_cancelled,
+            'payment_method' => $payment_method ?: 'Online',
+            'payment_status' => $payment_status,
+            'payment_id' => $payment_id,
+            'order_amount' => $order_amount,
+            'is_online' => $is_online,
+            'is_cod' => $is_cod,
+            'is_wallet' => $is_wallet,
+            'refund_state' => $refund_state,
+            'refund_id' => $refund_id,
+            'refund_amount' => $refund_amount > 0 ? $refund_amount : $order_amount,
+            'refund_date' => $refund_date,
+            'refund_message' => $refund_message,
+            'can_retry' => $can_retry,
+            'can_sync' => $can_sync
+        );
     }
 }
 

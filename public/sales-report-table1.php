@@ -276,7 +276,9 @@
             var str = String(item).trim();
             var lower = str.toLowerCase();
             var cls = 'default';
-            if (lower.indexOf('refunded') !== -1 && lower.indexOf('not') === -1) {
+            if (lower.indexOf('processing') !== -1) {
+                cls = 'warning';
+            } else if (lower.indexOf('refunded') !== -1 && lower.indexOf('not') === -1) {
                 cls = 'success';
             } else if (lower.indexOf('not refunded') !== -1 || lower.indexOf('failed') !== -1) {
                 cls = 'danger';

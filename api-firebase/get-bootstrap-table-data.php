@@ -3422,15 +3422,24 @@ if ($role === 'sub admin') {
             $txns = isset($order_txns[$oid]) ? $order_txns[$oid] : array();
 
             $successful_refund = null;
+            $processing_refund = null;
             $failed_refund = null;
             foreach ($txns as $t) {
                 $t_type = strtolower(trim((string)$t['type']));
                 $t_status = strtolower(trim((string)$t['status']));
-                if ($t_type === 'refund' && $t_status === 'success' && $successful_refund === null) {
-                    $successful_refund = $t;
-                }
-                if ($t_type === 'refund' && $t_status !== 'success' && $failed_refund === null) {
-                    $failed_refund = $t;
+                $t_msg = strtolower(trim((string)$t['message']));
+                if ($t_type === 'refund') {
+                    if ($t_status === 'process' || stripos($t_msg, 'processing') !== false) {
+                        if ($processing_refund === null) {
+                            $processing_refund = $t;
+                        }
+                    } elseif ($t_status === 'success') {
+                        if ($successful_refund === null) {
+                            $successful_refund = $t;
+                        }
+                    } elseif ($failed_refund === null) {
+                        $failed_refund = $t;
+                    }
                 }
             }
 
@@ -3462,6 +3471,11 @@ if ($role === 'sub admin') {
                                 ? ' (Rs. ' . number_format($successful_refund['amount'], 2) . ')'
                                 : '';
                             $refund_list[] = 'Refunded' . $ref_amt;
+                        } elseif ($processing_refund !== null) {
+                            $ref_amt = (!empty($processing_refund['amount']) && (float)$processing_refund['amount'] > 0)
+                                ? ' (Rs. ' . number_format($processing_refund['amount'], 2) . ')'
+                                : '';
+                            $refund_list[] = 'Refund Processing' . $ref_amt;
                         } elseif ($failed_refund !== null) {
                             $refund_list[] = 'Refund Failed';
                             $has_unrefunded_cancel = true;

@@ -64,8 +64,8 @@
 					// If parcel is cancelled, process automatic refund
 					if($new_status == 'cancelled'){
 						$refund_info = $fn->refund_parcel_payment($ID);
-						if(isset($refund_info) && $refund_info['status'] == 'success'){
-							$flash_success = "Parcel order cancelled and refund of Rs. " . number_format($refund_info['amount'], 2) . " initiated successfully.";
+						if(isset($refund_info) && ($refund_info['status'] == 'success' || $refund_info['status'] == 'processing')){
+							$flash_success = "Parcel order cancelled. " . $refund_info['message'];
 						} else if(isset($refund_info) && $refund_info['status'] == 'already_refunded'){
 							$flash_success = "Parcel order cancelled. Payment was already refunded.";
 						} else if(isset($refund_info) && $refund_info['status'] == 'failed' && !empty($refund_info['is_online'])){
@@ -133,8 +133,114 @@
 							<?php endif; ?>
 						<?php endforeach; ?>
 					<?php endif; ?>
-</div>
-		</div>
+				</div>
+			</div>
+
+			<?php
+			$refund_details = $fn->get_order_refund_details($ID, 'parcel');
+			$show_refund_card = ($refund_details['is_cancelled'] || $refund_details['refund_state'] !== 'none');
+			if($show_refund_card){
+			?>
+			<div class="box box-warning" id="parcel_refund_tracking_box" style="margin-bottom:16px;border-top:3px solid #f39c12;">
+				<div class="box-header with-border">
+					<h3 class="box-title"><i class="fa fa-refresh"></i> Razorpay Refund & Cancellation Tracking</h3>
+					<div class="box-tools pull-right">
+						<?php if(!empty($refund_details['can_sync'])){ ?>
+							<button type="button" class="btn btn-sm btn-info btn-sync-refund-parcel" data-order-id="<?=$ID?>" data-query-id="<?=!empty($refund_details['refund_id']) ? $refund_details['refund_id'] : $refund_details['payment_id']?>"><i class="fa fa-refresh"></i> Check Live Razorpay Status</button>
+						<?php } ?>
+					</div>
+				</div>
+				<div class="box-body">
+					<div class="row">
+						<div class="col-md-6">
+							<table class="table table-bordered">
+								<tr>
+									<th style="width: 35%;">Parcel Status</th>
+									<td><span class="label label-danger">Cancelled</span></td>
+								</tr>
+								<tr>
+									<th>Payment Method</th>
+									<td><strong><?=htmlspecialchars($refund_details['payment_method'])?></strong></td>
+								</tr>
+								<tr>
+									<th>Razorpay Payment ID</th>
+									<td>
+										<?php if(!empty($refund_details['payment_id'])){ ?>
+											<code><?=htmlspecialchars($refund_details['payment_id'])?></code>
+										<?php } else { ?>
+											<span class="text-muted">Not detected</span>
+										<?php } ?>
+									</td>
+								</tr>
+								<tr>
+									<th>Refund ID</th>
+									<td>
+										<?php if(!empty($refund_details['refund_id'])){ ?>
+											<strong><?=htmlspecialchars($refund_details['refund_id'])?></strong>
+										<?php } else { ?>
+											<span class="text-muted">-</span>
+										<?php } ?>
+									</td>
+								</tr>
+								<tr>
+									<th>Refund Amount</th>
+									<td><strong>Rs. <?=number_format((float)$refund_details['refund_amount'], 2)?></strong></td>
+								</tr>
+								<?php if(!empty($refund_details['refund_date'])){ ?>
+								<tr>
+									<th>Recorded Date</th>
+									<td><?=htmlspecialchars($refund_details['refund_date'])?></td>
+								</tr>
+								<?php } ?>
+							</table>
+						</div>
+						<div class="col-md-6">
+							<div style="padding:15px; background:#f9f9f9; border-radius:4px; border:1px solid #e3e3e3;">
+								<h4>Refund Status</h4>
+								<div style="margin-bottom:12px;">
+									<?php if($refund_details['refund_state'] === 'processing'){ ?>
+										<span class="label label-warning" style="font-size:14px;padding:6px 12px;display:inline-block;"><i class="fa fa-clock-o"></i> Razorpay: Refund Processing</span>
+										<div class="alert alert-warning" style="margin-top:12px;margin-bottom:0;padding:10px;">
+											<strong>Bank Settlement In Progress:</strong> Razorpay has accepted the refund request. Customer's bank typically takes <strong>5 to 7 business days</strong> to credit the customer's account statement.
+											<br><small>Status in local database: <code>process</code></small>
+										</div>
+									<?php } elseif($refund_details['refund_state'] === 'processed'){ ?>
+										<span class="label label-success" style="font-size:14px;padding:6px 12px;display:inline-block;"><i class="fa fa-check"></i> Razorpay: Refund Settled / Completed</span>
+										<div class="alert alert-success" style="margin-top:12px;margin-bottom:0;padding:10px;">
+											<strong>Completed:</strong> The refund has been settled to the customer's payment account.
+										</div>
+									<?php } elseif($refund_details['refund_state'] === 'wallet_refunded'){ ?>
+										<span class="label label-info" style="font-size:14px;padding:6px 12px;display:inline-block;"><i class="fa fa-credit-card"></i> Refunded to User Wallet</span>
+										<p class="text-muted" style="margin-top:8px;">Amount was credited back to user's app wallet balance.</p>
+									<?php } elseif($refund_details['refund_state'] === 'cod_skipped'){ ?>
+										<span class="label label-default" style="font-size:14px;padding:6px 12px;display:inline-block;">COD (Cash on Delivery)</span>
+										<p class="text-muted" style="margin-top:8px;">No online payment was collected, so no refund is required.</p>
+									<?php } else { ?>
+										<span class="label label-danger" style="font-size:14px;padding:6px 12px;display:inline-block;"><i class="fa fa-exclamation-triangle"></i> Not Refunded / Refund Failed</span>
+										<div class="alert alert-danger" style="margin-top:12px;margin-bottom:0;padding:10px;">
+											<?=!empty($refund_details['refund_message']) ? htmlspecialchars($refund_details['refund_message']) : 'Parcel order was cancelled, but online refund was not processed yet.'?>
+										</div>
+									<?php } ?>
+								</div>
+
+								<?php if($refund_details['can_retry']){ ?>
+									<div style="margin-top:15px;padding-top:12px;border-top:1px dashed #ccc;">
+										<label><i class="fa fa-paper-plane"></i> Initiate / Retry Refund Manually</label>
+										<div class="input-group">
+											<input type="text" id="manual_parcel_payment_id" class="form-control" placeholder="Razorpay Payment ID (pay_...)" value="<?=$refund_details['payment_id']?>">
+											<span class="input-group-btn">
+												<button class="btn btn-warning btn-manual-refund-parcel" type="button" data-order-id="<?=$ID?>"><i class="fa fa-undo"></i> Initiate Refund Now</button>
+											</span>
+										</div>
+										<p class="help-block" style="margin-top:5px;font-size:11px;">If the payment ID was not captured automatically, copy the <code>pay_...</code> ID from your Razorpay Dashboard and paste it here.</p>
+									</div>
+								<?php } ?>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			<?php } ?>
 
 		<?php if(!empty($order['otp']) && !in_array($current_status, array('delivered','cancelled'))): ?>
 			<div class="alert alert-warning" style="margin-top:12px;">
@@ -197,6 +303,75 @@
 		}
 		toggleOtp();
 		$('#parcel_status').on('change', toggleOtp);
+	});
+
+	// Live Razorpay sync for parcel orders
+	$(document).on('click', '.btn-sync-refund-parcel', function(e){
+		e.preventDefault();
+		var $btn = $(this);
+		var orderId = $btn.data('order-id');
+		var queryId = $btn.data('query-id');
+		$btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Checking Razorpay...');
+
+		$.ajax({
+			url: 'api-firebase/order-process.php',
+			type: 'POST',
+			data: {
+				sync_refund_status: 1,
+				order_id: orderId,
+				order_type: 'parcel',
+				query_id: queryId
+			},
+			dataType: 'json',
+			success: function(resp){
+				$btn.prop('disabled', false).html('<i class="fa fa-refresh"></i> Check Live Razorpay Status');
+				if(!resp.error && resp.data){
+					alert(resp.message);
+					location.reload();
+				} else {
+					alert('Razorpay Check: ' + (resp.message || 'Unable to fetch status.'));
+				}
+			},
+			error: function(){
+				$btn.prop('disabled', false).html('<i class="fa fa-refresh"></i> Check Live Razorpay Status');
+				alert('Server error occurred while checking Razorpay status.');
+			}
+		});
+	});
+
+	// Manual refund for parcel orders
+	$(document).on('click', '.btn-manual-refund-parcel', function(e){
+		e.preventDefault();
+		var $btn = $(this);
+		var orderId = $btn.data('order-id');
+		var paymentId = $('#manual_parcel_payment_id').val().trim();
+
+		if(!confirm('Are you sure you want to initiate Razorpay refund for Parcel Order #' + orderId + (paymentId ? (' using Payment ID: ' + paymentId) : '') + '?')){
+			return;
+		}
+
+		$btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Initiating...');
+
+		$.ajax({
+			url: 'api-firebase/order-process.php',
+			type: 'POST',
+			data: {
+				process_refund: 1,
+				order_id: orderId,
+				order_type: 'parcel',
+				payment_id: paymentId
+			},
+			dataType: 'json',
+			success: function(resp){
+				$btn.prop('disabled', false).html('<i class="fa fa-undo"></i> Initiate Refund Now');
+				alert(resp.message);
+				location.reload();
+			},
+			error: function(){
+				$btn.prop('disabled', false).html('<i class="fa fa-undo"></i> Initiate Refund Now');
+				alert('Server error while processing refund.');
+			}
+		});
 	});
 </script>
 
