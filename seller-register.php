@@ -142,6 +142,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'image' => $image_name,
         'banner' => $banner_name,
         'zone_id' => $zone_id !== null ? $zone_id : 0,
+        'otp' => '',                // <-- ADD
+        'password' => '',           // <-- ADD
+        'balance' => 0,             // <-- ADD
+        'last_login_ip' => '',
         'date_created' => $date_created
     ];
 
