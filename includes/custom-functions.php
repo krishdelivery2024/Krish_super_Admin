@@ -2605,7 +2605,7 @@ public function get_permissions($id){
      * that came from the zone override.
      */
     function get_effective_parcel_settings($zone_id = null){
-        $this->db->sql("SELECT per_km_price, base_price, max_weight_kg, terms_conditions, is_service_available, opening_time, closing_time, cod_payment_method, razorpay_payment_method FROM parcel_settings ORDER BY id ASC LIMIT 1");
+        $this->db->sql("SELECT per_km_price, base_price, max_weight_kg, terms_conditions, is_service_available, is_shipping_available, opening_time, closing_time, cod_payment_method, razorpay_payment_method FROM parcel_settings ORDER BY id ASC LIMIT 1");
         $res = $this->db->getResult();
         $settings = !empty($res) ? $res[0] : array();
 
@@ -2634,6 +2634,7 @@ public function get_permissions($id){
             'max_weight_kg'           => (isset($settings['max_weight_kg']) && is_numeric($settings['max_weight_kg'])) ? (float)$settings['max_weight_kg'] : 0,
             'terms_conditions'        => isset($settings['terms_conditions']) ? $settings['terms_conditions'] : '',
             'is_service_available'    => isset($settings['is_service_available']) ? (int)$settings['is_service_available'] : 1,
+            'is_shipping_available'   => isset($settings['is_shipping_available']) ? (int)$settings['is_shipping_available'] : 1,
             'cod_payment_method'      => ($cod_pm !== null) ? $cod_pm : 0,
             'razorpay_payment_method' => ($rzp_pm !== null) ? $rzp_pm : 1,
             // Daily operating window (global only, not overridable per zone).

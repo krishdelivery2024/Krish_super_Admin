@@ -75,6 +75,18 @@ $goods_type 			= (isset($_POST['goods_type'])) ? $db->escapeString($fn->xss_clea
 $helper_count 			= (isset($_POST['helper_count'])) ? max(0, (int)$_POST['helper_count']) : 0;
 $helper_charge 			= (isset($_POST['helper_charge'])) ? (float)$_POST['helper_charge'] : 0.00;
 
+if ($service_type == 'shipping') {
+    $settings_sql = "SELECT is_shipping_available FROM parcel_settings ORDER BY id ASC LIMIT 1";
+    $db->sql($settings_sql);
+    $s_res = $db->getResult();
+    if (!empty($s_res) && isset($s_res[0]['is_shipping_available']) && (int)$s_res[0]['is_shipping_available'] === 0) {
+        $response['error'] = true;
+        $response['message'] = "Shipping service is currently disabled.";
+        print_r(json_encode($response));
+        return false;
+    }
+}
+
 if(empty($pickup_location) || empty($drop_location)){
 	$response['error'] = true;
 	$response['message'] = "Pickup and drop location are required.";

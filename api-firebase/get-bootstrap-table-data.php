@@ -956,9 +956,13 @@
 	if(isset($_GET['table']) && $_GET['table'] == 'products_unlisted'){
 // 		print_r($_GET);
 		$offset = 0; $limit = 10;
-		$sort = 'id'; $order = 'ASC';
+		$sort = 'p.id'; $order = 'ASC';
 		
-		$where = "WHERE p.`is_active` = 0";
+		$where = "WHERE p.`is_active` = 0 AND s.`status` = 1";
+
+		if(isset($_SESSION['role']) && $_SESSION['role'] == 'seller'){
+			$where .= " AND p.`seller_id` = " . (int)$_SESSION['id'];
+		}
 
 		if(isset($_GET['offset']))
 			$offset = (int)$_GET['offset'];
@@ -967,7 +971,7 @@
 			$limit = (int)$_GET['limit'];
 
 		if(isset($_GET['sort'])) {
-			$sort = ($_GET['sort'] == 'id') ? 'id' : $_GET['sort'];
+			$sort = ($_GET['sort'] == 'id') ? 'p.id' : $_GET['sort'];
 		}
 
 		if(isset($_GET['order']))
@@ -975,7 +979,7 @@
 
 		if(isset($_GET['search']) && $_GET['search'] != '') {
 			$search = $_GET['search'];
-			$where .= " AND (p.`id` LIKE '%$search%' OR p.`name` LIKE '%$search%' OR pv.`measurement` LIKE '%$search%' OR u.`short_code` LIKE '%$search%')";
+			$where .= " AND (p.`id` LIKE '%$search%' OR p.`name` LIKE '%$search%' OR pv.`measurement` LIKE '%$search%' OR u.`short_code` LIKE '%$search%' OR s.`name` LIKE '%$search%' OR s.`company_name` LIKE '%$search%')";
 		}
 
 		if(isset($_GET['category_id']) && $_GET['category_id'] != '') {
@@ -984,7 +988,8 @@
 		}
 
 		$join = "JOIN `product_variant` pv ON pv.product_id = p.id
-				LEFT JOIN `unit` u ON u.id = pv.measurement_unit_id";
+				LEFT JOIN `unit` u ON u.id = pv.measurement_unit_id
+				JOIN `seller` s ON s.id = p.seller_id";
 		
 		$sql = "SELECT COUNT(p.id) as `total` FROM `products` p $join ".$where."" ;
 // 		echo $sql;
@@ -994,7 +999,7 @@
 			$total = $row['total'];
 		
 // 		$sql = "SELECT * FROM products ".$where." ORDER BY ".$sort." ".$order." LIMIT ".$offset.", ".$limit;
-        $sql = "SELECT p.id AS id, p.name, p.image, pv.price, pv.discounted_price, pv.measurement, pv.serve_for, pv.stock,pv.barcode_data, u.short_code, p.is_active, p.available_time 
+        $sql = "SELECT p.id AS id, p.name, p.image, pv.price, pv.discounted_price, pv.measurement, pv.serve_for, pv.stock,pv.barcode_data, u.short_code, p.is_active, p.available_time, s.name as seller_name, s.company_name 
             FROM `products` p
             $join 
             $where ORDER BY $sort $order LIMIT $offset, $limit";
@@ -1016,6 +1021,7 @@
 			$operate .= ' <a class="btn-xs btn-danger" href="delete-product.php?id='.$row['id'].'"><i class="fa fa-trash-o"></i>Delete</a>';
 			
 			$tempRow['id'] = $row['id'];
+			$tempRow['seller_name'] = !empty($row['company_name']) ? $row['company_name'] : $row['seller_name'];
 			if($row['barcode_data']!=''){
 				//$tempRow['barcode_data'] = "<div style='text-align:center'><img alt='' src='barcode/barcode.php?codetype=Code39&size=40&text=".$row['barcode_data']."&print=true'/><a href='javascript:void(0)' onclick=print_barcode('".$row['barcode_data']."')>print</a></div>";
 			    $tempRow['barcode_data'] = "<div style='text-align:center'><svg class='barcode'  jsbarcode-value='".$row['barcode_data']."'  jsbarcode-textmargin='0' jsbarcode-height='50'  jsbarcode-fontoptions='bold'></svg></div><div style='text-align:center'><a href='javascript:void(0)' onclick=print_barcode('".$row['barcode_data']."')>print</a></div><script>JsBarcode('.barcode').init();</script>";

@@ -60,6 +60,7 @@
                             <th data-field="id" data-sortable="true">ID</th>
                          <!--   <th data-field="barcode_data" >Barcode</th>-->
                             <th data-field="name" data-sortable="true">Name</th>
+                            <th data-field="seller_name" data-sortable="true">Seller</th>
                             <th data-field="image">Image</th>
                             <th data-field="price" data-sortable="true">Price</th> 
                             <th data-field="measurement" data-sortable="true">Measurement (Kg, gm, Ltr)</th> 

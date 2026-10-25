@@ -30,6 +30,18 @@ if (!verify_token()) {
     return false;
 }
 
+$settings_sql = "SELECT is_shipping_available FROM parcel_settings ORDER BY id ASC LIMIT 1";
+$db->sql($settings_sql);
+$s_res = $db->getResult();
+if (!empty($s_res) && isset($s_res[0]['is_shipping_available']) && (int)$s_res[0]['is_shipping_available'] === 0) {
+    $response['error'] = "true";
+    $response['message'] = "Shipping service is currently disabled.";
+    $response['data'] = array();
+    print_r(json_encode($response));
+    $db->disconnect();
+    return false;
+}
+
 $sql = "SELECT * FROM `shipping_vehicles` WHERE `status` = 1 ORDER BY `sort_order` ASC, `id` ASC";
 $db->sql($sql);
 $res = $db->getResult();

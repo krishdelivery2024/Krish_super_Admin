@@ -36,6 +36,22 @@
     margin-top: 13px;
     font-size: 15px;
 }
+#editOrderStatusModal {
+    z-index: 1060 !important;
+    pointer-events: auto !important;
+}
+#editOrderStatusModal .modal-dialog {
+    z-index: 1061 !important;
+    position: relative;
+    pointer-events: auto !important;
+}
+#editOrderStatusModal .modal-content {
+    background-color: #fff !important;
+    pointer-events: auto !important;
+}
+.modal-backdrop {
+    z-index: 1040 !important;
+}
 </style>
     <div class="row small-spacing">
         <div class="col-xs-12">
@@ -178,65 +194,9 @@
  <?php } ?>
 <!-- /.content -->
 
-<!-- Modal for Admin / Seller to quickly change order status -->
-<div class="modal fade" id="editOrderStatusModal" tabindex="-1" role="dialog" aria-labelledby="editOrderStatusModalLabel">
-    <div class="modal-dialog" role="document">
-        <div class="modal-content">
-            <div class="modal-header">
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-                <h4 class="modal-title" id="editOrderStatusModalLabel"><i class="fa fa-pencil-square-o"></i> Change Order Status</h4>
-            </div>
-            <form id="quick_update_order_status_form">
-                <div class="modal-body">
-                    <input type="hidden" name="id" id="modal_order_id">
-                    <input type="hidden" name="ajaxCall" value="1">
-                    <input type="hidden" name="update_order_status" value="true">
-                    
-                    <div class="form-group">
-                        <label>Order ID:</label>
-                        <span id="modal_order_id_display" class="label label-primary" style="font-size:14px;"></span>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="modal_status">Order Status <span class="text-danger">*</span></label>
-                        <select name="status" id="modal_status" class="form-control" required>
-                            <option value="received">Received</option>
-                            <option value="processed">Processed</option>
-                            <option value="shipped">Shipped</option>
-                            <option value="delivered">Delivered</option>
-                            <option value="cancelled">Cancelled</option>
-                            <option value="returned">Returned</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="modal_delivery_boy_id">Delivery Boy</label>
-                        <select name="delivery_boy_id" id="modal_delivery_boy_id" class="form-control">
-                            <option value="">Select Delivery Boy</option>
-                            <?php 
-                            $sql_dboys = "SELECT id, name FROM delivery_boys WHERE status=1 AND name <> 'dunzo' ORDER BY name ASC";
-                            $db->sql($sql_dboys);
-                            $res_dboys = $db->getResult();
-                            if(!empty($res_dboys)){
-                                foreach($res_dboys as $d_row){ ?>
-                                    <option value="<?=$d_row['id']?>"><?=htmlspecialchars($d_row['name'])?></option>
-                            <?php }} ?>
-                        </select>
-                    </div>
-
-                    <div id="modal_result_message" style="display:none;" class="alert"></div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-                    <button type="submit" id="btn_modal_save_status" class="btn btn-primary"><i class="fa fa-check"></i> Update Status</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
 <script>
 $(document).ready(function(){
+
     setInterval(function () {
         var ab=$(".pagination-info").html();
         if(ab) {
@@ -257,6 +217,8 @@ $(document).ready(function(){
         $('#modal_delivery_boy_id').val(currentBoy ? currentBoy : '');
         $('#modal_result_message').hide().removeClass('alert-success alert-danger').html('');
         $('#btn_modal_save_status').prop('disabled', false).html('<i class="fa fa-check"></i> Update Status');
+        
+        $('#editOrderStatusModal').appendTo('body');
         $('#editOrderStatusModal').modal('show');
     });
 

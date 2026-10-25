@@ -109,4 +109,22 @@ input:checked + .slider:before {
     background-color: #f8f9fa !important;
     border-bottom: 2px solid #ccc !important;
     color: #333 !important;
+}
+
+/* Ensure modals always appear in front of the backdrop overlay */
+.modal {
+    z-index: 1060 !important;
+    pointer-events: auto !important;
+}
+.modal .modal-dialog {
+    z-index: 1061 !important;
+    position: relative;
+    pointer-events: auto !important;
+}
+.modal .modal-content {
+    background-color: #fff !important;
+    pointer-events: auto !important;
+}
+.modal-backdrop {
+    z-index: 1040 !important;
 }

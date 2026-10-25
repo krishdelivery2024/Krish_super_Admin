@@ -151,11 +151,7 @@ $sql = "UPDATE seller SET
 
 $db->sql($sql);
 
-if($status == 0){$is_active = 0;}elseif($status == 1){$is_active = 1;}else{$is_active = 0;}
-$sql = "UPDATE products SET 
-    is_active = '$is_active'
-    WHERE seller_id = '$id'";
-$db->sql($sql);
+// Do not overwrite individual products' is_active approval state when changing seller status
 if($status == 0){
 $sql =  "DELETE FROM `wishlists` WHERE `seller_id`='$id'";
 $db->sql($sql);

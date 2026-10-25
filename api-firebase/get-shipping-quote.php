@@ -29,6 +29,17 @@ if (!isset($_POST['accesskey']) || $access_key != $db->escapeString($fn->xss_cle
     return false;
 }
 
+$settings_sql = "SELECT is_shipping_available FROM parcel_settings ORDER BY id ASC LIMIT 1";
+$db->sql($settings_sql);
+$s_res = $db->getResult();
+if (!empty($s_res) && isset($s_res[0]['is_shipping_available']) && (int)$s_res[0]['is_shipping_available'] === 0) {
+    $response['error'] = true;
+    $response['message'] = "Shipping service is currently disabled.";
+    print_r(json_encode($response));
+    $db->disconnect();
+    return false;
+}
+
 $pickup_lat   = isset($_POST['pickup_lat']) ? $db->escapeString($fn->xss_clean($_POST['pickup_lat'])) : '';
 $pickup_lng   = isset($_POST['pickup_lng']) ? $db->escapeString($fn->xss_clean($_POST['pickup_lng'])) : '';
 $drop_lat     = isset($_POST['drop_lat'])   ? $db->escapeString($fn->xss_clean($_POST['drop_lat']))   : '';
