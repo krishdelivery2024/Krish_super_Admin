@@ -51,6 +51,26 @@ if ($access_key != $accesskey) {
 	exit();
 }
 
+if (isset($_POST['get_settings']) || (isset($_POST['type']) && $_POST['type'] == 'get_settings')) {
+	$sql = "select value from `settings` where variable='system_timezone'";
+	$db->sql($sql);
+	$res = $db->getResult();
+	if (!empty($res)) {
+		$response['error'] = false;
+		$response['settings'] = json_decode($res[0]['value'], 1);
+		$response['settings']['current_version'] = empty($response['settings']['delivery_boy_current_version']) ? (empty($response['settings']['current_version']) ? "0" : $response['settings']['current_version']) : $response['settings']['delivery_boy_current_version'];
+		$response['settings']['minimum_version_required'] = empty($response['settings']['delivery_boy_min_version']) ? (empty($response['settings']['minimum_version_required']) ? "0" : $response['settings']['minimum_version_required']) : $response['settings']['delivery_boy_min_version'];
+		$response['settings']['is_version_system_on'] = isset($response['settings']['is_delivery_boy_version_system_on']) ? $response['settings']['is_delivery_boy_version_system_on'] : (isset($response['settings']['is-version-system-on']) ? $response['settings']['is-version-system-on'] : "0");
+		print_r(json_encode($response));
+	} else {
+		$response['error'] = true;
+		$response['message'] = "No settings found!";
+		print_r(json_encode($response));
+	}
+	return false;
+	exit();
+}
+
 if (isset($_POST['login'])) {
 	/*
    1.Login

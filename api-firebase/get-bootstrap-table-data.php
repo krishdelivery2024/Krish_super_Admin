@@ -233,10 +233,12 @@
     			    $tempRow['sname'] = $row['vendor_name'];
     			    $tempRow['smobile'] = $row['vendor_mobile'];
     			}
+    			$operate = '<a class="btn btn-xs btn-primary" href="order-detail.php?id='.$row['id'].'" title="View Order Details"><i class="fa fa-eye"></i> View</a> ';
+    			$operate .= '<button type="button" class="btn btn-xs btn-info btn-change-status" data-id="'.$row['id'].'" data-status="'.htmlspecialchars($row['active_status']).'" data-boy="'.(int)$row['delivery_boy_id'].'" title="Change Order Status"><i class="fa fa-pencil"></i> Status</button>';
     			if(isset($_SESSION['role']) && $_SESSION['role'] == 'seller'){
-    			    $tempRow['operate'] = '<a href="order-detail.php?id='.$row['id'].'"><i class="fa fa-eye"></i> View</a>
-    				    <br><a href="delete-order.php?id='.$row['id'].'"><i class="fa fa-trash"></i> Delete</a>';
+    			    $operate .= ' <a class="btn btn-xs btn-danger" href="delete-order.php?id='.$row['id'].'" onclick="return confirm(\'Are you sure you want to delete this order?\');"><i class="fa fa-trash"></i></a>';
     			}
+    			$tempRow['operate'] = $operate;
     			$rows[] = $tempRow;
     		}
 		}
@@ -316,6 +318,7 @@
 					$tempRow['sname'] = 'Parcel';
 					$tempRow['smobile'] = '';
 				}
+				$tempRow['operate'] = '<a class="btn btn-xs btn-primary" href="parcel-requests.php" title="View Parcel Requests"><i class="fa fa-eye"></i> View</a>';
 				$rows[] = $tempRow;
 			}
 		}
@@ -2348,12 +2351,192 @@ if ($role === 'sub admin') {
 		$bulkData['rows'] = $rows;
 		print_r(json_encode($bulkData));
 	}
+	// data of 'Shipping Goods Types' table goes here
+	if(isset($_GET['table']) && $_GET['table'] == 'shipping_goods_types'){
+		$offset = 0; $limit = 10;
+		$sort = 'id'; $order = 'ASC';
+		$where = '';
+		if(isset($_GET['offset'])) $offset = (int)$_GET['offset'];
+		if(isset($_GET['limit'])) $limit = (int)$_GET['limit'];
+		if(isset($_GET['sort']) && !empty($_GET['sort'])) $sort = $_GET['sort'];
+		if(isset($_GET['order'])) $order = $_GET['order'];
+		if(isset($_GET['search']) && $_GET['search'] != ''){
+			$search = $db->escapeString($_GET['search']);
+			$where = " WHERE `id` LIKE '%".$search."%' OR `name` LIKE '%".$search."%'";
+		}
+		$sql = "SELECT COUNT(*) as total FROM `shipping_goods_types` ".$where;
+		$db->sql($sql);
+		$res = $db->getResult();
+		$total = !empty($res) ? $res[0]['total'] : 0;
+		
+		$sql = "SELECT * FROM `shipping_goods_types` ".$where." ORDER BY ".$sort." ".$order." LIMIT ".$offset.", ".$limit;
+		$db->sql($sql);
+		$res = $db->getResult();
+		
+		$bulkData = array();
+		$bulkData['total'] = $total;
+		$rows = array();
+		$tempRow = array();
+		
+		foreach($res as $row){
+			$operate = "<a class='btn btn-xs btn-primary' href='edit-shipping-goods-type.php?id=".$row['id']."' title='Edit'><i class='fa fa-pencil-square-o'></i> Edit</a>";
+			$operate .= "&nbsp;<a class='btn btn-xs btn-danger' href='delete-shipping-goods-type.php?id=".$row['id']."' onclick='return confirm(\"Are you sure you want to delete this cargo type?\")' title='Delete'><i class='fa fa-trash-o'></i> Delete</a>";
+			
+			$tempRow['id'] = $row['id'];
+			$tempRow['name'] = $row['name'];
+			$tempRow['status'] = ($row['status'] == 1) ? "<label class='label label-success'>Active</label>" : "<label class='label label-danger'>Inactive</label>";
+			$tempRow['created_at'] = $row['created_at'];
+			$tempRow['operate'] = $operate;
+			$rows[] = $tempRow;
+		}
+		$bulkData['rows'] = $rows;
+		print_r(json_encode($bulkData));
+	}
+	// data of 'Shipping Vehicles' table goes here
+	if(isset($_GET['table']) && $_GET['table'] == 'shipping_vehicles'){
+		$offset = 0; $limit = 10;
+		$sort = 'sort_order'; $order = 'ASC';
+		$where = '';
+		if(isset($_GET['offset'])) $offset = (int)$_GET['offset'];
+		if(isset($_GET['limit'])) $limit = (int)$_GET['limit'];
+		if(isset($_GET['sort']) && !empty($_GET['sort'])) $sort = $_GET['sort'];
+		if(isset($_GET['order'])) $order = $_GET['order'];
+		if(isset($_GET['search']) && $_GET['search'] != ''){
+			$search = $db->escapeString($_GET['search']);
+			$where = " WHERE `id` LIKE '%".$search."%' OR `name` LIKE '%".$search."%' OR `vehicle_type` LIKE '%".$search."%' OR `capacity_label` LIKE '%".$search."%'";
+		}
+		$sql = "SELECT COUNT(*) as total FROM `shipping_vehicles` ".$where;
+		$db->sql($sql);
+		$res = $db->getResult();
+		$total = !empty($res) ? $res[0]['total'] : 0;
+
+		$sql = "SELECT * FROM `shipping_vehicles` ".$where." ORDER BY ".$sort." ".$order." LIMIT ".$offset.", ".$limit;
+		$db->sql($sql);
+		$res = $db->getResult();
+
+		$bulkData = array();
+		$bulkData['total'] = $total;
+		$rows = array();
+		foreach($res as $row){
+			$operate = "<a class='btn btn-xs btn-primary' href='edit-shipping-vehicle.php?id=".$row['id']."' title='Edit Vehicle'><i class='fa fa-edit'></i> Edit</a> ";
+			$operate .= "<a class='btn btn-xs btn-danger' href='delete-shipping-vehicle.php?id=".$row['id']."' onclick=\"return confirm('Are you sure you want to delete this shipping vehicle?');\" title='Delete'><i class='fa fa-trash-o'></i> Delete</a>";
+
+			$tempRow = array();
+			$tempRow['id'] = $row['id'];
+			$tempRow['name'] = '<strong>'.htmlspecialchars($row['name']).'</strong><br/><small class="text-muted">Type: '.$row['vehicle_type'].'</small>';
+			$tempRow['image'] = (!empty($row['image'])) ? "<img src='".((strpos($row['image'], 'http') === 0) ? $row['image'] : DOMAIN_URL . ltrim($row['image'], '/'))."' style='height:45px;max-width:80px;object-fit:contain;' />" : '<span class="text-muted">No Image</span>';
+			$tempRow['capacity'] = '<span class="label label-info">'.$row['capacity_label'].'</span><br/><small>'.$row['size_dimensions'].'</small>';
+			$tempRow['base_price'] = '&#8377; '.number_format((float)$row['base_price'], 2).'<br/><small class="text-muted">Incl. '.$row['base_km'].' km</small>';
+			$tempRow['per_km_price'] = '&#8377; '.number_format((float)$row['per_km_price'], 2).'/km';
+			$tempRow['helper_price'] = '&#8377; '.number_format((float)$row['helper_price'], 2).'/helper';
+			$tempRow['sort_order'] = $row['sort_order'];
+			$tempRow['status'] = ($row['status'] == 1) ? "<label class='label label-success'>Active</label>" : "<label class='label label-danger'>Inactive</label>";
+			$tempRow['operate'] = $operate;
+			$rows[] = $tempRow;
+		}
+		$bulkData['rows'] = $rows;
+		print_r(json_encode($bulkData));
+	}
+
+	// data of 'Shipping Requests' table goes here
+	if(isset($_GET['table']) && $_GET['table'] == 'shipping_requests'){
+		$offset = 0; $limit = 10;
+		$sort = 'pr.id'; $order = 'DESC';
+		$where = " WHERE pr.service_type = 'shipping'";
+		if(isset($_GET['offset'])) $offset = (int)$_GET['offset'];
+		if(isset($_GET['limit'])) $limit = (int)$_GET['limit'];
+		if(isset($_GET['sort']) && !empty($_GET['sort'])) $sort = $_GET['sort'];
+		if(isset($_GET['order'])) $order = $_GET['order'];
+		if(isset($_GET['search']) && $_GET['search'] != ''){
+			$search = $db->escapeString($_GET['search']);
+			$where .= " AND (`pr`.`id` LIKE '%".$search."%' OR `pr`.`shipping_vehicle_name` LIKE '%".$search."%' OR `pr`.`goods_type` LIKE '%".$search."%' OR `pr`.`pickup_location` LIKE '%".$search."%' OR `pr`.`drop_location` LIKE '%".$search."%' OR `pr`.`sender_name` LIKE '%".$search."%' OR `pr`.`recipient_name` LIKE '%".$search."%' OR `pr`.`status` LIKE '%".$search."%')";
+		}
+		if(!empty($zone_scope_sql)){
+			$where .= " AND pr.`zone_id`".$zone_scope_sql;
+		}
+
+		$sql = "SELECT COUNT(*) as total FROM `parcel_requests` pr ".$where;
+		$db->sql($sql);
+		$res = $db->getResult();
+		$total = !empty($res) ? $res[0]['total'] : 0;
+
+		$sql = "SELECT pr.*, (SELECT name FROM users u WHERE u.id = pr.user_id) AS user_name, (SELECT mobile FROM users u WHERE u.id = pr.user_id) AS user_mobile, (SELECT name FROM delivery_boys db WHERE db.id = pr.delivery_boy_id) AS delivery_boy_name FROM `parcel_requests` pr ".$where." ORDER BY ".$sort." ".$order." LIMIT ".$offset.", ".$limit;
+		$db->sql($sql);
+		$res = $db->getResult();
+
+		$bulkData = array();
+		$bulkData['total'] = $total;
+		$rows = array();
+
+		foreach($res as $row){
+			$operate = "<a class='btn btn-xs btn-warning' href='parcel-request-status-update.php?id=".$row['id']."&type=shipping' title='Update Status'><i class='fa fa-pencil-square-o'></i> Status</a> ";
+			$operate .= "<a class='btn btn-xs btn-danger' href='delete-parcel-request.php?id=".$row['id']."&type=shipping' onclick=\"return confirm('Are you sure want to delete this shipping request?');\" title='Delete'><i class='fa fa-trash-o'></i> Delete</a>";
+
+			$tempRow = array();
+			$tempRow['id'] = 'S#'.$row['id'];
+			$tempRow['vehicle_name'] = '<strong class="text-primary"><i class="fa fa-truck"></i> '.(!empty($row['shipping_vehicle_name']) ? htmlspecialchars($row['shipping_vehicle_name']) : 'Vehicle #'.$row['shipping_vehicle_id']).'</strong>';
+			$tempRow['goods_type'] = !empty($row['goods_type']) ? htmlspecialchars($row['goods_type']) : (!empty($row['item_type_name']) ? htmlspecialchars($row['item_type_name']) : '-');
+			if (!empty($row['weight_kg']) && $row['weight_kg'] > 0) {
+				$tempRow['goods_type'] .= '<br/><small class="text-muted">Weight: '.$row['weight_kg'].' kg</small>';
+			}
+			$tempRow['parcel_image'] = '-';
+			if(!empty($row['parcel_image'])){
+				$images = explode(',', $row['parcel_image']);
+				$image_html = '';
+				foreach($images as $img){
+					$img = trim($img);
+					if($img != ''){
+						$image_html .= '<a href="'.DOMAIN_URL.''.$img.'" target="_blank" style="display:inline-block;margin-right:3px;"><img src="'.DOMAIN_URL.''.$img.'" style="width:45px;height:45px;object-fit:cover;border-radius:4px;border:1px solid #ddd;cursor:pointer;"></a>';
+					}
+				}
+				if($image_html != ''){
+					$tempRow['parcel_image'] = $image_html;
+				}
+			}
+			$tempRow['helpers'] = ($row['helper_count'] > 0) ? '<span class="label label-info"><i class="fa fa-users"></i> '.$row['helper_count'].' Helper(s)</span><br/><small>&#8377; '.number_format((float)$row['helper_charge'], 2).'</small>' : '<span class="text-muted">No Helper</span>';
+			$tempRow['distance_km'] = !empty($row['distance_km']) ? $row['distance_km'].' km' : '-';
+			$tempRow['total_price'] = '<strong>&#8377; '.number_format((float)$row['grand_total'], 2).'</strong><br/><small class="text-muted">Net: &#8377; '.$row['total_price'].'</small>';
+
+			$payment_status = strtolower($row['payment_status']);
+			if($payment_status == 'paid'){
+				$tempRow['payment_status'] = "<label class='label label-success'>Paid (".strtoupper($row['payment_method']).")</label>";
+			} else if($payment_status == 'failed'){
+				$tempRow['payment_status'] = "<label class='label label-danger'>Failed</label>";
+			} else {
+				$tempRow['payment_status'] = "<label class='label label-warning'>Pending (".strtoupper($row['payment_method']).")</label>";
+			}
+
+			$tempRow['user_name'] = (!empty($row['user_name'])) ? $row['user_name'].'<br/><small>'.$row['user_mobile'].'</small>' : 'User #'.$row['user_id'];
+			$tempRow['pickup_location'] = '<strong>Pickup:</strong> '.$row['pickup_location'].'<br/><small class="text-muted">Contact: '.$row['sender_name'].' ('.$row['sender_phone'].')</small><br/><small><i class="fa fa-clock-o"></i> '.$row['pickup_time'].'</small>';
+			$tempRow['drop_location'] = '<strong>Drop:</strong> '.$row['drop_location'].'<br/><small class="text-muted">Recipient: '.$row['recipient_name'].' ('.$row['recipient_phone'].')</small>';
+			$tempRow['driver_name'] = !empty($row['delivery_boy_name']) ? '<span class="label label-primary"><i class="fa fa-id-card"></i> '.htmlspecialchars($row['delivery_boy_name']).'</span>' : '<span class="text-muted">Unassigned</span>';
+
+			$status = strtolower($row['status']);
+			if($status == 'delivered'){
+				$tempRow['status'] = "<label class='label label-success'>Delivered</label>";
+			} else if($status == 'accepted'){
+				$tempRow['status'] = "<label class='label label-primary'>Driver Assigned</label>";
+			} else if($status == 'picked'){
+				$tempRow['status'] = "<label class='label label-info'>Goods Loaded</label>";
+			} else if($status == 'cancelled'){
+				$tempRow['status'] = "<label class='label label-danger'>Cancelled</label>";
+			} else {
+				$tempRow['status'] = "<label class='label label-warning'>Order Placed</label>";
+			}
+			$tempRow['created_at'] = date('d-m-Y H:i', strtotime($row['created_at']));
+			$tempRow['operate'] = $operate;
+			$rows[] = $tempRow;
+		}
+		$bulkData['rows'] = $rows;
+		print_r(json_encode($bulkData));
+	}
+
 		// data of 'Parcel Requests' table goes here
 	if(isset($_GET['table']) && $_GET['table'] == 'parcel_requests'){
 		
 		$offset = 0; $limit = 10;
 		$sort = 'pr.id'; $order = 'DESC';
-		$where = '';
+		$where = " WHERE (pr.service_type != 'shipping' OR pr.service_type IS NULL)";
 		if(isset($_GET['offset']))
 			$offset = $_GET['offset'];
 		if(isset($_GET['limit']))
@@ -2366,15 +2549,11 @@ if ($role === 'sub admin') {
 			$order = $_GET['order'];
 		
 		if(isset($_GET['search']) && $_GET['search'] !=''){
-			$search = $_GET['search'];
-			$where = " Where (`pr`.`id` like '%".$search."%' OR `pr`.`item_type_name` like '%".$search."%' OR `pr`.`pickup_location` like '%".$search."%' OR `pr`.`drop_location` like '%".$search."%' OR `pr`.`sender_name` like '%".$search."%' OR `pr`.`recipient_name` like '%".$search."%' OR `pr`.`sender_phone` like '%".$search."%' OR `pr`.`recipient_phone` like '%".$search."%' OR `pr`.`status` like '%".$search."%' OR `pr`.`payment_status` like '%".$search."%' OR `pr`.`otp` like '%".$search."%')";
+			$search = $db->escapeString($_GET['search']);
+			$where .= " AND (`pr`.`id` like '%".$search."%' OR `pr`.`item_type_name` like '%".$search."%' OR `pr`.`pickup_location` like '%".$search."%' OR `pr`.`drop_location` like '%".$search."%' OR `pr`.`sender_name` like '%".$search."%' OR `pr`.`recipient_name` like '%".$search."%' OR `pr`.`sender_phone` like '%".$search."%' OR `pr`.`recipient_phone` like '%".$search."%' OR `pr`.`status` like '%".$search."%' OR `pr`.`payment_status` like '%".$search."%' OR `pr`.`otp` like '%".$search."%')";
 		}
 		if(!empty($zone_scope_sql)){
-			if(empty($where)){
-				$where = " Where pr.`zone_id`".$zone_scope_sql;
-			}else{
-				$where .= " AND pr.`zone_id`".$zone_scope_sql;
-			}
+			$where .= " AND pr.`zone_id`".$zone_scope_sql;
 		}
 		
 		$sql = "SELECT COUNT(*) as total FROM `parcel_requests` pr ".$where;
@@ -2819,7 +2998,7 @@ if ($role === 'sub admin') {
         // Whitelist approach so we never concatenate a raw $_GET value
         // straight into SQL. Values match exactly what's stored/displayed
         // for orders.payment_method.
-        $valid_payment_methods = array('Cash on Delivery', 'Online Payment');
+        $valid_payment_methods = array('Cash on Delivery', 'Online Payment', 'Paid to Admin');
         $payment_method_filter = (!empty($_GET['payment_method']) && in_array($_GET['payment_method'], $valid_payment_methods, true))
             ? $_GET['payment_method']
             : "";
@@ -3126,7 +3305,7 @@ if ($role === 'sub admin') {
         // Whitelist approach (same pattern as $sort_map above) so we never
         // concatenate a raw $_GET value straight into SQL. Values match
         // exactly what's stored/displayed for orders.payment_method.
-        $valid_payment_methods = array('Cash on Delivery', 'Online Payment');
+        $valid_payment_methods = array('Cash on Delivery', 'Online Payment', 'Paid to Admin');
         $payment_method_filter = (!empty($_GET['payment_method']) && in_array($_GET['payment_method'], $valid_payment_methods, true))
             ? $_GET['payment_method']
             : "";
@@ -3447,7 +3626,8 @@ if ($role === 'sub admin') {
             $pm_lower = strtolower(trim((string)$row['payment_method']));
             $is_cod = ($pm_lower === 'cod' || $pm_lower === 'cash on delivery');
             $is_wallet = ($pm_lower === 'wallet');
-            $is_online = (!$is_cod && !$is_wallet);
+            $is_paid_to_admin = (strpos($pm_lower, 'paid to admin') !== false || strpos($pm_lower, 'admin') !== false);
+            $is_online = (!$is_cod && !$is_wallet && !$is_paid_to_admin);
 
             $item_details = !empty($row['product_details']) ? explode('||', $row['product_details']) : array('-');
             $item_statuses = !empty($row['item_active_status_list']) ? explode('||', $row['item_active_status_list']) : array();
@@ -3464,6 +3644,8 @@ if ($role === 'sub admin') {
                         $refund_list[] = 'COD (No Refund)';
                     } elseif ($is_wallet) {
                         $refund_list[] = 'Refunded to Wallet';
+                    } elseif ($is_paid_to_admin) {
+                        $refund_list[] = 'Paid to Admin (Manual)';
                     } else {
                         // Online payment (Razorpay / etc.)
                         if ($successful_refund !== null) {

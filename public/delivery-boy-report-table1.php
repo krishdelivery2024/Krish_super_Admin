@@ -95,6 +95,7 @@
                                 <option value="">All</option>
                                 <option value="Cash on Delivery">Cash on Delivery</option>
                                 <option value="Online Payment">Online Payment</option>
+                                <option value="Paid to Admin">Paid to Admin</option>
                             </select>
                         </div>
 
@@ -190,12 +191,12 @@
                             <th data-field="delivery_boy_zone_name" data-sortable="true">Boy's Zone</th>
                             <th data-field="product_details" data-formatter="productListFormatter">Product / Qty / Unit</th>
                             <th data-field="discounted_price" data-formatter="priceListFormatter" data-align="right" data-footer-formatter="dbMoneyFormatter">Discounted Price (&#8377;)</th>
-                            <th data-field="delivery_charge" data-sortable="true" data-align="right" data-footer-formatter="dbMoneyFormatter">Delivery Charge (&#8377;)</th>
-                            <th data-field="final_total" data-sortable="true" data-align="right" data-footer-formatter="dbMoneyFormatter">Final Total (&#8377;)</th>
-                            <th data-field="commission_amount" data-sortable="false" data-align="right" data-footer-formatter="dbMoneyFormatter">Commission (&#8377;)</th>
-                            <th data-field="delivery_boy_received" data-sortable="false" data-align="right" data-footer-formatter="dbMoneyFormatter">Delivery Boy Received (&#8377;)</th>
                             <th data-field="platform_fee" data-sortable="true" data-align="right" data-footer-formatter="dbMoneyFormatter">Platform Fee (&#8377;)</th>
                             <th data-field="convenience_fee" data-sortable="true" data-align="right" data-footer-formatter="dbMoneyFormatter">Convenience Fee (&#8377;)</th>
+                            <th data-field="delivery_charge" data-sortable="true" data-align="right" data-footer-formatter="dbMoneyFormatter">Delivery Charge (&#8377;)</th>
+                            <th data-field="final_total" data-sortable="true" data-align="right" data-footer-formatter="dbMoneyFormatter">Final Total (&#8377;)</th>
+                            <th data-field="delivery_boy_received" data-sortable="false" data-align="right" data-footer-formatter="dbMoneyFormatter">Delivery Boy Received (&#8377;)</th>
+                            <th data-field="commission_amount" data-sortable="false" data-align="right" data-footer-formatter="dbMoneyFormatter">Commission (&#8377;)</th>
                             <th data-field="payment_method" data-sortable="true">Payment Method</th>
                             <th data-field="active_status" data-sortable="true" data-formatter="statusBadgeFormatter">Order Status</th>
                         </tr>

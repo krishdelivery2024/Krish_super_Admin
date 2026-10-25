@@ -330,9 +330,12 @@ if (empty($_SESSION['csrf_token'])) {
 				<?php endif; ?>
 
 				<?php if(!$is_sub_admin || !empty($permissions['customers']['read'])): ?>
-				<li <?php if($page=="Customers" || $page=="Manage Customer Wallet" || $page=="Customer Referral Report" || $page=="Loyalty Points"){?>class="active"<?php } ?>>
+				<li <?php if($page=="Customers" || $page=="Manage Customer Wallet" || $page=="Customer Referral Report" || $page=="Loyalty Points" || $page=="Create Order"){?>class="active"<?php } ?>>
 					<a class="waves-effect parent-item js__control" href="#"><i class="menu-icon ti-user"></i><span>Customers</span><span class="menu-arrow fa fa-angle-down"></span></a>
-					<ul class="sub-menu js__content" <?php if($page=="Customers" || $page=="Manage Customer Wallet" || $page=="Customer Referral Report"  || $page=="Loyalty Points"){?>style="display: block;"<?php } ?>>				
+					<ul class="sub-menu js__content" <?php if($page=="Customers" || $page=="Manage Customer Wallet" || $page=="Customer Referral Report"  || $page=="Loyalty Points" || $page=="Create Order"){?>style="display: block;"<?php } ?>>				
+						<li <?php if($page=="Create Order"){?>class="current"<?php } ?>>
+							<a <?php if($page=="Create Order"){?>class="active" <?php } ?> href="create-order.php"><i class="menu-icon ti-shopping-cart-full"></i><span>Create Order</span></a>
+						</li>
 						<li <?php if($page=="Customers"){?>class="current"<?php } ?>>
 							<a  <?php if($page=="Customers"){?>class="active" <?php } ?> href="customers.php">Customers</a>
 						</li>					
@@ -396,12 +399,15 @@ if (empty($_SESSION['csrf_token'])) {
 				<?php endif; ?>
 
 				<?php if(!$is_sub_admin || !empty($permissions['delivery_boys']['read'])): ?>
-				<li <?php if($page=="Parcel Pickup" || $page=="Add Parcel Item Type" || $page=="Edit Parcel Item Type" || $page=="Parcel Requests" || $page=="Delete Parcel Request" || $page=="Parcel Settings" || $page=="Edit Parcel Settings" || $page=="Parcel Transactions" || $page=="Parcel Payment Methods Settings"){?> class="active"<?php } ?>>
-					<a class="waves-effect parent-item js__control" href="#"><i class="menu-icon ti-package"></i><span>Parcel Pickup</span><span class="menu-arrow fa fa-angle-down"></span></a>
-					<ul class="sub-menu js__content" <?php if($page=="Parcel Pickup" || $page=="Add Parcel Item Type" || $page=="Edit Parcel Item Type" || $page=="Parcel Requests" || $page=="Delete Parcel Request" || $page=="Parcel Settings" || $page=="Edit Parcel Settings" || $page=="Parcel Transactions" || $page=="Parcel Payment Methods Settings"){?>style="display: block;"<?php } ?>>
-						<li <?php if($page=="Parcel Requests"){?>class="current"<?php } ?>><a <?php if($page=="Parcel Requests"){?>class="active"<?php } ?> href="parcel-requests.php">Requests</a></li>
+				<li <?php if($page=="Parcel Pickup" || $page=="Add Parcel Item Type" || $page=="Edit Parcel Item Type" || $page=="Parcel Requests" || $page=="Shipping Requests" || $page=="Shipping Vehicles" || $page=="Add Shipping Vehicle" || $page=="Edit Shipping Vehicle" || $page=="Shipping Cargo Types" || $page=="Delete Parcel Request" || $page=="Parcel Settings" || $page=="Edit Parcel Settings" || $page=="Parcel Transactions" || $page=="Parcel Payment Methods Settings"){?> class="active"<?php } ?>>
+					<a class="waves-effect parent-item js__control" href="#"><i class="menu-icon ti-package"></i><span>Pickup &amp; Shipping</span><span class="menu-arrow fa fa-angle-down"></span></a>
+					<ul class="sub-menu js__content" <?php if($page=="Parcel Pickup" || $page=="Add Parcel Item Type" || $page=="Edit Parcel Item Type" || $page=="Parcel Requests" || $page=="Shipping Requests" || $page=="Shipping Vehicles" || $page=="Add Shipping Vehicle" || $page=="Edit Shipping Vehicle" || $page=="Shipping Cargo Types" || $page=="Delete Parcel Request" || $page=="Parcel Settings" || $page=="Edit Parcel Settings" || $page=="Parcel Transactions" || $page=="Parcel Payment Methods Settings"){?>style="display: block;"<?php } ?>>
+						<li <?php if($page=="Parcel Requests"){?>class="current"<?php } ?>><a <?php if($page=="Parcel Requests"){?>class="active"<?php } ?> href="parcel-requests.php">Parcel Requests</a></li>
+						<li <?php if($page=="Shipping Requests"){?>class="current"<?php } ?>><a <?php if($page=="Shipping Requests"){?>class="active"<?php } ?> href="shipping-requests.php">Shipping Requests</a></li>
+						<li <?php if($page=="Shipping Vehicles" || $page=="Add Shipping Vehicle" || $page=="Edit Shipping Vehicle"){?>class="current"<?php } ?>><a <?php if($page=="Shipping Vehicles" || $page=="Add Shipping Vehicle" || $page=="Edit Shipping Vehicle"){?>class="active"<?php } ?> href="shipping-vehicles.php">Shipping Vehicles</a></li>
+						<li <?php if($page=="Shipping Cargo Types"){?>class="current"<?php } ?>><a <?php if($page=="Shipping Cargo Types"){?>class="active"<?php } ?> href="shipping-goods-types.php">Shipping Cargo Types</a></li>
+						<li <?php if($page=="Parcel Pickup" || $page=="Add Parcel Item Type" || $page=="Edit Parcel Item Type"){?>class="current"<?php } ?>><a <?php if($page=="Parcel Pickup" || $page=="Add Parcel Item Type" || $page=="Edit Parcel Item Type"){?>class="active"<?php } ?> href="parcel-item-types.php">Parcel Item Types</a></li>
 						<li <?php if($page=="Parcel Transactions"){?>class="current"<?php } ?>><a <?php if($page=="Parcel Transactions"){?>class="active"<?php } ?> href="parcel-transactions.php">Transactions</a></li>
-						<li <?php if($page=="Parcel Pickup"){?>class="current"<?php } ?>><a <?php if($page=="Parcel Pickup"){?>class="active"<?php } ?> href="parcel-item-types.php">Item Types</a></li>
 						<li <?php if($page=="Parcel Settings" || $page=="Edit Parcel Settings"){?>class="current"<?php } ?>><a <?php if($page=="Parcel Settings" || $page=="Edit Parcel Settings"){?>class="active"<?php } ?> href="parcel-settings.php">Settings</a></li>
 						<li <?php if($page=="Parcel Payment Methods Settings"){?>class="current"<?php } ?>><a <?php if($page=="Parcel Payment Methods Settings"){?>class="active"<?php } ?> href="parcel-payment-methods.php">Payment Methods</a></li>
 					</ul>

@@ -59,6 +59,9 @@ if(isset($_POST['get_user_data']) && $db->escapeString($fn->xss_clean($_POST['ge
                 $response['area_id'] = !empty($row['area'])?$row['area']:'';
                 $response['area_name'] = !empty($row['area_name'])?$row['area_name']:'';
                 $response['street']     = $row['street'];
+                $response['address']    = !empty($row['address']) ? $row['address'] : (!empty($row['street']) ? $row['street'] : '');
+                $response['latitude']   = isset($row['latitude']) ? $row['latitude'] : '0';
+                $response['longitude']  = isset($row['longitude']) ? $row['longitude'] : '0';
                 $response['pincode']     = $row['pincode'];
                 $response['referral_code']     = $row['referral_code'];
                 $response['friends_code']     = $row['friends_code'];

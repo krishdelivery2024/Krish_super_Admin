@@ -3033,6 +3033,18 @@ public function get_permissions($id){
             );
         }
 
+        // Paid to Admin orders: manual/in-person refund by admin, no Razorpay call
+        $is_paid_to_admin = (strpos($pm, 'paid to admin') !== false || strpos($pm, 'admin') !== false);
+        if ($is_paid_to_admin) {
+            return array(
+                'status' => 'skipped',
+                'is_online' => false,
+                'wallet_refunded' => $wallet_refunded,
+                'amount' => 0,
+                'message' => 'Paid to Admin order; payment was collected directly by admin, no online refund needed.'
+            );
+        }
+
         // Online payment (Razorpay / other online methods):
         // 1. Check if already refunded or currently processing locally
         $this->db->sql("SELECT * FROM transactions WHERE order_id = '$order_id' AND type = 'refund' AND (status = 'success' OR status = 'process') ORDER BY id DESC LIMIT 1");

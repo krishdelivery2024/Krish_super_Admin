@@ -334,6 +334,18 @@ if(isset($_POST['system_configurations'])){
     if(preg_match("/[a-z]/i", $db->escapeString($fn->xss_clean($_POST['minimum_version_required'])))){
         $_POST['minimum_version_required'] = 0;
     }
+    if(isset($_POST['delivery_boy_current_version']) && preg_match("/[a-z]/i", $db->escapeString($fn->xss_clean($_POST['delivery_boy_current_version'])))){
+        $_POST['delivery_boy_current_version'] = 0;
+    }
+    if(isset($_POST['delivery_boy_min_version']) && preg_match("/[a-z]/i", $db->escapeString($fn->xss_clean($_POST['delivery_boy_min_version'])))){
+        $_POST['delivery_boy_min_version'] = 0;
+    }
+    if(isset($_POST['seller_current_version']) && preg_match("/[a-z]/i", $db->escapeString($fn->xss_clean($_POST['seller_current_version'])))){
+        $_POST['seller_current_version'] = 0;
+    }
+    if(isset($_POST['seller_min_version']) && preg_match("/[a-z]/i", $db->escapeString($fn->xss_clean($_POST['seller_min_version'])))){
+        $_POST['seller_min_version'] = 0;
+    }
     if(preg_match("/[a-z]/i", $db->escapeString($fn->xss_clean($_POST['delivery_charge'])))){
         $_POST['delivery_charge'] = 0;
     }

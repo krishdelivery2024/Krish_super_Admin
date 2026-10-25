@@ -115,7 +115,15 @@
 					<h4 class="box-subtitle">Status: <b><?php echo $status_label; ?></b></h4>
 				</div>
 				<div class="box-body">
-					<div class="kv"><b>Item Type</b><span><?php echo $order['item_type_name'] ?: '-'; ?></span></div>
+					<?php if(!empty($order['service_type']) && $order['service_type'] == 'shipping'): ?>
+						<div class="kv"><b>Service</b><span><label class="label label-primary"><i class="fa fa-truck"></i> Shipping</label></span></div>
+						<div class="kv"><b>Vehicle</b><span><strong><?php echo htmlspecialchars($order['shipping_vehicle_name'] ?: 'Vehicle #'.$order['shipping_vehicle_id']); ?></strong></span></div>
+						<div class="kv"><b>Goods Type</b><span><?php echo htmlspecialchars($order['goods_type'] ?: '-'); ?></span></div>
+						<div class="kv"><b>Helpers</b><span><?php echo ($order['helper_count'] > 0) ? $order['helper_count'].' (&#8377;'.$order['helper_charge'].')' : 'None'; ?></span></div>
+					<?php else: ?>
+						<div class="kv"><b>Service</b><span><label class="label label-info">Parcel</label></span></div>
+						<div class="kv"><b>Item Type</b><span><?php echo $order['item_type_name'] ?: '-'; ?></span></div>
+					<?php endif; ?>
 					<div class="kv"><b>Weight (kg)</b><span><?php echo $order['weight_kg'] != '' ? $order['weight_kg'] : '-'; ?></span></div>
 					<div class="kv"><b>Distance (km)</b><span><?php echo $order['distance_km'] != '' ? $order['distance_km'] : '-'; ?></span></div>
 					<div class="kv"><b>Total Fare</b><span>&#8377;<?php echo $order['total_price'] ?: '0.00'; ?></span></div>

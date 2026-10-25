@@ -1865,9 +1865,11 @@ if(isset($_POST['get_settings'])) {
             $response['settings']['min_amount'] = empty($response['settings']['min_amount'])?"0":$response['settings']['min_amount'];
             $response['settings']['max-refer-earn-amount'] = empty($response['settings']['max-refer-earn-amount'])?"0":$response['settings']['max-refer-earn-amount'];
             $response['settings']['minimum-withdrawal-amount'] = empty($response['settings']['minimum-withdrawal-amount'])?"0":$response['settings']['minimum-withdrawal-amount'];
-            $response['settings']['refer-earn-bonus'] = empty($response['settings']['refer-earn-bonus'])?"0":$response['settings']['refer-earn-bonus'];
             $response['settings']['current_version'] = empty($response['settings']['current_version'])?"0":$response['settings']['current_version'];
             $response['settings']['minimum_version_required'] = empty($response['settings']['minimum_version_required'])?"0":$response['settings']['minimum_version_required'];
+            $is_ver_sys_on = isset($response['settings']['is-version-system-on']) ? $response['settings']['is-version-system-on'] : (isset($response['settings']['is_version_system_on']) ? $response['settings']['is_version_system_on'] : "0");
+            $response['settings']['is-version-system-on'] = $is_ver_sys_on;
+            $response['settings']['is_version_system_on'] = $is_ver_sys_on;
             $state_name = $city_name = $zone_name = '';
         
         if(!empty($response['settings']['store_state'])){

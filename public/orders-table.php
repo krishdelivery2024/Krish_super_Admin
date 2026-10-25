@@ -1,5 +1,5 @@
 <?php
-    if($permissions['orders']['read']==1) { 
+    if(!empty($permissions['orders']['read']) || (isset($_SESSION['role']) && ($_SESSION['role'] == 'admin' || $_SESSION['role'] == 'super admin' || $_SESSION['role'] == 'seller'))) { 
         $sql_query = "SELECT id, short_code 
         FROM routes 
         ORDER BY id ASC";
@@ -165,9 +165,7 @@
 									<th data-field="status" data-sortable='true' data-visible='false'>Status</th>
 									<th data-field="active_status" data-sortable='true' data-visible='true'>A.Status</th>
 									<th data-field="date_added" data-sortable='true' data-visible="false">O.Date</th>
-									<?php if(isset($_SESSION['role']) && $_SESSION['role'] == 'seller'){ ?>
 									<th data-field="operate">Action</th>
-									<?php } ?>
 								</tr>
                             </thead>
                         </table>
@@ -180,14 +178,117 @@
  <?php } ?>
 <!-- /.content -->
 
-<?php 
-$db->disconnect();
-?>
+<!-- Modal for Admin / Seller to quickly change order status -->
+<div class="modal fade" id="editOrderStatusModal" tabindex="-1" role="dialog" aria-labelledby="editOrderStatusModalLabel">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                <h4 class="modal-title" id="editOrderStatusModalLabel"><i class="fa fa-pencil-square-o"></i> Change Order Status</h4>
+            </div>
+            <form id="quick_update_order_status_form">
+                <div class="modal-body">
+                    <input type="hidden" name="id" id="modal_order_id">
+                    <input type="hidden" name="ajaxCall" value="1">
+                    <input type="hidden" name="update_order_status" value="true">
+                    
+                    <div class="form-group">
+                        <label>Order ID:</label>
+                        <span id="modal_order_id_display" class="label label-primary" style="font-size:14px;"></span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="modal_status">Order Status <span class="text-danger">*</span></label>
+                        <select name="status" id="modal_status" class="form-control" required>
+                            <option value="received">Received</option>
+                            <option value="processed">Processed</option>
+                            <option value="shipped">Shipped</option>
+                            <option value="delivered">Delivered</option>
+                            <option value="cancelled">Cancelled</option>
+                            <option value="returned">Returned</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="modal_delivery_boy_id">Delivery Boy</label>
+                        <select name="delivery_boy_id" id="modal_delivery_boy_id" class="form-control">
+                            <option value="">Select Delivery Boy</option>
+                            <?php 
+                            $sql_dboys = "SELECT id, name FROM delivery_boys WHERE status=1 AND name <> 'dunzo' ORDER BY name ASC";
+                            $db->sql($sql_dboys);
+                            $res_dboys = $db->getResult();
+                            if(!empty($res_dboys)){
+                                foreach($res_dboys as $d_row){ ?>
+                                    <option value="<?=$d_row['id']?>"><?=htmlspecialchars($d_row['name'])?></option>
+                            <?php }} ?>
+                        </select>
+                    </div>
+
+                    <div id="modal_result_message" style="display:none;" class="alert"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                    <button type="submit" id="btn_modal_save_status" class="btn btn-primary"><i class="fa fa-check"></i> Update Status</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
 $(document).ready(function(){
     setInterval(function () {
-        var ab=$(".pagination-info").html();  console.log(ab); var b=ab.split(" "); console.log(b[11]);
-        $(".totalorder").html(b[11]);
+        var ab=$(".pagination-info").html();
+        if(ab) {
+            var b=ab.split(" ");
+            $(".totalorder").html(b[11]);
+        }
     },1000);
+
+    $(document).on('click', '.btn-change-status', function(e) {
+        e.preventDefault();
+        var orderId = $(this).data('id');
+        var currentStatus = $(this).data('status');
+        var currentBoy = $(this).data('boy');
+
+        $('#modal_order_id').val(orderId);
+        $('#modal_order_id_display').text('#' + orderId);
+        $('#modal_status').val(currentStatus);
+        $('#modal_delivery_boy_id').val(currentBoy ? currentBoy : '');
+        $('#modal_result_message').hide().removeClass('alert-success alert-danger').html('');
+        $('#btn_modal_save_status').prop('disabled', false).html('<i class="fa fa-check"></i> Update Status');
+        $('#editOrderStatusModal').modal('show');
+    });
+
+    $('#quick_update_order_status_form').on('submit', function(e) {
+        e.preventDefault();
+        var $btn = $('#btn_modal_save_status');
+        $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Updating...');
+
+        var formData = $(this).serialize();
+        $.ajax({
+            url: 'api-firebase/order-process.php',
+            type: 'POST',
+            data: formData,
+            dataType: 'json',
+            success: function(resp) {
+                $btn.prop('disabled', false).html('<i class="fa fa-check"></i> Update Status');
+                if (resp && resp.error) {
+                    $('#modal_result_message').removeClass('alert-success').addClass('alert-danger').html(resp.message).show();
+                } else {
+                    var msg = (resp && resp.message) ? resp.message : 'Order status updated successfully!';
+                    $('#modal_result_message').removeClass('alert-danger').addClass('alert-success').html(msg).show();
+                    setTimeout(function() {
+                        $('#editOrderStatusModal').modal('hide');
+                        $('#order_list').bootstrapTable('refresh');
+                    }, 1000);
+                }
+            },
+            error: function() {
+                $btn.prop('disabled', false).html('<i class="fa fa-check"></i> Update Status');
+                $('#modal_result_message').removeClass('alert-success').addClass('alert-danger').html('Server error occurred while updating order status!').show();
+            }
+        });
+    });
 });
 </script>

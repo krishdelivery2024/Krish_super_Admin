@@ -220,9 +220,9 @@ if(isset($_POST['type'])){
             $response['settings']['min_amount'] = empty($response['settings']['min_amount'])?"0":$response['settings']['min_amount'];
             $response['settings']['max-refer-earn-amount'] = empty($response['settings']['max-refer-earn-amount'])?"0":$response['settings']['max-refer-earn-amount'];
             $response['settings']['minimum-withdrawal-amount'] = empty($response['settings']['minimum-withdrawal-amount'])?"0":$response['settings']['minimum-withdrawal-amount'];
-            $response['settings']['refer-earn-bonus'] = empty($response['settings']['refer-earn-bonus'])?"0":$response['settings']['refer-earn-bonus'];
-            $response['settings']['current_version'] = empty($response['settings']['current_version'])?"0":$response['settings']['current_version'];
-            $response['settings']['minimum_version_required'] = empty($response['settings']['minimum_version_required'])?"0":$response['settings']['minimum_version_required'];
+            $response['settings']['current_version'] = empty($response['settings']['seller_current_version']) ? (empty($response['settings']['current_version'])?"0":$response['settings']['current_version']) : $response['settings']['seller_current_version'];
+            $response['settings']['minimum_version_required'] = empty($response['settings']['seller_min_version']) ? (empty($response['settings']['minimum_version_required'])?"0":$response['settings']['minimum_version_required']) : $response['settings']['seller_min_version'];
+            $response['settings']['is_version_system_on'] = isset($response['settings']['is_seller_version_system_on']) ? $response['settings']['is_seller_version_system_on'] : (isset($response['settings']['is-version-system-on']) ? $response['settings']['is-version-system-on'] : "0");
             print_r(json_encode($response));
             
         }else{

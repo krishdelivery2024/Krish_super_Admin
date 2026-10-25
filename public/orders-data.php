@@ -9,7 +9,7 @@ if (isset($_GET['id'])) {
     $ID = "";
 }
 // create array variable to handle error
-$update_order_permission = $permissions['orders']['update'];
+$update_order_permission = (isset($_SESSION['role']) && ($_SESSION['role'] == 'admin' || $_SESSION['role'] == 'super admin' || $_SESSION['role'] == 'seller')) ? 1 : (!empty($permissions['orders']['update']) ? 1 : 0);
 $error = array();
 if (isset($_POST['update_order_status'])) {
     $process = $db->escapeString($function->xss_clean($_POST['status']));
@@ -63,8 +63,8 @@ if (isset($_POST['update_order_status'])) {
     <div class="row">
         <div class="col-md-12">
             <?php
-            if($permissions['orders']['read']==1) { 
-                if($permissions['orders']['update']==0){?>
+            if(!empty($permissions['orders']['read']) || (isset($_SESSION['role']) && ($_SESSION['role'] == 'admin' || $_SESSION['role'] == 'super admin' || $_SESSION['role'] == 'seller'))) { 
+                if($update_order_permission == 0){?>
                 <div class="alert alert-danger topmargin-sm">You have no permission to update orders.</div>
             <?php } ?>
             <div class="box">
@@ -299,12 +299,12 @@ if (isset($_POST['update_order_status'])) {
                                 <td>
 
                                     <select name="status" id="status" class="form-control">
-                                        <option value="received">Received</option>
-                                        <option value="processed" >Processed</option>
-                                        <option value="shipped" >Shipped</option>
-                                        <option value="delivered" >Delivered</option>
-                                        <option value="cancelled">Cancel</option>
-                                        <option value="returned">Returned</option>
+                                        <option value="received" <?=($currentStatus == 'received' || $res[0]['active_status'] == 'received') ? 'selected' : '';?>>Received</option>
+                                        <option value="processed" <?=($currentStatus == 'processed' || $res[0]['active_status'] == 'processed') ? 'selected' : '';?>>Processed</option>
+                                        <option value="shipped" <?=($currentStatus == 'shipped' || $res[0]['active_status'] == 'shipped') ? 'selected' : '';?>>Shipped</option>
+                                        <option value="delivered" <?=($currentStatus == 'delivered' || $res[0]['active_status'] == 'delivered') ? 'selected' : '';?>>Delivered</option>
+                                        <option value="cancelled" <?=($currentStatus == 'cancelled' || $res[0]['active_status'] == 'cancelled') ? 'selected' : '';?>>Cancel</option>
+                                        <option value="returned" <?=($currentStatus == 'returned' || $res[0]['active_status'] == 'returned') ? 'selected' : '';?>>Returned</option>
                                     </select>
                                 </td>
                             </tr>
@@ -461,7 +461,7 @@ if (isset($_POST['update_order_status'])) {
             </div>
             <?php } ?>
         </div>
-        <?php if($permissions['orders']['read']==1){?>
+        <?php if(!empty($permissions['orders']['read']) || (isset($_SESSION['role']) && ($_SESSION['role'] == 'admin' || $_SESSION['role'] == 'super admin' || $_SESSION['role'] == 'seller'))){?>
         <div class="col-md-3">
             <ul class="timeline">
             <?php foreach($status as $s){ ?>

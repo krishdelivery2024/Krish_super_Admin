@@ -2793,14 +2793,41 @@ window.actionEvents = {
            
             <script>
                 var changeCheckbox = document.querySelector('#version-system-button');
-                var init = new Switchery(changeCheckbox);
-                changeCheckbox.onchange = function() {
-                if ($(this).is(':checked')) {
-                    $('#is-version-system-on').val(1);
-                }else{
-                		$('#is-version-system-on').val(0);
-                	}
-                };
+                if (changeCheckbox) {
+                    var init = new Switchery(changeCheckbox);
+                    changeCheckbox.onchange = function() {
+                        if ($(this).is(':checked')) {
+                            $('#is-version-system-on').val(1);
+                        }else{
+                            $('#is-version-system-on').val(0);
+                        }
+                    };
+                }
+
+                var changeCheckboxDB = document.querySelector('#delivery-boy-version-system-button');
+                if (changeCheckboxDB) {
+                    var initDB = new Switchery(changeCheckboxDB);
+                    changeCheckboxDB.onchange = function() {
+                        if ($(this).is(':checked')) {
+                            $('#is_delivery_boy_version_system_on').val(1);
+                        } else {
+                            $('#is_delivery_boy_version_system_on').val(0);
+                        }
+                    };
+                }
+
+                var changeCheckboxSeller = document.querySelector('#seller-version-system-button');
+                if (changeCheckboxSeller) {
+                    var initSeller = new Switchery(changeCheckboxSeller);
+                    changeCheckboxSeller.onchange = function() {
+                        if ($(this).is(':checked')) {
+                            $('#is_seller_version_system_on').val(1);
+                        } else {
+                            $('#is_seller_version_system_on').val(0);
+                        }
+                    };
+                }
+
                 var changeCheckbox = document.querySelector('#refer-earn-system-button');
                 var init = new Switchery(changeCheckbox);
                 changeCheckbox.onchange = function() {
@@ -3398,7 +3425,7 @@ document.addEventListener("DOMContentLoaded", function(){
     
 $(document).on('click','.update_order_status',function(e){
     e.preventDefault();
-        var update_permission = '<?=$update_order_permission;?>';
+        var update_permission = '<?=(!empty($update_order_permission) || (isset($_SESSION['role']) && in_array($_SESSION['role'], ['admin', 'super admin', 'seller']))) ? 1 : 0;?>';
         if(update_permission==0){
             alert('Sorry! you have no permission to update orders.');
             window.location.reload();

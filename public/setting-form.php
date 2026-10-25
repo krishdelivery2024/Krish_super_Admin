@@ -146,20 +146,57 @@
                             <img src="<?=DOMAIN_URL.'dist/img/'.$res_store_seal[0]['value']?>" title='<?=$data['app_name']?> - Logo' alt='<?=(isset($data['app_name']))?$data['app_name']:"";?> - Logo' style="max-width:100%"/>
                             <input type='file' name='store_seal' id='store_seal' accept="image/*"/>
                         </div>
-                        <h4>Version Settings</h4><hr>
+                        <h4>App Force Update & Version Settings</h4><hr>
 
-                        <div class="form-group col-md-4">
-                            <label for="">Current Version Of App:</label>
-                            <input type="text" class="form-control" name="current_version" value="<?=isset($data['current_version'])?$data['current_version']:''?>" placeholder='Current Version'/>
+                        <div class="row" style="background:#f9f9ff; padding:12px; margin-bottom:15px; border-radius:6px; border:1px solid #e2e2f0;">
+                            <div class="col-md-12"><strong><i class="fa fa-user"></i> Customer App (User)</strong></div>
+                            <div class="form-group col-md-4">
+                                <label for="">Current Version Of App:</label>
+                                <input type="text" class="form-control" name="current_version" value="<?=isset($data['current_version'])?$data['current_version']:''?>" placeholder='e.g. 1.0 or 6'/>
+                            </div>
+                            <div class="form-group col-md-4">
+                                <label for="">Minimum Version Required: </label>
+                                <input type="text" class="form-control" name="minimum_version_required" value="<?=isset($data['minimum_version_required'])?$data['minimum_version_required']:''?>" placeholder='e.g. 1.0 or 6'/>
+                            </div>
+                            <div class="form-group col-md-4">
+                                <label for="">Force Update Status</label><br>
+                                <input type="checkbox" id="version-system-button" class="js-switch" <?php if(!empty($data['is-version-system-on']) && $data['is-version-system-on'] == '1'){ echo 'checked'; }?>>
+                                <input type="hidden" id="is-version-system-on" name="is-version-system-on" value="<?=(!empty($data['is-version-system-on']))?$data['is-version-system-on']:0;?>">
+                            </div>
                         </div>
-                        <div class="form-group col-md-4">
-                            <label for="">Minimum Version Required: </label>
-                            <input type="text" class="form-control" name="minimum_version_required" value="<?=isset($data['minimum_version_required'])?$data['minimum_version_required']:''?>" placeholder='Minimum Required Version'/>
+
+                        <div class="row" style="background:#f9f9ff; padding:12px; margin-bottom:15px; border-radius:6px; border:1px solid #e2e2f0;">
+                            <div class="col-md-12"><strong><i class="fa fa-motorcycle"></i> Delivery Boy App (Partner)</strong></div>
+                            <div class="form-group col-md-4">
+                                <label for="">Current Version Of Delivery App:</label>
+                                <input type="text" class="form-control" name="delivery_boy_current_version" value="<?=isset($data['delivery_boy_current_version'])?$data['delivery_boy_current_version']:''?>" placeholder='e.g. 1.0 or 4'/>
+                            </div>
+                            <div class="form-group col-md-4">
+                                <label for="">Minimum Version Required: </label>
+                                <input type="text" class="form-control" name="delivery_boy_min_version" value="<?=isset($data['delivery_boy_min_version'])?$data['delivery_boy_min_version']:''?>" placeholder='e.g. 1.0 or 4'/>
+                            </div>
+                            <div class="form-group col-md-4">
+                                <label for="">Force Update Status</label><br>
+                                <input type="checkbox" id="delivery-boy-version-system-button" class="js-switch" <?php if(!empty($data['is_delivery_boy_version_system_on']) && $data['is_delivery_boy_version_system_on'] == '1'){ echo 'checked'; }?>>
+                                <input type="hidden" id="is_delivery_boy_version_system_on" name="is_delivery_boy_version_system_on" value="<?=(!empty($data['is_delivery_boy_version_system_on']))?$data['is_delivery_boy_version_system_on']:0;?>">
+                            </div>
                         </div>
-                        <div class="form-group col-md-4">
-                            <label for="">Version System Status</label><br>
-                            <input type="checkbox" id="version-system-button" class="js-switch" <?php if(!empty($data['is-version-system-on']) && $data['is-version-system-on'] == '1'){ echo 'checked'; }?>>
-                            <input type="hidden" id="is-version-system-on" name="is-version-system-on" value="<?=(!empty($data['is-version-system-on']))?$data['is-version-system-on']:0;?>">
+
+                        <div class="row" style="background:#f9f9ff; padding:12px; margin-bottom:15px; border-radius:6px; border:1px solid #e2e2f0;">
+                            <div class="col-md-12"><strong><i class="fa fa-cutlery"></i> Seller App (Restaurant Partner)</strong></div>
+                            <div class="form-group col-md-4">
+                                <label for="">Current Version Of Seller App:</label>
+                                <input type="text" class="form-control" name="seller_current_version" value="<?=isset($data['seller_current_version'])?$data['seller_current_version']:''?>" placeholder='e.g. 1.0 or 5'/>
+                            </div>
+                            <div class="form-group col-md-4">
+                                <label for="">Minimum Version Required: </label>
+                                <input type="text" class="form-control" name="seller_min_version" value="<?=isset($data['seller_min_version'])?$data['seller_min_version']:''?>" placeholder='e.g. 1.0 or 5'/>
+                            </div>
+                            <div class="form-group col-md-4">
+                                <label for="">Force Update Status</label><br>
+                                <input type="checkbox" id="seller-version-system-button" class="js-switch" <?php if(!empty($data['is_seller_version_system_on']) && $data['is_seller_version_system_on'] == '1'){ echo 'checked'; }?>>
+                                <input type="hidden" id="is_seller_version_system_on" name="is_seller_version_system_on" value="<?=(!empty($data['is_seller_version_system_on']))?$data['is_seller_version_system_on']:0;?>">
+                            </div>
                         </div><hr>
                         
                         <div class="form-group">

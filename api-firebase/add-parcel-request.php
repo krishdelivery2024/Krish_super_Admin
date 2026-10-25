@@ -68,6 +68,13 @@ $drop_lng 		= (isset($_POST['drop_lng']))?$db->escapeString($fn->xss_clean($_POS
 $recipient_name = (isset($_POST['recipient_name']))?$db->escapeString($fn->xss_clean($_POST['recipient_name'])):"";
 $recipient_phone = (isset($_POST['recipient_phone']))?$db->escapeString($fn->xss_clean($_POST['recipient_phone'])):"";
 
+$service_type 			= (isset($_POST['service_type']) && $_POST['service_type'] == 'shipping') ? 'shipping' : 'parcel';
+$shipping_vehicle_id 	= (isset($_POST['shipping_vehicle_id']) && !empty($_POST['shipping_vehicle_id'])) ? (int)$_POST['shipping_vehicle_id'] : null;
+$shipping_vehicle_name 	= (isset($_POST['shipping_vehicle_name'])) ? $db->escapeString($fn->xss_clean($_POST['shipping_vehicle_name'])) : null;
+$goods_type 			= (isset($_POST['goods_type'])) ? $db->escapeString($fn->xss_clean($_POST['goods_type'])) : null;
+$helper_count 			= (isset($_POST['helper_count'])) ? max(0, (int)$_POST['helper_count']) : 0;
+$helper_charge 			= (isset($_POST['helper_charge'])) ? (float)$_POST['helper_charge'] : 0.00;
+
 if(empty($pickup_location) || empty($drop_location)){
 	$response['error'] = true;
 	$response['message'] = "Pickup and drop location are required.";
@@ -235,6 +242,12 @@ $data = array(
 	'drop_lng' 		=> $drop_lng,
 	'recipient_name'=> $recipient_name,
 	'recipient_phone'=> $recipient_phone,
+	'service_type'	=> $service_type,
+	'shipping_vehicle_id' => $shipping_vehicle_id,
+	'shipping_vehicle_name' => $shipping_vehicle_name,
+	'goods_type'	=> $goods_type,
+	'helper_count'	=> $helper_count,
+	'helper_charge'	=> $helper_charge,
 	'status' 		=> 'pending',
 	'otp' 			=> $otp,
 	'zone_id'		=> $pickup_zone,

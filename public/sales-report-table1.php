@@ -69,6 +69,7 @@
                                 <option value="">All</option>
                                 <option value="Cash on Delivery">Cash on Delivery</option>
                                 <option value="Online Payment">Online Payment</option>
+                                <option value="Paid to Admin">Paid to Admin</option>
                             </select>
                         </div>
 
@@ -173,13 +174,15 @@
                             <?php if(!$is_seller) { ?>
                             <th data-field="vendor_price" data-formatter="priceListFormatter" data-align="right" data-footer-formatter="salesMoneyFormatter">Vendor Price (&#8377;)</th>
                             <th data-field="discounted_price" data-formatter="priceListFormatter" data-align="right" data-footer-formatter="salesMoneyFormatter">Discounted Price (&#8377;)</th>
-                            <th data-field="commission_percent" data-sortable="false" data-align="center">Commission (%)</th>
-                            <th data-field="commission_amount" data-sortable="false" data-align="right" data-footer-formatter="salesMoneyFormatter">Commission (&#8377;)</th>
-                            <th data-field="seller_received" data-formatter="priceListFormatter" data-align="right" data-footer-formatter="salesMoneyFormatter">Seller Received (&#8377;)</th>
                             <?php } ?>
-                            <th data-field="final_total" data-sortable="true" data-align="right" data-footer-formatter="salesMoneyFormatter">Final Total (&#8377;)</th>
                             <th data-field="platform_fee" data-sortable="true" data-align="right" data-footer-formatter="salesMoneyFormatter">Platform Fee (&#8377;)</th>
                             <th data-field="convenience_fee" data-sortable="true" data-align="right" data-footer-formatter="salesMoneyFormatter">Convenience Fee (&#8377;)</th>
+                            <th data-field="final_total" data-sortable="true" data-align="right" data-footer-formatter="salesMoneyFormatter">Final Total (&#8377;)</th>
+                            <?php if(!$is_seller) { ?>
+                            <th data-field="seller_received" data-formatter="priceListFormatter" data-align="right" data-footer-formatter="salesMoneyFormatter">Seller Received (&#8377;)</th>
+                            <th data-field="commission_percent" data-sortable="false" data-align="center">Commission (%)</th>
+                            <th data-field="commission_amount" data-sortable="false" data-align="right" data-footer-formatter="salesMoneyFormatter">Commission (&#8377;)</th>
+                            <?php } ?>
                             <th data-field="payment_method" data-sortable="true">Payment Method</th>
                             <th data-field="active_status" data-sortable="true" data-formatter="statusBadgeFormatter">Order Status</th>
                             <th data-field="refund_status" data-formatter="refundListFormatter">Refund Status</th>
