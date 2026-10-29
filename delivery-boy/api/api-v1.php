@@ -582,20 +582,21 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 		$where1 = $where;
 		if ($_POST['status'] == 'active') {
 			$where .= " AND active_status != 'delivered' AND active_status != 'cancelled' AND active_status != 'returned'";
-		} else if ($_POST['status'] == 'past') {
+		} else if ($_POST['status'] == 'past' || $_POST['status'] == 'history') {
 			$where .= " AND active_status != 'received' AND active_status != 'processed' AND active_status != 'shipped'";
 		} else if ($_POST['status'] == 'new') {
 				$where .= " AND o.active_status = 'processed' AND delivery_boy_id = '0' AND (o.delivery_method IS NULL OR LOWER(TRIM(o.delivery_method)) != 'storepickup') AND (o.dispatch_stage IN ('phase1', 'phase2') OR o.dispatch_stage IS NULL OR o.dispatch_stage = '') ";
 			// Exclude orders this delivery boy has already rejected
 			if (!empty($caller_id)) {
 				$where .= " AND (rejected_by IS NULL OR rejected_by = '' OR NOT FIND_IN_SET('$caller_id', rejected_by)) ";
-				// Parcel-only delivery boys should not see food orders
+				// Multi-service filter: only delivery boys assigned to 'food' should see food orders
 				$sql_boy = "SELECT service_type, zone_id FROM delivery_boys WHERE id = '$caller_id'";
 				$db->sql($sql_boy);
 				$res_boy = $db->getResult();
 				$boy_service = (!empty($res_boy) && isset($res_boy[0]['service_type'])) ? $res_boy[0]['service_type'] : 'both';
 				$boy_zone_id = (!empty($res_boy) && isset($res_boy[0]['zone_id'])) ? $res_boy[0]['zone_id'] : 0;
-				if ($boy_service == 'parcel') {
+				$services = explode(',', str_replace('both', 'food,parcel', $boy_service));
+				if (!in_array('food', $services)) {
 					$where .= " AND 1 = 0 ";
 				}
 				if (!empty($boy_zone_id) && $boy_zone_id > 0) {
@@ -773,6 +774,28 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 		$today_pickup_cod = (!empty($pickup_result)) ? $pickup_result[0]['cod'] : 0;
 		$today_pickup_online = (!empty($pickup_result)) ? $pickup_result[0]['online'] : 0;
 		$today_pickup_delivery_charge = (!empty($pickup_result)) ? $pickup_result[0]['dc'] : 0;
+
+		// ── TODAY PASSENGER RIDES ──
+		$sql_passenger = "
+            SELECT
+                COUNT(id) AS cnt,
+                IFNULL(SUM(CASE WHEN payment_status = 'paid' OR (payment_method IS NOT NULL AND payment_method != 'Cash on Delivery' AND payment_method != '') THEN IF(grand_total > 0, grand_total, total_price) ELSE 0 END),0) AS online,
+                IFNULL(SUM(CASE WHEN payment_status != 'paid' AND (payment_method IS NULL OR payment_method = 'Cash on Delivery' OR payment_method = '') THEN IF(grand_total > 0, grand_total, total_price) ELSE 0 END),0) AS cod,
+                IFNULL(SUM(IF(grand_total > 0, grand_total, total_price)),0) AS total_earn
+            FROM parcel_requests
+            WHERE delivery_boy_id = '$id'
+            AND service_type = 'passenger'
+            AND status IN ('completed', 'paid')
+            AND DATE(created_at) = '$today_date'
+        ";
+		$db->sql($sql_passenger);
+		$passenger_result = $db->getResult();
+
+		$today_passenger_orders = (!empty($passenger_result)) ? (int) $passenger_result[0]['cnt'] : 0;
+		$today_passenger_online = (!empty($passenger_result)) ? floatval($passenger_result[0]['online']) : 0;
+		$today_passenger_cod = (!empty($passenger_result)) ? floatval($passenger_result[0]['cod']) : 0;
+		$today_passenger_earn = (!empty($passenger_result)) ? floatval($passenger_result[0]['total_earn']) : 0;
+
 	}
 
 	// response
@@ -882,6 +905,14 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
         $response_data['today_pickup_cod'] = number_format($today_pickup_cod ?? 0, 2, '.', '');
         $response_data['today_pickup_online'] = number_format($today_pickup_online ?? 0, 2, '.', '');
         $response_data['today_pickup_delivery_charge'] = number_format($today_pickup_delivery_charge ?? 0, 2, '.', '');
+        $response_data['today_passenger_orders'] = (string) ($today_passenger_orders ?? 0);
+        $response_data['today_passenger_cod'] = number_format($today_passenger_cod ?? 0, 2, '.', '');
+        $response_data['today_passenger_online'] = number_format($today_passenger_online ?? 0, 2, '.', '');
+        $response_data['today_passenger_earn'] = number_format($today_passenger_earn ?? 0, 2, '.', '');
+        $response_data['today_passenger_orders'] = (string) ($today_passenger_orders ?? 0);
+        $response_data['today_passenger_cod'] = number_format($today_passenger_cod ?? 0, 2, '.', '');
+        $response_data['today_passenger_online'] = number_format($today_passenger_online ?? 0, 2, '.', '');
+        $response_data['today_passenger_earn'] = number_format($today_passenger_earn ?? 0, 2, '.', '');
 
         $response_data['sub_amount'] = number_format($sub_amount, 2, '.', '');
         $response_data['total_cod_amount'] = number_format($total_cod_amount, 2, '.', '');
@@ -1122,7 +1153,7 @@ if (isset($_POST['accept_order_delivery_boy'])) {
 	$num = $db->numRows($res);
 	if ($num == 1) {
 
-		if ($status == "yes") {
+		if ($status == "yes" || $status == "accepted" || $status == "1") {
 			// Atomic first-come-first-served claim. Only the single statement
 			// that sees delivery_boy_id = '0' can win, even when two boys tap
 			// Accept at the same instant.
@@ -1231,27 +1262,38 @@ if (isset($_POST['get_parcel_orders'])) {
 				die;
 			}
 		}
-		$where .= " AND p.status IN ('pending','accepted') AND p.delivery_boy_id = 0";
+		$where .= " AND (p.service_type != 'passenger' OR p.service_type IS NULL) AND p.status IN ('pending','accepted') AND p.delivery_boy_id = 0";
 		// Exclude parcel orders this delivery boy has already rejected
 		if (!empty($boy_id)) {
 			$where .= " AND (p.rejected_by IS NULL OR p.rejected_by = '' OR NOT FIND_IN_SET('$boy_id', p.rejected_by)) ";
-			// Food-only delivery boys should not see parcel orders
+			// Multi-service filter: check which order types (parcel, passenger, shipping) this delivery boy handles
 			$sql_boy = "SELECT service_type, zone_id FROM delivery_boys WHERE id = '$boy_id'";
 			$db->sql($sql_boy);
 			$res_boy = $db->getResult();
 			$boy_service = (!empty($res_boy) && isset($res_boy[0]['service_type'])) ? $res_boy[0]['service_type'] : 'both';
 			$boy_zone_id = (!empty($res_boy) && isset($res_boy[0]['zone_id'])) ? $res_boy[0]['zone_id'] : 0;
-			if ($boy_service == 'food') {
+			$services = explode(',', str_replace('both', 'food,parcel', $boy_service));
+			$allowed_types = array();
+			if (in_array('parcel', $services)) {
+				$allowed_types[] = "(p.service_type = 'parcel' OR p.service_type IS NULL OR p.service_type = '')";
+			}
+		
+			if (in_array('shipping', $services)) {
+				$allowed_types[] = "p.service_type = 'shipping'";
+			}
+			if (empty($allowed_types)) {
 				$where .= " AND 1 = 0 ";
+			} else {
+				$where .= " AND (" . implode(' OR ', $allowed_types) . ") ";
 			}
 			if (!empty($boy_zone_id) && $boy_zone_id > 0) {
 			    $where .= " AND p.zone_id = " . $boy_zone_id;
 			}
 		}
 	} else if ($status == 'active') {
-		$where .= " AND p.delivery_boy_id = '" . $boy_id . "' AND p.status IN ('accepted','picked')";
+		$where .= " AND p.delivery_boy_id = '" . $boy_id . "' AND p.status IN ('accepted','picked','started','in_transit') AND (p.service_type != 'passenger' OR p.service_type IS NULL)";
 	} else if ($status == 'past') {
-		$where .= " AND p.delivery_boy_id = '" . $boy_id . "' AND p.status = 'delivered'";
+		$where .= " AND p.delivery_boy_id = '" . $boy_id . "' AND p.status IN ('delivered','completed','paid') AND (p.service_type != 'passenger' OR p.service_type IS NULL)";
 	} else {
 		$response_data['error'] = true;
 		$response_data['message'] = "Invalid status.";
@@ -1412,6 +1454,48 @@ if (isset($_POST['get_parcel_orders'])) {
 			$platform_charges = floatval($sub_result[0]['platform_charges']);
 			$gst_amount = floatval($sub_result[0]['gst_amount']);
 		}
+
+		$today_passenger_orders = 0;
+		$today_passenger_online = 0;
+		$today_passenger_cod = 0;
+		$today_passenger_earn = 0;
+		$sql_pass = "SELECT COUNT(id) AS cnt, " .
+			"IFNULL(SUM(CASE WHEN payment_status = 'paid' OR (payment_method IS NOT NULL AND payment_method != 'Cash on Delivery' AND payment_method != '') THEN IF(grand_total > 0, grand_total, total_price) ELSE 0 END),0) AS online, " .
+			"IFNULL(SUM(CASE WHEN payment_status != 'paid' AND (payment_method IS NULL OR payment_method = 'Cash on Delivery' OR payment_method = '') THEN IF(grand_total > 0, grand_total, total_price) ELSE 0 END),0) AS cod, " .
+			"IFNULL(SUM(IF(grand_total > 0, grand_total, total_price)),0) AS total_earn " .
+			"FROM parcel_requests p" . $boy_scope . " " .
+			"AND p.service_type = 'passenger' " .
+			"AND p.status IN ('completed', 'paid') " .
+			"AND DATE(p.created_at) = CURDATE()";
+		$db->sql($sql_pass);
+		$pass_res = $db->getResult();
+		if (!empty($pass_res)) {
+			$today_passenger_orders = (int)$pass_res[0]['cnt'];
+			$today_passenger_online = floatval($pass_res[0]['online']);
+			$today_passenger_cod = floatval($pass_res[0]['cod']);
+			$today_passenger_earn = floatval($pass_res[0]['total_earn']);
+		}
+
+		$today_passenger_orders = 0;
+		$today_passenger_online = 0;
+		$today_passenger_cod = 0;
+		$today_passenger_earn = 0;
+		$sql_pass = "SELECT COUNT(id) AS cnt, " .
+			"IFNULL(SUM(CASE WHEN payment_status = 'paid' OR (payment_method IS NOT NULL AND payment_method != 'Cash on Delivery' AND payment_method != '') THEN IF(grand_total > 0, grand_total, total_price) ELSE 0 END),0) AS online, " .
+			"IFNULL(SUM(CASE WHEN payment_status != 'paid' AND (payment_method IS NULL OR payment_method = 'Cash on Delivery' OR payment_method = '') THEN IF(grand_total > 0, grand_total, total_price) ELSE 0 END),0) AS cod, " .
+			"IFNULL(SUM(IF(grand_total > 0, grand_total, total_price)),0) AS total_earn " .
+			"FROM parcel_requests p" . $boy_scope . " " .
+			"AND p.service_type = 'passenger' " .
+			"AND p.status IN ('completed', 'paid') " .
+			"AND DATE(p.created_at) = CURDATE()";
+		$db->sql($sql_pass);
+		$pass_res = $db->getResult();
+		if (!empty($pass_res)) {
+			$today_passenger_orders = (int)$pass_res[0]['cnt'];
+			$today_passenger_online = floatval($pass_res[0]['online']);
+			$today_passenger_cod = floatval($pass_res[0]['cod']);
+			$today_passenger_earn = floatval($pass_res[0]['total_earn']);
+		}
 	}
 
 	$total_deduction = $platform_charges + $gst_amount;
@@ -1433,6 +1517,10 @@ if (isset($_POST['get_parcel_orders'])) {
 	$response_data['today_pickup_online'] = '0';
 	$response_data['today_pickup_delivery_charge'] = '0';
 	$response_data['today_parcel_orders'] = (string) $today_parcel_orders;
+	$response_data['today_passenger_orders'] = (string) ($today_passenger_orders ?? 0);
+	$response_data['today_passenger_cod'] = number_format($today_passenger_cod ?? 0, 2, '.', '');
+	$response_data['today_passenger_online'] = number_format($today_passenger_online ?? 0, 2, '.', '');
+	$response_data['today_passenger_earn'] = number_format($today_passenger_earn ?? 0, 2, '.', '');
 	$response_data['sub_amount'] = number_format($sub_amount, 2, '.', '');
 	$response_data['platform_charges'] = number_format($platform_charges, 2, '.', '');
 	$response_data['gst_amount'] = number_format($gst_amount, 2, '.', '');
@@ -1475,7 +1563,7 @@ if (isset($_POST['accept_parcel_order'])) {
 	$res = $db->getResult();
 	$num = $db->numRows($res);
 	if ($num == 1) {
-		if ($status == "yes") {
+		if ($status == "yes" || $status == "accepted" || $status == "1") {
 			// Atomic first-come-first-served claim; see accept_order_delivery_boy.
 			$db->update('parcel_requests',
 				array('delivery_boy_id' => $id, 'accept_status' => $status, 'status' => 'accepted', 'dispatch_stage' => 'assigned'),
@@ -1620,6 +1708,427 @@ if (isset($_POST['update_parcel_order_status']) && isset($_POST['order_id'])) {
 /*
 ---------------------------------------------------------------------------------------------------------
 */
+
+/*
+---------------------------------------------------------------------------------------------------------
+Passenger Ride Actions for Delivery Boy App
+---------------------------------------------------------------------------------------------------------
+*/
+
+if (isset($_POST['check_pending_passenger_ride']) || isset($_GET['check_pending_passenger_ride'])) {
+	$delivery_boy_id = isset($_POST['delivery_boy_id']) ? (int)$_POST['delivery_boy_id'] : (isset($_GET['delivery_boy_id']) ? (int)$_GET['delivery_boy_id'] : 0);
+	if ($delivery_boy_id <= 0) {
+		$response['error'] = true;
+		$response['message'] = "Valid Delivery Boy ID required.";
+		print_r(json_encode($response));
+		die;
+	}
+
+	$db->sql("SELECT active_status, service_type, vehicle_type, zone_id FROM delivery_boys WHERE id = '$delivery_boy_id'");
+	$boy_res = $db->getResult();
+	if (empty($boy_res) || $boy_res[0]['active_status'] != 'true') {
+		$response['error'] = false;
+		$response['has_ride'] = false;
+		$response['message'] = "Driver offline or not found";
+		print_r(json_encode($response));
+		die;
+	}
+
+	$boy = $boy_res[0];
+	$boy_service = $boy['service_type'];
+	$boy_vehicle = !empty($boy['vehicle_type']) ? strtolower(trim($boy['vehicle_type'])) : 'bike';
+	$boy_zone_id = (int)$boy['zone_id'];
+
+	// Check if delivery boy handles passenger rides
+	if (strpos($boy_service, 'passenger') === false && $boy_service !== 'both') {
+		$response['error'] = false;
+		$response['has_ride'] = false;
+		$response['message'] = "Driver does not handle passenger rides";
+		print_r(json_encode($response));
+		die;
+	}
+
+	// Find any searching passenger ride that has not expired, not accepted yet, and not rejected by this driver
+	$now = date('Y-m-d H:i:s');
+	$sql = "SELECT * FROM parcel_requests 
+			WHERE service_type = 'passenger' 
+			AND status = 'searching' 
+			AND delivery_boy_id = 0 
+			AND dispatch_expires_at > '$now'
+			AND (rejected_by IS NULL OR rejected_by = '' OR NOT FIND_IN_SET('$delivery_boy_id', rejected_by))";
+
+	if ($boy_zone_id > 0) {
+		$sql .= " AND (zone_id = 0 OR zone_id IS NULL OR zone_id = '$boy_zone_id')";
+	}
+
+	if (!empty($boy_vehicle)) {
+		$sql .= " AND (passenger_vehicle = '$boy_vehicle' OR passenger_vehicle IS NULL OR passenger_vehicle = '')";
+	}
+
+	$sql .= " ORDER BY id DESC LIMIT 1";
+	$db->sql($sql);
+	$rides = $db->getResult();
+
+	if (!empty($rides)) {
+		$ride = $rides[0];
+		$time_left = max(0, strtotime($ride['dispatch_expires_at']) - time());
+		$response['error'] = false;
+		$response['has_ride'] = true;
+		$response['message'] = "Pending passenger ride found";
+		$response['data'] = array(
+			'order_id' => (string)$ride['id'],
+			'passenger_name' => !empty($ride['sender_name']) ? $ride['sender_name'] : 'Passenger',
+			'pickup_location' => (string)$ride['pickup_location'],
+			'drop_location' => (string)$ride['drop_location'],
+			'grand_total' => (string)$ride['grand_total'],
+			'distance_km' => (string)$ride['distance_km'],
+			'passenger_vehicle' => (string)$ride['passenger_vehicle'],
+			'expires_in_seconds' => $time_left
+		);
+	} else {
+		$response['error'] = false;
+		$response['has_ride'] = false;
+		$response['message'] = "No pending passenger ride";
+	}
+
+	print_r(json_encode($response));
+	die;
+}
+
+if (isset($_POST['accept_passenger_ride'])) {
+	if (empty($_POST['id']) || empty($_POST['order_id'])) {
+		$response['error'] = true;
+		$response['message'] = "Delivery boy ID and Ride ID are required!";
+		print_r(json_encode($response));
+		die;
+	}
+	$id = $db->escapeString(trim($fn->xss_clean($_POST['id'])));
+	$order_id = $db->escapeString(trim($fn->xss_clean($_POST['order_id'])));
+	$status = isset($_POST['status']) ? trim($db->escapeString($fn->xss_clean($_POST['status']))) : 'yes';
+
+	if ($status == "yes" || $status == "accepted" || $status == "1") {
+		// Generate 4-digit start OTP
+		$otp = str_pad(mt_rand(1000, 9999), 4, '0', STR_PAD_LEFT);
+		// Atomic claim: only if status is 'searching' and not expired, or pending
+		$sql_claim = "UPDATE parcel_requests SET delivery_boy_id = '$id', status = 'accepted', otp = '$otp', accept_status = 'yes' 
+			WHERE id = '$order_id' 
+			AND (status = 'searching' OR status = 'pending') 
+			AND (dispatch_expires_at IS NULL OR dispatch_expires_at > NOW()) 
+			AND (delivery_boy_id = 0 OR delivery_boy_id = '$id')";
+		$db->sql($sql_claim);
+		$aff = $db->getResult();
+		$affected = (!empty($aff)) ? (int)$aff[0] : 0;
+
+		// Re-check
+		$db->sql("SELECT pr.*, u.name as user_name, u.mobile as user_mobile FROM parcel_requests pr LEFT JOIN users u ON u.id = pr.user_id WHERE pr.id = '$order_id'");
+		$chk = $db->getResult();
+		if (!empty($chk) && $chk[0]['delivery_boy_id'] == $id && $chk[0]['status'] == 'accepted') {
+			$ride = $chk[0];
+			// Send push notification to passenger
+			$user_id = $ride['user_id'];
+			$db_name = "";
+			$db->sql("SELECT name FROM delivery_boys WHERE id = '$id'");
+			$res_b = $db->getResult();
+			if (!empty($res_b)) $db_name = $res_b[0]['name'];
+
+			$fn->send_notification_to_user($user_id, "Driver On The Way! 🚗", "Driver $db_name has accepted your ride. Start OTP: $otp", 'passenger_ride', $order_id);
+
+			$response['error'] = false;
+			$response['message'] = "Ride Accepted Successfully! Driver is on the way.";
+			$response['data'] = array(
+				'id' => (int)$ride['id'],
+				'status' => 'accepted',
+				'otp' => $otp,
+				'user_name' => $ride['sender_name'],
+				'user_mobile' => $ride['sender_phone'],
+				'pickup_location' => $ride['pickup_location'],
+				'pickup_lat' => $ride['pickup_lat'],
+				'pickup_lng' => $ride['pickup_lng'],
+				'drop_location' => $ride['drop_location'],
+				'drop_lat' => $ride['drop_lat'],
+				'drop_lng' => $ride['drop_lng'],
+				'grand_total' => (float)$ride['grand_total'],
+				'passenger_vehicle' => $ride['passenger_vehicle']
+			);
+		} else {
+			$response['error'] = true;
+			$response['message'] = "Ride already accepted by another partner or search expired.";
+		}
+	} else {
+		// Driver declined
+		$sql_rej = "UPDATE parcel_requests SET rejected_by = IF(rejected_by IS NULL OR rejected_by = '', '$id', CONCAT(rejected_by, ',$id')) WHERE id = '$order_id'";
+		$db->sql($sql_rej);
+		$response['error'] = false;
+		$response['message'] = "Ride Declined.";
+	}
+	print_r(json_encode($response));
+	die;
+}
+
+if (isset($_POST['arrived_passenger_ride'])) {
+	if (empty($_POST['id']) || empty($_POST['order_id'])) {
+		$response['error'] = true;
+		$response['message'] = "Driver ID and Ride ID are required!";
+		print_r(json_encode($response));
+		die;
+	}
+	$id = $db->escapeString(trim($fn->xss_clean($_POST['id'])));
+	$order_id = $db->escapeString(trim($fn->xss_clean($_POST['order_id'])));
+
+	$db->sql("SELECT * FROM parcel_requests WHERE id = '$order_id' AND delivery_boy_id = '$id'");
+	$res = $db->getResult();
+	if (empty($res)) {
+		$response['error'] = true;
+		$response['message'] = "Ride not found or not assigned to you.";
+		print_r(json_encode($response));
+		die;
+	}
+
+	$ride = $res[0];
+	$sql_arr = "UPDATE parcel_requests SET status = 'arrived' WHERE id = '$order_id'";
+	$db->sql($sql_arr);
+
+	// Notify user
+	$fn->send_notification_to_user($ride['user_id'], "Driver Arrived! 📍", "Your driver has arrived at the pickup location. Please share your 4-digit Start OTP to begin the trip.", 'passenger_ride', $order_id);
+
+	$response['error'] = false;
+	$response['message'] = "Status updated to arrived!";
+	$response['status'] = 'arrived';
+	print_r(json_encode($response));
+	die;
+}
+
+if (isset($_POST['start_passenger_ride'])) {
+	if (empty($_POST['id']) || empty($_POST['order_id']) || empty($_POST['otp'])) {
+		$response['error'] = true;
+		$response['message'] = "Driver ID, Ride ID and Start OTP are required!";
+		print_r(json_encode($response));
+		die;
+	}
+	$id = $db->escapeString(trim($fn->xss_clean($_POST['id'])));
+	$order_id = $db->escapeString(trim($fn->xss_clean($_POST['order_id'])));
+	$otp = trim($db->escapeString($fn->xss_clean($_POST['otp'])));
+
+	$db->sql("SELECT * FROM parcel_requests WHERE id = '$order_id' AND delivery_boy_id = '$id'");
+	$res = $db->getResult();
+	if (empty($res)) {
+		$response['error'] = true;
+		$response['message'] = "Ride not found or not assigned to you.";
+		print_r(json_encode($response));
+		die;
+	}
+
+	$ride = $res[0];
+	if (trim($ride['otp']) !== $otp) {
+		$response['error'] = true;
+		$response['message'] = "Invalid OTP! Please ask passenger for the 4-digit Start OTP shown on their screen.";
+		print_r(json_encode($response));
+		die;
+	}
+
+	$sql_start = "UPDATE parcel_requests SET status = 'started', start_time = NOW() WHERE id = '$order_id'";
+	$db->sql($sql_start);
+
+	// Notify user
+	$fn->send_notification_to_user($ride['user_id'], "Ride Started! 🚦", "Your ride to destination has begun. Have a safe journey!", 'passenger_ride', $order_id);
+
+	$response['error'] = false;
+	$response['message'] = "Ride started successfully!";
+	$response['status'] = 'started';
+	print_r(json_encode($response));
+	die;
+}
+
+if (isset($_POST['complete_passenger_ride'])) {
+	if (empty($_POST['id']) || empty($_POST['order_id'])) {
+		$response['error'] = true;
+		$response['message'] = "Driver ID and Ride ID are required!";
+		print_r(json_encode($response));
+		die;
+	}
+	$id = $db->escapeString(trim($fn->xss_clean($_POST['id'])));
+	$order_id = $db->escapeString(trim($fn->xss_clean($_POST['order_id'])));
+
+	$db->sql("SELECT * FROM parcel_requests WHERE id = '$order_id' AND delivery_boy_id = '$id'");
+	$res = $db->getResult();
+	if (empty($res)) {
+		$response['error'] = true;
+		$response['message'] = "Ride not found.";
+		print_r(json_encode($response));
+		die;
+	}
+	$ride = $res[0];
+
+	$sql_comp = "UPDATE parcel_requests SET status = 'completed', end_time = NOW(), driver_payment_status = 'pending' WHERE id = '$order_id'";
+	$db->sql($sql_comp);
+
+	// Notify user to make payment
+	$fn->send_notification_to_user($ride['user_id'], "Destination Reached! 🏁", "You have arrived at your destination. Total fare: ₹" . number_format($ride['grand_total'], 2) . ". Please proceed to pay.", 'passenger_ride', $order_id);
+
+	$response['error'] = false;
+	$response['message'] = "Ride completed successfully! Please collect payment.";
+	$response['status'] = 'completed';
+	$response['grand_total'] = (float)$ride['grand_total'];
+	$response['fare'] = array(
+		'base_price' => (float)$ride['base_price'],
+		'distance_km' => (float)$ride['distance_km'],
+		'per_km_price' => (float)$ride['per_km_price'],
+		'total_price' => (float)$ride['total_price'],
+		'platform_fee' => (float)$ride['platform_fee'],
+		'convenience_fee' => (float)$ride['convenience_fee'],
+		'gst' => (float)$ride['gst'],
+		'grand_total' => (float)$ride['grand_total']
+	);
+	print_r(json_encode($response));
+	die;
+}
+
+if (isset($_POST['confirm_driver_payment'])) {
+	if (empty($_POST['id']) || empty($_POST['order_id'])) {
+		$response['error'] = true;
+		$response['message'] = "Driver ID and Ride ID are required!";
+		print_r(json_encode($response));
+		die;
+	}
+	$id = $db->escapeString(trim($fn->xss_clean($_POST['id'])));
+	$order_id = $db->escapeString(trim($fn->xss_clean($_POST['order_id'])));
+	$payment_method = isset($_POST['payment_method']) ? strtolower(trim($db->escapeString($fn->xss_clean($_POST['payment_method'])))) : 'cash';
+
+	$db->sql("SELECT * FROM parcel_requests WHERE id = '$order_id' AND delivery_boy_id = '$id'");
+	$res = $db->getResult();
+	if (empty($res)) {
+		$response['error'] = true;
+		$response['message'] = "Ride not found.";
+		print_r(json_encode($response));
+		die;
+	}
+	$ride = $res[0];
+
+	$sql_pay = "UPDATE parcel_requests SET driver_payment_status = 'collected', payment_status = 'paid', payment_method = '$payment_method' WHERE id = '$order_id'";
+	$db->sql($sql_pay);
+
+	$response['error'] = false;
+	$response['message'] = "Payment confirmed successfully!";
+	$response['status'] = 'paid';
+	$response['payment_method'] = $payment_method;
+	$response['driver_payment_status'] = 'collected';
+	print_r(json_encode($response));
+	die;
+}
+
+
+
+if (isset($_POST['get_passenger_ride_details']) || isset($_GET['get_passenger_ride_details'])) {
+	$order_id = isset($_POST['order_id']) ? $db->escapeString(trim($fn->xss_clean($_POST['order_id']))) : (isset($_GET['order_id']) ? $db->escapeString(trim($fn->xss_clean($_GET['order_id']))) : '');
+	if (empty($order_id)) {
+		$response['error'] = true;
+		$response['message'] = "Ride ID is required!";
+		print_r(json_encode($response));
+		die;
+	}
+	$db->sql("SELECT pr.*, u.name as user_name, u.mobile as user_mobile FROM parcel_requests pr LEFT JOIN users u ON u.id = pr.user_id WHERE pr.id = '$order_id'");
+	$res = $db->getResult();
+	if (empty($res)) {
+		$response['error'] = true;
+		$response['message'] = "Ride not found.";
+		print_r(json_encode($response));
+		die;
+	}
+	$ride = $res[0];
+	$response['error'] = false;
+	$response['data'] = array(
+		'id' => (int)$ride['id'],
+		'status' => $ride['status'],
+		'otp' => $ride['otp'],
+		'user_name' => !empty($ride['sender_name']) ? $ride['sender_name'] : $ride['user_name'],
+		'user_mobile' => !empty($ride['sender_phone']) ? $ride['sender_phone'] : $ride['user_mobile'],
+		'pickup_location' => $ride['pickup_location'],
+		'pickup_lat' => $ride['pickup_lat'],
+		'pickup_lng' => $ride['pickup_lng'],
+		'drop_location' => $ride['drop_location'],
+		'drop_lat' => $ride['drop_lat'],
+		'drop_lng' => $ride['drop_lng'],
+		'passenger_vehicle' => $ride['passenger_vehicle'],
+		'distance_km' => (float)$ride['distance_km'],
+		'base_price' => (float)$ride['base_price'],
+		'per_km_price' => (float)$ride['per_km_price'],
+		'total_price' => (float)$ride['total_price'],
+		'platform_fee' => (float)$ride['platform_fee'],
+		'convenience_fee' => (float)$ride['convenience_fee'],
+		'gst' => (float)$ride['gst'],
+		'grand_total' => (float)$ride['grand_total'],
+		'driver_payment_status' => $ride['driver_payment_status'],
+		'payment_status' => $ride['payment_status'],
+		'payment_method' => $ride['payment_method']
+	);
+	print_r(json_encode($response));
+	die;
+}
+if (isset($_POST['get_driver_ride_history'])) {
+	if (empty($_POST['delivery_boy_id'])) {
+		$response['error'] = true;
+		$response['message'] = "Delivery boy ID is required!";
+		print_r(json_encode($response));
+		die;
+	}
+	$boy_id = $db->escapeString(trim($fn->xss_clean($_POST['delivery_boy_id'])));
+	$start_date = isset($_POST['start_date']) ? $db->escapeString(trim($fn->xss_clean($_POST['start_date']))) : '';
+	$end_date = isset($_POST['end_date']) ? $db->escapeString(trim($fn->xss_clean($_POST['end_date']))) : '';
+	$date_filter = '';
+	if (!empty($start_date) && !empty($end_date)) {
+		$date_filter = " AND DATE(pr.created_at) >= '$start_date' AND DATE(pr.created_at) <= '$end_date'";
+	}
+	$sql = "SELECT pr.*, u.name as user_name, u.mobile as user_mobile 
+		FROM parcel_requests pr 
+		LEFT JOIN users u ON u.id = pr.user_id 
+		WHERE pr.delivery_boy_id = '$boy_id' 
+		AND pr.service_type = 'passenger'" . $date_filter . " 
+		ORDER BY pr.id DESC";
+	$db->sql($sql);
+	$res = $db->getResult();
+
+	$data = array();
+	if (!empty($res)) {
+		foreach ($res as $row) {
+			$data[] = array(
+				'id' => (int)$row['id'],
+				'status' => $row['status'],
+				'otp' => $row['otp'],
+				'passenger_vehicle' => $row['passenger_vehicle'],
+				'passenger_count' => (int)$row['passenger_count'],
+				'pickup_location' => $row['pickup_location'],
+				'pickup_lat' => $row['pickup_lat'],
+				'pickup_lng' => $row['pickup_lng'],
+				'drop_location' => $row['drop_location'],
+				'drop_lat' => $row['drop_lat'],
+				'drop_lng' => $row['drop_lng'],
+				'distance_km' => (float)$row['distance_km'],
+				'per_km_price' => (float)$row['per_km_price'],
+				'base_price' => (float)$row['base_price'],
+				'total_price' => (float)$row['total_price'],
+				'platform_fee' => (float)$row['platform_fee'],
+				'convenience_fee' => (float)$row['convenience_fee'],
+				'gst' => (float)$row['gst'],
+				'grand_total' => (float)$row['grand_total'],
+				'payment_status' => $row['payment_status'],
+				'driver_payment_status' => $row['driver_payment_status'],
+				'payment_method' => $row['payment_method'],
+				'user_name' => $row['sender_name'],
+				'user_mobile' => $row['sender_phone'],
+				'created_at' => $row['created_at'],
+				'start_time' => $row['start_time'],
+				'end_time' => $row['end_time']
+			);
+		}
+	}
+	$response['error'] = false;
+	$response['message'] = "Driver ride history fetched successfully.";
+	$response['total'] = count($data);
+	$response['data'] = $data;
+	print_r(json_encode($response));
+	die;
+}
+
 
 if (isset($_POST['get_fund_transfers'])) {
 

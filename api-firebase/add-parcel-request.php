@@ -68,7 +68,9 @@ $drop_lng 		= (isset($_POST['drop_lng']))?$db->escapeString($fn->xss_clean($_POS
 $recipient_name = (isset($_POST['recipient_name']))?$db->escapeString($fn->xss_clean($_POST['recipient_name'])):"";
 $recipient_phone = (isset($_POST['recipient_phone']))?$db->escapeString($fn->xss_clean($_POST['recipient_phone'])):"";
 
-$service_type 			= (isset($_POST['service_type']) && $_POST['service_type'] == 'shipping') ? 'shipping' : 'parcel';
+$service_type 			= (isset($_POST['service_type']) && in_array($_POST['service_type'], array('shipping', 'passenger'))) ? $_POST['service_type'] : 'parcel';
+$passenger_vehicle 		= (isset($_POST['passenger_vehicle'])) ? $db->escapeString($fn->xss_clean($_POST['passenger_vehicle'])) : null;
+$passenger_count 		= (isset($_POST['passenger_count'])) ? max(1, (int)$_POST['passenger_count']) : 1;
 $shipping_vehicle_id 	= (isset($_POST['shipping_vehicle_id']) && !empty($_POST['shipping_vehicle_id'])) ? (int)$_POST['shipping_vehicle_id'] : null;
 $shipping_vehicle_name 	= (isset($_POST['shipping_vehicle_name'])) ? $db->escapeString($fn->xss_clean($_POST['shipping_vehicle_name'])) : null;
 $goods_type 			= (isset($_POST['goods_type'])) ? $db->escapeString($fn->xss_clean($_POST['goods_type'])) : null;
@@ -82,6 +84,17 @@ if ($service_type == 'shipping') {
     if (!empty($s_res) && isset($s_res[0]['is_shipping_available']) && (int)$s_res[0]['is_shipping_available'] === 0) {
         $response['error'] = true;
         $response['message'] = "Shipping service is currently disabled.";
+        print_r(json_encode($response));
+        return false;
+    }
+}
+if ($service_type == 'passenger') {
+    $settings_sql = "SELECT is_passenger_available FROM parcel_settings ORDER BY id ASC LIMIT 1";
+    $db->sql($settings_sql);
+    $p_res = $db->getResult();
+    if (!empty($p_res) && isset($p_res[0]['is_passenger_available']) && (int)$p_res[0]['is_passenger_available'] === 0) {
+        $response['error'] = true;
+        $response['message'] = "Passenger ride service is currently disabled.";
         print_r(json_encode($response));
         return false;
     }
@@ -183,21 +196,61 @@ if(empty($drop_lat) || empty($drop_lng) || !is_numeric($drop_lat) || !is_numeric
 	return false;
 }
 
-// Zone override for the pickup zone (already resolved above) wins over the
-// global tariff. Same values the quote endpoint priced with.
-$per_km_price_db = $effective_parcel['per_km_price'];
-$base_price_db = $effective_parcel['base_price'];
-
 // Driving distance, not straight line. Falls back to haversine if Google is
 // unreachable, which is why distance_source is kept for auditing.
 $road_distance = $fn->get_road_distance_km($pickup_lat, $pickup_lng, $drop_lat, $drop_lng);
 $distance_km_db = (float)$road_distance['km'];
 $distance_source = $road_distance['source'];
 
-// First 1 km is free, then the whole distance is charged. This mirrors the
-// quote endpoint so the preview and the charge cannot drift apart.
-$km_charge = ($distance_km_db <= 1.0) ? 0.0 : ($distance_km_db * $per_km_price_db);
-$total_price_db = round($base_price_db + $km_charge, 2);
+// Base price and per km price per service type
+if ($service_type == 'passenger') {
+    $vtype = !empty($passenger_vehicle) ? $passenger_vehicle : 'bike';
+    $db->sql("SELECT base_price, base_km, per_km_price FROM service_pricing WHERE service_type = 'passenger' AND vehicle_type = '$vtype' LIMIT 1");
+    $p_res = $db->getResult();
+    if (!empty($p_res)) {
+        $base_price_db = (float)$p_res[0]['base_price'];
+        $base_km_db    = max(0.0, (float)$p_res[0]['base_km']);
+        $per_km_price_db = (float)$p_res[0]['per_km_price'];
+    } else {
+        $base_price_db = 25.0;
+        $base_km_db    = 1.0;
+        $per_km_price_db = 8.0;
+    }
+    $billable_km = max(0.0, $distance_km_db - $base_km_db);
+    $km_charge = round($billable_km * $per_km_price_db, 2);
+    $total_price_db = round($base_price_db + $km_charge, 2);
+} else if ($service_type == 'shipping') {
+    $sv_res = array();
+    if (!empty($shipping_vehicle_id)) {
+        $db->sql("SELECT base_price, base_km, per_km_price, helper_price FROM shipping_vehicles WHERE id = " . (int)$shipping_vehicle_id . " AND status = 1 LIMIT 1");
+        $sv_res = $db->getResult();
+    }
+    if (empty($sv_res)) {
+        $db->sql("SELECT base_price, base_km, per_km_price, helper_price FROM shipping_vehicles WHERE status = 1 ORDER BY sort_order ASC LIMIT 1");
+        $sv_res = $db->getResult();
+    }
+    if (!empty($sv_res)) {
+        $base_price_db   = (float)$sv_res[0]['base_price'];
+        $base_km_db      = max(0.0, (float)$sv_res[0]['base_km']);
+        $per_km_price_db = (float)$sv_res[0]['per_km_price'];
+        $helper_price_db = (float)$sv_res[0]['helper_price'];
+    } else {
+        $base_price_db   = 150.0;
+        $base_km_db      = 2.0;
+        $per_km_price_db = 25.0;
+        $helper_price_db = 100.0;
+    }
+    $billable_km = max(0.0, $distance_km_db - $base_km_db);
+    $km_charge = round($billable_km * $per_km_price_db, 2);
+    $total_helper_charge = round($helper_count * $helper_price_db, 2);
+    $total_price_db = round($base_price_db + $km_charge + $total_helper_charge, 2);
+} else {
+    // Standard parcel service
+    $per_km_price_db = $effective_parcel['per_km_price'];
+    $base_price_db = $effective_parcel['base_price'];
+    $km_charge = ($distance_km_db <= 1.0) ? 0.0 : ($distance_km_db * $per_km_price_db);
+    $total_price_db = round($base_price_db + $km_charge, 2);
+}
 
 // Discard whatever the client claimed and use the server figures.
 $distance_km 	= $distance_km_db;
@@ -260,6 +313,8 @@ $data = array(
 	'goods_type'	=> $goods_type,
 	'helper_count'	=> $helper_count,
 	'helper_charge'	=> $helper_charge,
+	'passenger_vehicle' => $passenger_vehicle,
+	'passenger_count' => $passenger_count,
 	'status' 		=> 'pending',
 	'otp' 			=> $otp,
 	'zone_id'		=> $pickup_zone,

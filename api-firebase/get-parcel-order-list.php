@@ -37,7 +37,7 @@ if (empty($user_id)) {
     return false;
 }
 
-$sql = "SELECT pr.*, (SELECT name FROM users u WHERE u.id = pr.user_id) AS user_name, (SELECT mobile FROM users u WHERE u.id = pr.user_id) AS user_mobile FROM `parcel_requests` pr WHERE pr.user_id = '" . $user_id . "' ORDER BY pr.id DESC";
+$sql = "SELECT pr.*, (SELECT name FROM users u WHERE u.id = pr.user_id) AS user_name, (SELECT mobile FROM users u WHERE u.id = pr.user_id) AS user_mobile FROM `parcel_requests` pr WHERE pr.user_id = '" . $user_id . "' AND (pr.service_type = 'parcel' OR pr.service_type IS NULL OR pr.service_type = '') ORDER BY pr.id DESC";
 $db->sql($sql);
 $res = $db->getResult();
 

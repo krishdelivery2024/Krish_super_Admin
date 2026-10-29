@@ -668,7 +668,35 @@ if ($zone_id > 0) {
 }
 
 $zone_id = $db->escapeString((string)$zone_id);
-    $service_type = (!empty($_POST['service_type']) && in_array($_POST['service_type'], array('food','parcel','both'))) ? $_POST['service_type'] : 'both';
+    $allowed_services = array('food', 'parcel', 'passenger', 'shipping');
+    $assigned_services = array();
+    if (!empty($_POST['service_types']) && is_array($_POST['service_types'])) {
+        foreach ($_POST['service_types'] as $st) {
+            $st = trim(strtolower($st));
+            if (in_array($st, $allowed_services)) {
+                $assigned_services[] = $st;
+            }
+        }
+    } elseif (!empty($_POST['service_type'])) {
+        $raw_st = explode(',', $_POST['service_type']);
+        foreach ($raw_st as $st) {
+            $st = trim(strtolower($st));
+            if ($st == 'both') {
+                $assigned_services[] = 'food';
+                $assigned_services[] = 'parcel';
+            } elseif (in_array($st, $allowed_services)) {
+                $assigned_services[] = $st;
+            }
+        }
+    }
+    if (empty($assigned_services)) {
+        $assigned_services = array('food', 'parcel');
+    }
+    $service_type = $db->escapeString(implode(',', array_unique($assigned_services)));
+    $allowed_vts = array('bike', 'auto', 'cab');
+    $raw_vt = !empty($_POST['vehicle_type']) ? strtolower(trim($_POST['vehicle_type'])) : 'bike';
+    $vehicle_type = in_array($raw_vt, $allowed_vts) ? $raw_vt : 'bike';
+    $vehicle_type = $db->escapeString($vehicle_type);
     $aadhaar = $db->escapeString($fn->xss_clean(!empty($_POST['aadhaar']) ? $_POST['aadhaar'] : ''));
     $driving_license = $db->escapeString($fn->xss_clean(!empty($_POST['driving_license']) ? $_POST['driving_license'] : ''));
     if (empty($aadhaar) || !preg_match('/^\d{12}$/', $aadhaar)) {
@@ -700,8 +728,7 @@ $zone_id = $db->escapeString((string)$zone_id);
             echo '<label class="alert alert-danger">Mobile Number Already Exists!</label>';
             return false;
         }
-    $sql = "INSERT INTO delivery_boys (name,mobile,otp,password,store_id,address,bonus,commission,service_type,aadhaar,driving_license,profile,aadhaar_image,driving_license_image,zone_id,fcm_id)
-VALUES('$name', '$mobile', '', '$password', '$store_id', '$address','$bonus','$commission','$service_type','$aadhaar','$driving_license','$profile','$aadhaar_image','$driving_license_image','$zone_id','')";
+    $sql = "INSERT INTO delivery_boys (name,mobile,otp,password,store_id,address,bonus,commission,service_type,vehicle_type,aadhaar,driving_license,profile,aadhaar_image,driving_license_image,zone_id,fcm_id) VALUES ('$name', '$mobile', '', '$password', '$store_id', '$address','$bonus','$commission','$service_type','$vehicle_type','$aadhaar','$driving_license','$profile','$aadhaar_image','$driving_license_image','$zone_id','')";
     if($db->sql($sql)){
         echo '<label class="alert alert-success">Delivery Boy Added Successfully!</label>';
     }else{
@@ -805,7 +832,35 @@ if ($update_zone_id > 0) {
 }
 
 $update_zone_id = $db->escapeString((string)$update_zone_id);
-    $service_type = (!empty($_POST['update_service_type']) && in_array($_POST['update_service_type'], array('food','parcel','both'))) ? $_POST['update_service_type'] : 'both';
+    $allowed_services = array('food', 'parcel', 'passenger', 'shipping');
+    $assigned_services = array();
+    if (!empty($_POST['update_service_types']) && is_array($_POST['update_service_types'])) {
+        foreach ($_POST['update_service_types'] as $st) {
+            $st = trim(strtolower($st));
+            if (in_array($st, $allowed_services)) {
+                $assigned_services[] = $st;
+            }
+        }
+    } elseif (!empty($_POST['update_service_type'])) {
+        $raw_st = explode(',', $_POST['update_service_type']);
+        foreach ($raw_st as $st) {
+            $st = trim(strtolower($st));
+            if ($st == 'both') {
+                $assigned_services[] = 'food';
+                $assigned_services[] = 'parcel';
+            } elseif (in_array($st, $allowed_services)) {
+                $assigned_services[] = $st;
+            }
+        }
+    }
+    if (empty($assigned_services)) {
+        $assigned_services = array('food', 'parcel');
+    }
+    $service_type = $db->escapeString(implode(',', array_unique($assigned_services)));
+    $allowed_vts = array('bike', 'auto', 'cab');
+    $raw_up_vt = !empty($_POST['update_vehicle_type']) ? strtolower(trim($_POST['update_vehicle_type'])) : 'bike';
+    $update_vehicle_type = in_array($raw_up_vt, $allowed_vts) ? $raw_up_vt : 'bike';
+    $update_vehicle_type = $db->escapeString($update_vehicle_type);
     $aadhaar = $db->escapeString($fn->xss_clean(!empty($_POST['update_aadhaar']) ? $_POST['update_aadhaar'] : ''));
     $driving_license = $db->escapeString($fn->xss_clean(!empty($_POST['update_driving_license']) ? $_POST['update_driving_license'] : ''));
     if (empty($aadhaar) || !preg_match('/^\d{12}$/', $aadhaar)) {
@@ -837,9 +892,9 @@ $update_zone_id = $db->escapeString((string)$update_zone_id);
     $status = $db->escapeString($fn->xss_clean($_POST['status']));
     $password = !empty($password)?md5($password):'';
     if(!empty($password)){
-        $sql = "Update delivery_boys set `name`='".$name."',password='".$password."',`address`='".$address."',`bonus`='".$bonus."',`commission`='".$commission."',`zone_id`='".$update_zone_id."',`service_type`='".$service_type."',`aadhaar`='".$aadhaar."',`driving_license`='".$driving_license."',`status`='".$status."'".$profile_update.$aadhaar_image_update.$dl_image_update." where `id`=".$id;
+        $sql = "Update delivery_boys set `name`='".$name."',password='".$password."',`address`='".$address."',`bonus`='".$bonus."',`commission`='".$commission."',`zone_id`='".$update_zone_id."',`service_type`='".$service_type."',`vehicle_type`='".$update_vehicle_type."',`aadhaar`='".$aadhaar."',`driving_license`='".$driving_license."',`status`='".$status."'".$profile_update.$aadhaar_image_update.$dl_image_update." where `id`=".$id;
     }else{
-        $sql = "Update delivery_boys set `name`='".$name."',`address`='".$address."',`bonus`='".$bonus."',`commission`='".$commission."',`zone_id`='".$update_zone_id."',`service_type`='".$service_type."',`aadhaar`='".$aadhaar."',`driving_license`='".$driving_license."',`status`='".$status."'".$profile_update.$aadhaar_image_update.$dl_image_update." where `id`=".$id;
+        $sql = "Update delivery_boys set `name`='".$name."',`address`='".$address."',`bonus`='".$bonus."',`commission`='".$commission."',`zone_id`='".$update_zone_id."',`service_type`='".$service_type."',`vehicle_type`='".$update_vehicle_type."',`aadhaar`='".$aadhaar."',`driving_license`='".$driving_license."',`status`='".$status."'".$profile_update.$aadhaar_image_update.$dl_image_update." where `id`=".$id;
     }
     if($db->sql($sql)){
         echo "<label class='alert alert-success'>Information Updated Successfully.</label>";

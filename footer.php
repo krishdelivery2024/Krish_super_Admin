@@ -218,13 +218,36 @@
                                                    <input type="number" step="0.01" min="0" class="form-control" name="update_commission" id="update_commission" placeholder="Enter Commission in ₹">
                                                 </div>
                                                 <div class="form-group">
-                                                    <label for="">Service Type</label>
-                                                    <select class="form-control" name="update_service_type" id="update_service_type">
-                                                        <option value="both">Both (Food &amp; Parcel)</option>
-                                                        <option value="food">Food Only</option>
-                                                        <option value="parcel">Parcel Only</option>
-                                                    </select>
+                                                    <label>Assigned Services <small class="text-muted">(Can select multiple)</small></label>
+                                                    <div style="background: #fdfdfd; border: 1px solid #e0e0e0; border-radius: 6px; padding: 10px 14px;">
+                                                      <label style="margin-right: 18px; font-weight: normal; cursor: pointer;">
+                                                        <input type="checkbox" class="update_st_cb" name="update_service_types[]" value="food"> 🍕 Food Delivery
+                                                      </label>
+                                                      <label style="margin-right: 18px; font-weight: normal; cursor: pointer;">
+                                                        <input type="checkbox" class="update_st_cb" name="update_service_types[]" value="parcel"> 📦 Parcel Service
+                                                      </label>
+                                                      <label style="margin-right: 18px; font-weight: normal; cursor: pointer;">
+                                                        <input type="checkbox" class="update_st_cb" name="update_service_types[]" value="passenger"> 🛵 Passenger Pickup &amp; Drop
+                                                      </label>
+                                                      <label style="margin-right: 10px; font-weight: normal; cursor: pointer;">
+                                                        <input type="checkbox" class="update_st_cb" name="update_service_types[]" value="shipping"> 🚚 Shipping / Cargo
+                                                      </label>
+                                                    </div>
                                                 </div>
+                                                 <div class="form-group" id="update_vehicle_type_container">
+                                                     <label>Vehicle Type <small class="text-muted">(Vehicle used for passenger rides)</small></label>
+                                                     <div style="background: #fdfdfd; border: 1px solid #e0e0e0; border-radius: 6px; padding: 10px 14px;">
+                                                       <label style="margin-right: 20px; font-weight: normal; cursor: pointer;">
+                                                         <input type="radio" class="update_vt_radio" name="update_vehicle_type" value="bike" checked> 🛵 Bike
+                                                       </label>
+                                                       <label style="margin-right: 20px; font-weight: normal; cursor: pointer;">
+                                                         <input type="radio" class="update_vt_radio" name="update_vehicle_type" value="auto"> 🛺 Auto
+                                                       </label>
+                                                       <label style="margin-right: 20px; font-weight: normal; cursor: pointer;">
+                                                         <input type="radio" class="update_vt_radio" name="update_vehicle_type" value="cab"> 🚗 Cab
+                                                       </label>
+                                                     </div>
+                                                 </div>
                                                 <div class="form-group">
                                                     <label for="">Zone</label>
                                                     <?php
@@ -4111,10 +4134,20 @@ $(document).on('change','#loose',function(){
             $('#update_address').val(row.address);
             $('#update_bonus').val(row.bonus_raw !== undefined ? row.bonus_raw : (row.bonus ? parseFloat(row.bonus) : '0'));
             $('#update_commission').val(row.commission_raw !== undefined ? row.commission_raw : (row.commission ? parseFloat(row.commission) : '0'));
-            if (row.service_type_value !== undefined && row.service_type_value != null && row.service_type_value != '')
-                $('#update_service_type').val(row.service_type_value);
-            else
-                $('#update_service_type').val('both');
+            $('.update_st_cb').prop('checked', false);
+            if (row.service_type_value !== undefined && row.service_type_value != null && row.service_type_value != '') {
+                var stVal = row.service_type_value.toString();
+                if (stVal === 'both') stVal = 'food,parcel';
+                var stParts = stVal.split(',');
+                stParts.forEach(function(s) {
+                    $('.update_st_cb[value="' + s.trim() + '"]').prop('checked', true);
+                });
+            } else {
+                $('.update_st_cb[value="food"]').prop('checked', true);
+                $('.update_st_cb[value="parcel"]').prop('checked', true);
+            }
+            var vtVal = (row.vehicle_type_value !== undefined && row.vehicle_type_value != null && row.vehicle_type_value != '') ? row.vehicle_type_value.toString().toLowerCase() : 'bike';
+            $('.update_vt_radio[value="' + vtVal + '"]').prop('checked', true);
             if (row.zone_id !== undefined && row.zone_id != null && row.zone_id != '')
                 $('#update_zone_id').val(row.zone_id);
             else

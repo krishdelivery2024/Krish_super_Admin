@@ -52,6 +52,7 @@ if(isset($_POST['accesskey'])) {
 			'cod_payment_method'   => (string)$effective['cod_payment_method'],
 			'razorpay_payment_method' => (string)$effective['razorpay_payment_method'],
 			'is_shipping_available' => (string)(isset($effective['is_shipping_available']) ? $effective['is_shipping_available'] : '1'),
+			'is_passenger_available' => (string)(isset($effective['is_passenger_available']) ? $effective['is_passenger_available'] : '1'),
 		);
 		{
 			// append platform fee & tax from store settings (system_timezone row)

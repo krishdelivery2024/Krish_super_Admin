@@ -666,6 +666,25 @@ class custom_functions{
 			
      }
      
+        public function send_notification_to_user($uid, $title, $message, $type = 'order', $order_id = 0) {
+        $push = new Push($title, $message, null, $type, $order_id);
+        $mPushNotification = $push->getPush();
+        $sql = "SELECT fcm_id FROM users WHERE id = '" . (int)$uid . "'";
+        $this->db->sql($sql);
+        $res = $this->db->getResult();
+        $token = array();
+        if (!empty($res)) {
+            foreach ($res as $row) {
+                if (!empty($row['fcm_id'])) {
+                    $token[] = $row['fcm_id'];
+                }
+            }
+        }
+        if (!empty($token)) {
+            $firebase = new Firebase();
+            $firebase->send($token, $mPushNotification);
+        }
+    }
     public function send_order_update_notification($uid,$title,$message,$type){
         if($_SERVER['REQUEST_METHOD']=='POST'){
         //hecking the required params 
@@ -770,7 +789,7 @@ class custom_functions{
         // echo(json_encode($response));
     }
     
-    public function send_notification_to_delivery_boy($delivery_boy_id,$title,$message,$type,$order_id,$order_type='food'){
+    public function send_notification_to_delivery_boy($delivery_boy_id,$title,$message,$type,$order_id,$order_type='food',$custom_data=array()){
         if(isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD']=='POST'){
         //hecking the required params 
             //creating a new push
@@ -815,8 +834,7 @@ class custom_functions{
                 
                 // Broadcast only to delivery boys whose assigned service covers this order type
                 if ($this->delivery_boy_has_service_type()) {
-                    $order_type = in_array($order_type, array('food','parcel')) ? $order_type : 'food';
-                    $sql .= " AND (service_type = 'both' OR service_type = '".$order_type."')";
+                    $sql .= " AND (FIND_IN_SET('".$order_type."', service_type) > 0 OR service_type = 'both' OR service_type LIKE '%".$order_type."%')";
                 }
             } else {
                 $sql="SELECT fcm_id FROM delivery_boys WHERE id = '".$delivery_boy_id."' AND active_status = 'true'";
@@ -1020,7 +1038,7 @@ class custom_functions{
             $sql .= " AND (zone_id IS NULL OR zone_id = '' OR zone_id = '0' OR zone_id = '$order_zone')";
         }
         if ($this->delivery_boy_has_service_type()) {
-            $sql .= " AND (service_type = 'both' OR service_type = '" . $order_type . "')";
+            $sql .= " AND (FIND_IN_SET('" . $order_type . "', service_type) > 0 OR service_type = 'both' OR service_type LIKE '%" . $order_type . "%')";
         }
         $this->db->sql($sql);
         $boys = $this->db->getResult();
@@ -1261,8 +1279,7 @@ public function get_permissions($id){
                 $sql .= " AND (zone_id = 0 OR zone_id IS NULL OR zone_id = '$order_zone_id')";
             }
             if ($this->delivery_boy_has_service_type()) {
-                $order_type_val = in_array($type, array('food','parcel')) ? $type : 'food';
-                $sql .= " AND (service_type = 'both' OR service_type = '".$order_type_val."')";
+                $sql .= " AND (FIND_IN_SET('".$type."', service_type) > 0 OR service_type = 'both' OR service_type LIKE '%".$type."%')";
             }
             
             $this->db->sql($sql);
@@ -2605,7 +2622,7 @@ public function get_permissions($id){
      * that came from the zone override.
      */
     function get_effective_parcel_settings($zone_id = null){
-        $this->db->sql("SELECT per_km_price, base_price, max_weight_kg, terms_conditions, is_service_available, is_shipping_available, opening_time, closing_time, cod_payment_method, razorpay_payment_method FROM parcel_settings ORDER BY id ASC LIMIT 1");
+        $this->db->sql("SELECT per_km_price, base_price, max_weight_kg, terms_conditions, is_service_available, is_shipping_available, is_passenger_available, opening_time, closing_time, cod_payment_method, razorpay_payment_method FROM parcel_settings ORDER BY id ASC LIMIT 1");
         $res = $this->db->getResult();
         $settings = !empty($res) ? $res[0] : array();
 
@@ -2635,6 +2652,7 @@ public function get_permissions($id){
             'terms_conditions'        => isset($settings['terms_conditions']) ? $settings['terms_conditions'] : '',
             'is_service_available'    => isset($settings['is_service_available']) ? (int)$settings['is_service_available'] : 1,
             'is_shipping_available'   => isset($settings['is_shipping_available']) ? (int)$settings['is_shipping_available'] : 1,
+            'is_passenger_available'  => isset($settings['is_passenger_available']) ? (int)$settings['is_passenger_available'] : 1,
             'cod_payment_method'      => ($cod_pm !== null) ? $cod_pm : 0,
             'razorpay_payment_method' => ($rzp_pm !== null) ? $rzp_pm : 1,
             // Daily operating window (global only, not overridable per zone).

@@ -79,12 +79,35 @@ if ($is_sub_admin) {
                       <input type="number" step="0.01" min="0" class="form-control" name="commission" id="commission" placeholder="Enter Commission in ₹" value="5">
                     </div>
                     <div class="form-group">
-                      <label for="">Service Type</label>
-                      <select class="form-control" name="service_type">
-                        <option value="both">Both (Food &amp; Parcel)</option>
-                        <option value="food">Food Only</option>
-                        <option value="parcel">Parcel Only</option>
-                      </select>
+                      <label>Assigned Services <small class="text-muted">(Select one or more services this delivery boy can handle)</small></label>
+                      <div style="background: #fdfdfd; border: 1px solid #e0e0e0; border-radius: 6px; padding: 10px 14px;">
+                        <label style="margin-right: 18px; font-weight: normal; cursor: pointer;">
+                          <input type="checkbox" name="service_types[]" value="food" checked> 🍕 Food Delivery
+                        </label>
+                        <label style="margin-right: 18px; font-weight: normal; cursor: pointer;">
+                          <input type="checkbox" name="service_types[]" value="parcel" checked> 📦 Parcel Service
+                        </label>
+                        <label style="margin-right: 18px; font-weight: normal; cursor: pointer;">
+                          <input type="checkbox" name="service_types[]" value="passenger" checked> 🛵 Passenger Pickup &amp; Drop
+                        </label>
+                        <label style="margin-right: 10px; font-weight: normal; cursor: pointer;">
+                          <input type="checkbox" name="service_types[]" value="shipping"> 🚚 Shipping / Cargo
+                        </label>
+                      </div>
+                    </div>
+                    <div class="form-group" id="vehicle_type_container">
+                      <label>Vehicle Type <small class="text-muted">(Vehicle used by driver for passenger rides)</small></label>
+                      <div style="background: #fdfdfd; border: 1px solid #e0e0e0; border-radius: 6px; padding: 10px 14px;">
+                        <label style="margin-right: 20px; font-weight: normal; cursor: pointer;">
+                          <input type="radio" name="vehicle_type" value="bike" checked> 🛵 Bike / Two-Wheeler
+                        </label>
+                        <label style="margin-right: 20px; font-weight: normal; cursor: pointer;">
+                          <input type="radio" name="vehicle_type" value="auto"> 🛺 Auto / Rickshaw
+                        </label>
+                        <label style="margin-right: 20px; font-weight: normal; cursor: pointer;">
+                          <input type="radio" name="vehicle_type" value="cab"> 🚗 Cab / Four-Wheeler
+                        </label>
+                      </div>
                     </div>
                     <div class="form-group">
                       <label for="">Zone</label>
@@ -196,6 +219,7 @@ if ($is_sub_admin) {
                             <th data-field="commission" data-sortable="true">Commission (&#8377;)</th>
                             <th data-field="balance" data-sortable="true">Balance</th>
                             <th data-field="service_type" data-sortable="true">Service Type</th>
+                            <th data-field="vehicle_type" data-sortable="true">Vehicle Type</th>
                             <th data-field="aadhaar" data-sortable="true">Aadhaar</th>
                             <th data-field="driving_license" data-sortable="true">DL No</th>
                             <th data-field="profile">Photo</th>

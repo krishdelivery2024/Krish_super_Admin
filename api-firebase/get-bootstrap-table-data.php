@@ -247,7 +247,7 @@
 		// Add PARCEL orders into the same list (so the Orders page
 		// shows food + parcel combined, matching the dashboard total).
 		// ============================================================
-		$p_where = "";
+		$p_where = " AND (p.service_type = 'parcel' OR p.service_type IS NULL OR p.service_type = '')";
 		if(isset($_SESSION['role']) && $_SESSION['role'] == 'seller'){
 			$p_where .= " AND 1=0";
 		}
@@ -1875,10 +1875,34 @@ if ($role === 'sub admin') {
 			$tempRow['profile'] = $doc_thumb($row['profile'], 'Photo', true);
 			$tempRow['aadhaar_image'] = $doc_thumb($row['aadhaar_image'], 'Aadhaar Card', false);
 			$tempRow['driving_license_image'] = $doc_thumb($row['driving_license_image'], 'Driving License', false);
-			$service_labels = array('food' => 'Food', 'parcel' => 'Parcel', 'both' => 'Both');
-			$service_key = (!empty($row['service_type']) && isset($service_labels[$row['service_type']])) ? $row['service_type'] : 'both';
-			$tempRow['service_type'] = "<label class='label label-primary'>".$service_labels[$service_key]."</label>";
-			$tempRow['service_type_value'] = $service_key;
+			$service_map = array(
+				'food' => array('label' => 'Food', 'class' => 'label-info'),
+				'parcel' => array('label' => 'Parcel', 'class' => 'label-primary'),
+				'passenger' => array('label' => 'Passenger', 'class' => 'label-warning'),
+				'shipping' => array('label' => 'Shipping', 'class' => 'label-success'),
+			);
+			$raw_st = (!empty($row['service_type'])) ? $row['service_type'] : 'food,parcel';
+			if ($raw_st == 'both') $raw_st = 'food,parcel';
+			$st_list = explode(',', $raw_st);
+			$badge_html = '';
+			foreach ($st_list as $st_item) {
+				$st_item = trim($st_item);
+				if (isset($service_map[$st_item])) {
+					$badge_html .= "<span class='label " . $service_map[$st_item]['class'] . "' style='margin-right:3px; display:inline-block; margin-bottom:2px;'>" . $service_map[$st_item]['label'] . "</span>";
+				} else {
+					$badge_html .= "<span class='label label-default' style='margin-right:3px; display:inline-block; margin-bottom:2px;'>" . ucfirst($st_item) . "</span>";
+				}
+			}
+			$tempRow['service_type'] = $badge_html;
+			$tempRow['service_type_value'] = $raw_st;
+			$vt = (!empty($row['vehicle_type'])) ? strtolower(trim($row['vehicle_type'])) : 'bike';
+			$vt_map = array(
+				'bike' => "<span class='label label-primary' style='font-size:11px;'><i class='fa fa-motorcycle'></i> Bike</span>",
+				'auto' => "<span class='label label-warning' style='font-size:11px;'>🛺 Auto</span>",
+				'cab'  => "<span class='label label-success' style='font-size:11px;'><i class='fa fa-car'></i> Cab</span>",
+			);
+			$tempRow['vehicle_type'] = isset($vt_map[$vt]) ? $vt_map[$vt] : "<span class='label label-default'>" . ucfirst($vt) . "</span>";
+			$tempRow['vehicle_type_value'] = $vt;
 			if($row['status']==0)
 			    $tempRow['status']="<label class='label label-danger'>Deactive</label>";
             else
@@ -2542,7 +2566,7 @@ if ($role === 'sub admin') {
 		
 		$offset = 0; $limit = 10;
 		$sort = 'pr.id'; $order = 'DESC';
-		$where = " WHERE (pr.service_type != 'shipping' OR pr.service_type IS NULL)";
+		$where = " WHERE (pr.service_type = 'parcel' OR pr.service_type IS NULL OR pr.service_type = '')";
 		if(isset($_GET['offset']))
 			$offset = $_GET['offset'];
 		if(isset($_GET['limit']))
@@ -2636,7 +2660,151 @@ if ($role === 'sub admin') {
 		$bulkData['rows'] = $rows;
 		print_r(json_encode($bulkData));
 	}
-		// data of 'Parcel Transactions' table goes here
+
+	// data of 'Passenger Rides' table goes here
+	if(isset($_GET['table']) && $_GET['table'] == 'passenger_rides'){
+		$offset = 0; $limit = 10;
+		$sort = 'pr.id'; $order = 'DESC';
+		$where = " WHERE pr.service_type = 'passenger'";
+		if(isset($_GET['offset'])) $offset = (int)$_GET['offset'];
+		if(isset($_GET['limit'])) $limit = (int)$_GET['limit'];
+		if(isset($_GET['sort']) && !empty($_GET['sort'])) $sort = $_GET['sort'];
+		if(isset($_GET['order'])) $order = $_GET['order'];
+		if(isset($_GET['search']) && $_GET['search'] != ''){
+			$search = $db->escapeString($_GET['search']);
+			$where .= " AND (`pr`.`id` LIKE '%" . $search . "%' OR `pr`.`passenger_vehicle` LIKE '%" . $search . "%' OR `pr`.`pickup_location` LIKE '%" . $search . "%' OR `pr`.`drop_location` LIKE '%" . $search . "%' OR `pr`.`sender_name` LIKE '%" . $search . "%' OR `pr`.`recipient_name` LIKE '%" . $search . "%' OR `pr`.`status` LIKE '%" . $search . "%' OR `pr`.`otp` LIKE '%" . $search . "%')";
+		}
+		if(!empty($_GET['start_date']) && !empty($_GET['end_date'])){
+			$start_date = $db->escapeString(trim($_GET['start_date']));
+			$end_date = $db->escapeString(trim($_GET['end_date']));
+			$where .= " AND DATE(pr.created_at) >= '$start_date' AND DATE(pr.created_at) <= '$end_date'";
+		}
+		if(!empty($_GET['status'])){
+			$status_filter = $db->escapeString(trim($_GET['status']));
+			$where .= " AND pr.status = '$status_filter'";
+		}
+		if(!empty($_GET['filter_zone'])){
+			$zone_filter = (int)$_GET['filter_zone'];
+			$where .= " AND pr.zone_id = '$zone_filter'";
+		}
+		if(!empty($_GET['delivery_boy_id'])){
+			$boy_filter = (int)$_GET['delivery_boy_id'];
+			$where .= " AND pr.delivery_boy_id = '$boy_filter'";
+		}
+		if(!empty($_GET['payment_method'])){
+			$pay_method = strtolower(trim($_GET['payment_method']));
+			if($pay_method == 'cash'){
+				$where .= " AND (LOWER(pr.payment_method) = 'cash' OR pr.payment_method = 'Cash on Delivery' OR pr.payment_method IS NULL OR pr.payment_method = '')";
+			} else if($pay_method == 'online'){
+				$where .= " AND (LOWER(pr.payment_method) = 'online' OR pr.payment_method = 'Razorpay' OR pr.payment_status = 'paid')";
+			} else {
+				$where .= " AND LOWER(pr.payment_method) = '" . $db->escapeString($pay_method) . "'";
+			}
+		}
+		if(!empty($zone_scope_sql)){
+			$where .= " AND pr.`zone_id`" . $zone_scope_sql;
+		}
+
+		$sql = "SELECT COUNT(*) as total FROM `parcel_requests` pr " . $where;
+		$db->sql($sql);
+		$res = $db->getResult();
+		$total = !empty($res) ? $res[0]['total'] : 0;
+
+		// Fetch global delivery boy commission rate
+		$global_comm = 5.0;
+		$sql_set = "SELECT value FROM settings WHERE variable = 'system_timezone'";
+		$db->sql($sql_set);
+		$sres = $db->getResult();
+		if (!empty($sres)) {
+			$sys_cfg = json_decode($sres[0]['value'], true);
+			if (isset($sys_cfg['delivery_boy_commission']) && $sys_cfg['delivery_boy_commission'] !== '') {
+				$global_comm = floatval($sys_cfg['delivery_boy_commission']);
+			}
+		}
+
+		$sql = "SELECT pr.*, 
+				(SELECT name FROM users u WHERE u.id = pr.user_id) AS user_name, 
+				(SELECT mobile FROM users u WHERE u.id = pr.user_id) AS user_mobile, 
+				(SELECT name FROM delivery_boys db WHERE db.id = pr.delivery_boy_id) AS delivery_boy_name, 
+				(SELECT mobile FROM delivery_boys db WHERE db.id = pr.delivery_boy_id) AS delivery_boy_mobile, 
+				(SELECT commission FROM delivery_boys db WHERE db.id = pr.delivery_boy_id) AS delivery_boy_commission_rate, 
+				(SELECT name FROM zone z WHERE z.id = pr.zone_id) AS zone_name 
+				FROM `parcel_requests` pr " . $where . " ORDER BY " . $sort . " " . $order . " LIMIT " . $offset . ", " . $limit;
+		$db->sql($sql);
+		$res = $db->getResult();
+
+		$bulkData = array();
+		$bulkData['total'] = $total;
+		$rows = array();
+
+		foreach($res as $row){
+			$tempRow = array();
+			$tempRow['id'] = 'RIDE#' . $row['id'];
+			$vehicle = !empty($row['passenger_vehicle']) ? strtoupper($row['passenger_vehicle']) : 'AUTO';
+			$tempRow['vehicle'] = '<span class="label label-info"><i class="fa fa-car"></i> ' . $vehicle . '</span>';
+			$tempRow['passenger_count'] = !empty($row['passenger_count']) ? $row['passenger_count'] . ' passenger(s)' : '1 passenger';
+			$tempRow['passenger_name'] = !empty($row['user_name']) ? '<strong>' . $row['user_name'] . '</strong><br/><small class="text-muted">' . $row['user_mobile'] . '</small>' : 'User #' . $row['user_id'];
+			$tempRow['pickup_location'] = '<strong>Pickup:</strong> ' . $row['pickup_location'] . '<br/><small class="text-muted">Contact: ' . $row['sender_phone'] . '</small>';
+			$tempRow['drop_location'] = '<strong>Drop:</strong> ' . $row['drop_location'];
+			$tempRow['distance_km'] = !empty($row['distance_km']) ? $row['distance_km'] . ' km' : '-';
+			$tempRow['zone_name'] = !empty($row['zone_name']) ? htmlspecialchars($row['zone_name']) : '<span class="text-muted">-</span>';
+
+			// Fare distribution
+			$trip_fare = floatval($row['total_price']);
+			$plat_fee = floatval($row['platform_fee']);
+			$conv_fee = floatval($row['convenience_fee']);
+			$gst_fee = floatval($row['gst']);
+			$grand_tot = (!empty($row['grand_total']) && floatval($row['grand_total']) > 0) ? floatval($row['grand_total']) : ($trip_fare + $plat_fee + $conv_fee + $gst_fee);
+
+			$comm_rate = $global_comm;
+			if (!empty($row['delivery_boy_commission_rate']) && floatval($row['delivery_boy_commission_rate']) > 0) {
+				$comm_rate = floatval($row['delivery_boy_commission_rate']);
+			}
+
+			$tempRow['trip_fare'] = '&#8377; ' . number_format($trip_fare, 2);
+			$tempRow['platform_fee'] = '<span class="text-primary" style="font-weight:600;">&#8377; ' . number_format($plat_fee, 2) . '</span>';
+			$tempRow['convenience_fee'] = '<span class="text-info" style="font-weight:600;">&#8377; ' . number_format($conv_fee, 2) . '</span>';
+			$tempRow['driver_commission'] = ($row['delivery_boy_id'] > 0)
+				? '<span class="text-success" style="font-weight:600;">&#8377; ' . number_format($comm_rate, 2) . '</span>'
+				: '<span class="text-muted">-</span>';
+			$tempRow['total_price'] = '<strong>&#8377; ' . number_format($grand_tot, 2) . '</strong><br/><small class="text-muted">Trip: &#8377;' . number_format($trip_fare, 2) . '</small>';
+			$tempRow['grand_total'] = '<strong>&#8377; ' . number_format($grand_tot, 2) . '</strong>';
+
+			$tempRow['otp'] = !empty($row['otp']) ? '<span class="label label-warning" style="font-size:13px;letter-spacing:1px;font-weight:bold;">' . $row['otp'] . '</span>' : '-';
+			$tempRow['driver_name'] = !empty($row['delivery_boy_name']) ? '<span class="label label-primary"><i class="fa fa-user"></i> ' . $row['delivery_boy_name'] . '</span><br/><small class="text-muted">' . $row['delivery_boy_mobile'] . '</small>' : '<span class="label label-default">Unassigned</span>';
+
+			$status = strtolower($row['status']);
+			if($status == 'completed'){
+				$tempRow['status'] = "<label class='label label-success'>Completed</label>";
+			} else if($status == 'started'){
+				$tempRow['status'] = "<label class='label label-info'>In Progress</label>";
+			} else if($status == 'arrived'){
+				$tempRow['status'] = "<label class='label label-warning'>Driver Arrived</label>";
+			} else if($status == 'accepted'){
+				$tempRow['status'] = "<label class='label label-primary'>Driver On Way</label>";
+			} else if($status == 'searching'){
+				$tempRow['status'] = "<label class='label label-default'>Searching Driver</label>";
+			} else if($status == 'cancelled'){
+				$tempRow['status'] = "<label class='label label-danger'>Cancelled</label>";
+			} else {
+				$tempRow['status'] = "<label class='label label-default'>" . $row['status'] . "</label>";
+			}
+
+			$pay_status = strtolower($row['payment_status']);
+			$pay_method = !empty($row['payment_method']) ? strtoupper($row['payment_method']) : 'CASH';
+			if($pay_status == 'paid'){
+				$tempRow['payment'] = "<span class='label label-success'>PAID (" . $pay_method . ")</span>";
+			} else {
+				$tempRow['payment'] = "<span class='label label-warning'>PENDING (" . $pay_method . ")</span>";
+			}
+
+			$tempRow['created_at'] = date('d-m-Y H:i', strtotime($row['created_at']));
+			$rows[] = $tempRow;
+		}
+		$bulkData['rows'] = $rows;
+		print_r(json_encode($bulkData));
+	}
+	// data of 'Parcel Transactions' table goes here
 	if(isset($_GET['table']) && $_GET['table'] == 'parcel_transactions'){
 		
 		$offset = 0; $limit = 10;
