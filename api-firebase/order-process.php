@@ -366,6 +366,19 @@ $db->sql("SELECT * FROM delivery_method WHERE id=1");
 	$order_zone_fees = $function->split_zone_fees((float)$total, $order_zone_id, $fee_settings);
 	$order_platform_fee = $order_zone_fees['platform_fee'];
 	$order_convenience_fee = $order_zone_fees['convenience_fee'];
+
+	// Snapshot seller and delivery boy commission so future settings changes never affect this order
+	$order_seller_commission = 0.0;
+	if (!empty($seller_id)) {
+		$db->sql("SELECT commission FROM `seller` WHERE id = '" . (int)$seller_id . "' LIMIT 1");
+		$s_comm_res = $db->getResult();
+		if (!empty($s_comm_res) && isset($s_comm_res[0]['commission']) && $s_comm_res[0]['commission'] !== '' && floatval($s_comm_res[0]['commission']) > 0) {
+			$order_seller_commission = floatval($s_comm_res[0]['commission']);
+		} else {
+			$order_seller_commission = isset($fee_settings['seller_commission']) && $fee_settings['seller_commission'] !== '' ? floatval($fee_settings['seller_commission']) : 0.0;
+		}
+	}
+	$order_db_commission = isset($fee_settings['delivery_boy_commission']) && $fee_settings['delivery_boy_commission'] !== '' ? floatval($fee_settings['delivery_boy_commission']) : 5.0;
 	log_order_debug("Order delivered to zone " . var_export($order_zone_id, true) .
 	    " stores zone fees (platform " . $order_platform_fee .
 	    ", convenience " . $order_convenience_fee . "). App final_total kept: " . $final_total);
@@ -381,6 +394,8 @@ $db->sql("SELECT * FROM delivery_method WHERE id=1");
 		'delivery_charge'=>$delivery_charge,
 		'platform_fee'=>$order_platform_fee,
 		'convenience_fee'=>$order_convenience_fee,
+		'seller_commission'=>$order_seller_commission,
+		'delivery_boy_commission'=>$order_db_commission,
 		'wallet_balance' => ($wallet_used)?$wallet_balance:0,
 		'total' => $total,
 		//'tax_percentage' => $tax_percentage,
@@ -1308,7 +1323,15 @@ if(isset($_POST['update_order_status']) && isset($_POST['id'])) {
 		//	$message= "Hello, Dear, Your Order Is assigned to delivery Person  ".ucwords($delivery_boy_name[0]['name']).". Here is your order ID : #".$id.". Contact Number For the Delivery Person is ".$delivery_boy_name[0]['mobile']."";
 		//	send_email($to,$subject,$message);
 		//}
-		$sql="UPDATE orders SET `delivery_boy_id`='".$delivery_boy_id."' WHERE id=".$id;
+		$assigned_db_comm = "";
+		if (!empty($delivery_boy_id) && $delivery_boy_id > 0) {
+			$db->sql("SELECT commission FROM delivery_boys WHERE id = '".(int)$delivery_boy_id."' LIMIT 1");
+			$db_c_r = $db->getResult();
+			if (!empty($db_c_r) && isset($db_c_r[0]['commission']) && $db_c_r[0]['commission'] !== '' && floatval($db_c_r[0]['commission']) > 0) {
+				$assigned_db_comm = ", `delivery_boy_commission` = '".floatval($db_c_r[0]['commission'])."'";
+			}
+		}
+		$sql="UPDATE orders SET `delivery_boy_id`='".$delivery_boy_id."'" . $assigned_db_comm . " WHERE id=".$id;
 		$db->sql($sql);	
 	}
 	

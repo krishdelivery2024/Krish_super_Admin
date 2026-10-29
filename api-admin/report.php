@@ -228,8 +228,20 @@ switch ($type) {
             }
         }
 
+        // Calculate commission based on snapshot locked in orders where available
+        $sql_comm_calc = "SELECT ROUND(IFNULL(SUM((COALESCE(NULLIF(oi.vendor_price, ''), NULLIF(pv.vendor_price, ''), oi.price, 0) * oi.quantity) * (COALESCE(o.seller_commission, $seller_comm) / 100)), 0), 2) AS comm_amt
+                          FROM orders o
+                          JOIN order_items oi ON oi.order_id = o.id
+                          LEFT JOIN product_variant pv ON pv.id = oi.product_variant_id
+                          WHERE o.seller_id = $seller_id 
+                          AND o.active_status = 'delivered' 
+                          AND oi.active_status != 'cancelled' $filter";
+        $db->sql($sql_comm_calc);
+        $comm_calc_res = $db->getResult();
         $commission_percent = $seller_comm;
-        $commission_amount = round(($total_amount * $commission_percent) / 100, 2);
+        $commission_amount = (!empty($comm_calc_res) && isset($comm_calc_res[0]['comm_amt']))
+            ? floatval($comm_calc_res[0]['comm_amt'])
+            : round(($total_amount * $commission_percent) / 100, 2);
         $total_payable = round($total_amount - $commission_amount, 2);
 
         $response_data['total_orders'] = $total_orders;

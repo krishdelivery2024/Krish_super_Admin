@@ -864,7 +864,8 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
         }
 
         $delivered_where = !empty($where1) ? $where1 . " AND" : " WHERE";
-        $sql_delivered = "SELECT COUNT(o.id) as delivered_count
+        $sql_delivered = "SELECT COUNT(o.id) as delivered_count,
+                                 SUM(COALESCE(o.delivery_boy_commission, '$boy_comm_rate')) as total_order_commission
                           FROM `orders` o " . $orders_join . $delivered_where .
                           " o.active_status = 'delivered'";
         $db->sql($sql_delivered);
@@ -873,8 +874,9 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
             ? intval($del_res[0]['delivered_count'])
             : 0;
 
-
-        $total_commission = $del_count * $boy_comm_rate;
+        $total_commission = (!empty($del_res) && isset($del_res[0]['total_order_commission']))
+            ? floatval($del_res[0]['total_order_commission'])
+            : ($del_count * $boy_comm_rate);
 
         // Preserve the existing platform fee and GST payout calculation.
         $platform_charges = 0;

@@ -2756,10 +2756,11 @@ if ($role === 'sub admin') {
 			$gst_fee = floatval($row['gst']);
 			$grand_tot = (!empty($row['grand_total']) && floatval($row['grand_total']) > 0) ? floatval($row['grand_total']) : ($trip_fare + $plat_fee + $conv_fee + $gst_fee);
 
-			$comm_rate = $global_comm;
-			if (!empty($row['delivery_boy_commission_rate']) && floatval($row['delivery_boy_commission_rate']) > 0) {
-				$comm_rate = floatval($row['delivery_boy_commission_rate']);
-			}
+			$comm_rate = (!empty($row['delivery_boy_commission']) && floatval($row['delivery_boy_commission']) > 0)
+				? floatval($row['delivery_boy_commission'])
+				: ((!empty($row['delivery_boy_commission_rate']) && floatval($row['delivery_boy_commission_rate']) > 0)
+					? floatval($row['delivery_boy_commission_rate'])
+					: $global_comm);
 
 			$tempRow['trip_fare'] = '&#8377; ' . number_format($trip_fare, 2);
 			$tempRow['platform_fee'] = '<span class="text-primary" style="font-weight:600;">&#8377; ' . number_format($plat_fee, 2) . '</span>';
@@ -3233,7 +3234,7 @@ if ($role === 'sub admin') {
                 db.name             AS delivery_boy_name,
                 db.mobile           AS delivery_boy_mobile,
                 db.bonus            AS delivery_boy_bonus,
-                db.commission       AS delivery_boy_commission,
+                COALESCE(o.delivery_boy_commission, db.commission) AS delivery_boy_commission,
                 db.zone_id          AS delivery_boy_zone_id,
                 dz.name             AS delivery_boy_zone_name,
                 o.zone_id,
@@ -3262,7 +3263,7 @@ if ($role === 'sub admin') {
                 -- No DISTINCT here, and same ORDER BY oi.id as above, so this
                 -- list stays the same length/order as product_details.
                 GROUP_CONCAT(
-                    COALESCE(pv.discounted_price, 0)
+                    COALESCE(NULLIF(oi.discounted_price, 0), oi.price, pv.discounted_price, 0)
                     ORDER BY oi.id SEPARATOR '||'
                 ) AS discounted_price_list
      
@@ -3546,7 +3547,7 @@ if ($role === 'sub admin') {
                 o.id,
                 se.name            AS seller_name,
                 se.mobile          AS seller_mobile,
-                se.commission      AS seller_commission,
+                COALESCE(o.seller_commission, se.commission) AS seller_commission,
                 us.name             AS user_name,
                 us.mobile           AS user_mobile,
                 o.address,
@@ -3577,12 +3578,12 @@ if ($role === 'sub admin') {
                 -- No DISTINCT here, and same ORDER BY oi.id as above, so this
                 -- list stays the same length/order as product_details.
                 GROUP_CONCAT(
-                    COALESCE(NULLIF(oi.vendor_price, ''), pv.vendor_price, 0)
+                    COALESCE(NULLIF(oi.vendor_price, ''), NULLIF(pv.vendor_price, ''), oi.price, 0)
                     ORDER BY oi.id SEPARATOR '||'
                 ) AS vendor_price_list,
      
                 GROUP_CONCAT(
-                    COALESCE(pv.discounted_price, 0)
+                    COALESCE(NULLIF(oi.discounted_price, 0), oi.price, pv.discounted_price, 0)
                     ORDER BY oi.id SEPARATOR '||'
                 ) AS discounted_price_list,
 

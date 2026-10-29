@@ -380,6 +380,19 @@ if ($action == 'place_admin_order') {
     $payment_status = ($payment_method === 'Paid to Admin') ? 1 : 0;
     $order_status_arr = array(array('received', date("d-m-Y h:i:sa")));
 
+    // Snapshot commissions
+    $admin_seller_comm = 0.0;
+    if (!empty($seller_id)) {
+        $db->sql("SELECT commission FROM seller WHERE id = " . (int)$seller_id . " LIMIT 1");
+        $asc_res = $db->getResult();
+        if (!empty($asc_res) && isset($asc_res[0]['commission']) && $asc_res[0]['commission'] !== '' && floatval($asc_res[0]['commission']) > 0) {
+            $admin_seller_comm = floatval($asc_res[0]['commission']);
+        } else {
+            $admin_seller_comm = isset($settings['seller_commission']) && $settings['seller_commission'] !== '' ? floatval($settings['seller_commission']) : 0.0;
+        }
+    }
+    $admin_db_comm = isset($settings['delivery_boy_commission']) && $settings['delivery_boy_commission'] !== '' ? floatval($settings['delivery_boy_commission']) : 5.0;
+
     // 4. Insert Order
     $order_data = array(
         'user_id' => $user_id,
@@ -392,6 +405,8 @@ if ($action == 'place_admin_order') {
         'delivery_charge' => $delivery_charge,
         'platform_fee' => $platform_fee,
         'convenience_fee' => $convenience_fee,
+        'seller_commission' => $admin_seller_comm,
+        'delivery_boy_commission' => $admin_db_comm,
         'wallet_balance' => 0,
         'total' => $total_subtotal,
         'tax_amount' => $tax_amount,

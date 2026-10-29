@@ -278,6 +278,7 @@ $platform_fee = $zone_fees['platform_fee'];
 $convenience_fee = $zone_fees['convenience_fee'];
 $gst = $zone_fees['gst'];
 $grand_total = $zone_fees['grand_total'];
+$request_db_commission = isset($sys_settings['delivery_boy_commission']) && $sys_settings['delivery_boy_commission'] !== '' ? floatval($sys_settings['delivery_boy_commission']) : 5.0;
 
 $data = array(
 	'user_id' 		=> $user_id,
@@ -291,6 +292,7 @@ $data = array(
 	'total_price' 	=> $total_price,
 	'platform_fee' 	=> $platform_fee,
 	'convenience_fee' => $convenience_fee,
+	'delivery_boy_commission' => $request_db_commission,
 	'gst' 			=> $gst,
 	'grand_total' 	=> $grand_total,
 	'payment_status'=> $payment_status,
