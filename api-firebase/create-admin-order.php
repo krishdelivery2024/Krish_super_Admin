@@ -41,6 +41,24 @@ if ($action == 'get_customer_by_phone') {
     $db->sql("SELECT id, name, mobile, address, latitude, longitude FROM users WHERE mobile = '$clean_mobile' LIMIT 1");
     $res = $db->getResult();
     if (!empty($res)) {
+        $uid = (int) $res[0]['id'];
+        $alt_mobile = '';
+        $db->sql("SELECT alternate_mobile, address, latitude, longitude FROM user_address WHERE user_id = $uid ORDER BY id DESC LIMIT 1");
+        $adr_res = $db->getResult();
+        if (!empty($adr_res)) {
+            if (!empty($adr_res[0]['alternate_mobile'])) {
+                $alt_mobile = $adr_res[0]['alternate_mobile'];
+            }
+            if (!empty($adr_res[0]['address'])) {
+                $res[0]['address'] = $adr_res[0]['address'];
+            }
+            if (!empty($adr_res[0]['latitude']) && (float) $adr_res[0]['latitude'] != 0) {
+                $res[0]['latitude'] = $adr_res[0]['latitude'];
+            }
+            if (!empty($adr_res[0]['longitude']) && (float) $adr_res[0]['longitude'] != 0) {
+                $res[0]['longitude'] = $adr_res[0]['longitude'];
+            }
+        }
         echo json_encode(array(
             'error' => false,
             'found' => true,
@@ -48,6 +66,7 @@ if ($action == 'get_customer_by_phone') {
                 'id' => $res[0]['id'],
                 'name' => $res[0]['name'],
                 'mobile' => $res[0]['mobile'],
+                'alternate_mobile' => $alt_mobile,
                 'address' => $res[0]['address'],
                 'latitude' => $res[0]['latitude'],
                 'longitude' => $res[0]['longitude']
@@ -220,6 +239,7 @@ if ($action == 'calculate_fees') {
 if ($action == 'place_admin_order') {
     $name = isset($_POST['name']) ? trim($_POST['name']) : '';
     $mobile = isset($_POST['mobile']) ? trim($_POST['mobile']) : '';
+    $alternate_mobile = isset($_POST['alternate_mobile']) ? trim($_POST['alternate_mobile']) : '';
     $address = isset($_POST['address']) ? trim($_POST['address']) : '';
     $zone_id = isset($_POST['zone_id']) ? (int) $_POST['zone_id'] : 0;
     $seller_id = isset($_POST['seller_id']) ? (int) $_POST['seller_id'] : 0;
@@ -330,9 +350,11 @@ if ($action == 'place_admin_order') {
             continue;
 
         $db->sql("SELECT pv.*, p.name as product_name, p.seller_id as p_seller_id, 
-                         COALESCE(p.sgst, 0) as p_sgst, COALESCE(p.cgst, 0) as p_cgst, COALESCE(p.igst, 0) as p_igst 
+                         COALESCE(p.sgst, 0) as p_sgst, COALESCE(p.cgst, 0) as p_cgst, COALESCE(p.igst, 0) as p_igst,
+                         COALESCE(u.short_code, u.name, '') as unit_name
                   FROM product_variant pv 
                   JOIN products p ON p.id = pv.product_id 
+                  LEFT JOIN unit u ON u.id = pv.measurement_unit_id
                   WHERE pv.id = $vid LIMIT 1");
         $var_res = $db->getResult();
         if (empty($var_res))
@@ -354,12 +376,15 @@ if ($action == 'place_admin_order') {
         $line_subtotal = round($unit_price * $qty, 2);
         $total_subtotal += $line_subtotal;
 
+        $unit_str = !empty($vrow['unit_name']) ? $vrow['unit_name'] : '';
+
         $item_records[] = array(
             'variant_id' => $vid,
             'product_id' => $vrow['product_id'],
             'product_name' => $vrow['product_name'],
             'type' => $vrow['type'],
             'measurement' => $vrow['measurement'],
+            'unit' => $unit_str,
             'measurement_unit_id' => $vrow['measurement_unit_id'],
             'stock_unit_id' => $vrow['stock_unit_id'],
             'price' => $price,
@@ -409,6 +434,7 @@ if ($action == 'place_admin_order') {
         'seller_id' => $seller_id,
         'store_id' => 0,
         'mobile' => $db->escapeString($function->xss_clean($mobile)),
+        'alternate_mobile' => $db->escapeString($function->xss_clean($alternate_mobile)),
         'name' => $db->escapeString($function->xss_clean($name)),
         'email' => '',
         'delivery_method' => 'doorstep',
@@ -460,6 +486,9 @@ if ($action == 'place_admin_order') {
             'discounted_price' => $itm['discounted_price'],
             'vendor_price' => $itm['vendor_price'],
             'discount' => 0,
+            'product_name' => $db->escapeString($itm['product_name']),
+            'measurement' => $db->escapeString($itm['measurement']),
+            'unit' => $db->escapeString($itm['unit']),
             'sgst' => $itm['sgst'],
             'cgst' => $itm['cgst'],
             'igst' => $itm['igst'],

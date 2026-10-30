@@ -196,6 +196,12 @@ $default_delivery_charge = isset($settings['delivery_charge']) && is_numeric($se
 .pac-container {
     z-index: 99999 !important;
 }
+#orderSuccessModal {
+    z-index: 105000 !important;
+}
+.modal-backdrop {
+    z-index: 104000 !important;
+}
 </style>
 
 <div class="content-wrapper" style="padding: 20px;">
@@ -422,9 +428,10 @@ $default_delivery_charge = isset($settings['delivery_charge']) && is_numeric($se
 </div>
 
 <!-- SUCCESS MODAL -->
-<div class="modal fade" id="orderSuccessModal" tabindex="-1" role="dialog" data-backdrop="static" data-keyboard="false">
-    <div class="modal-dialog" role="document">
-        <div class="modal-content" style="border-radius: 8px; text-align: center; padding: 25px 20px;">
+<div class="modal fade" id="orderSuccessModal" tabindex="-1" role="dialog" aria-hidden="true" style="z-index: 105000;">
+    <div class="modal-dialog" role="document" style="margin-top: 80px; z-index: 105001;">
+        <div class="modal-content" style="border-radius: 8px; text-align: center; padding: 25px 20px; position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="position: absolute; right: 15px; top: 12px; font-size: 26px; color: #555; opacity: 0.7; outline: none; border: none; background: transparent; cursor: pointer;">&times;</button>
             <div style="margin-bottom: 15px;">
                 <div style="width: 70px; height: 70px; border-radius: 50%; background: #e8f5e9; color: #2e7d32; font-size: 38px; line-height: 70px; margin: 0 auto;">
                     <i class="fa fa-check"></i>
@@ -540,6 +547,15 @@ window.initDeliveryMap = function() {
 $(document).ready(function(){
     var cartItems = {}; // key: variant_id, value: { variant_id, product_id, product_name, measurement, price, qty }
     var loadedProducts = [];
+
+    // Move modal directly under <body> to prevent AdminLTE wrapper stacking-context from trapping it under backdrop
+    $('#orderSuccessModal').appendTo('body');
+
+    // Clean up backdrop & body classes when modal is hidden
+    $('#orderSuccessModal').on('hidden.bs.modal', function () {
+        $('.modal-backdrop').remove();
+        $('body').removeClass('modal-open').css('padding-right', '');
+    });
 
     // GPS Location Detector Button
     $('#btn_detect_gps').on('click', function() {
@@ -1031,6 +1047,8 @@ $(document).ready(function(){
 
     $('#modal_create_another_btn').on('click', function(){
         $('#orderSuccessModal').modal('hide');
+        $('.modal-backdrop').remove();
+        $('body').removeClass('modal-open').css('padding-right', '');
         // Reset inputs
         $('#cust_name').val('');
         $('#cust_mobile').val('');
