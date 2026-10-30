@@ -25,7 +25,7 @@ $support_email = $settings['support_email'];
 	$config = $function->get_configurations();
 		if(isset($config['system_timezone']) && isset($config['system_timezone_gmt'])){
 			date_default_timezone_set($config['system_timezone']);
-		//	$db->sql("SET `time_zone` = '".$config['system_timezone_gmt']."'");
+			$db->sql("SET `time_zone` = '".$config['system_timezone_gmt']."'");
 		}else{
 	date_default_timezone_set('Asia/Kolkata');
 	$db->sql("SET `time_zone` = '+05:30'");

@@ -2375,6 +2375,7 @@ if ($role === 'sub admin') {
 			    $tempRow['status']="<label class='label label-danger'>Deactive</label>";
             else
                 $tempRow['status']="<label class='label label-success'>Active</label>";
+			$tempRow['created_at'] = !empty($row['created_at']) ? date('d-m-Y H:i', strtotime($row['created_at'])) : '-';
 			$tempRow['operate'] = $operate;
 			$rows[] = $tempRow;
 		}
@@ -2415,7 +2416,7 @@ if ($role === 'sub admin') {
 			$tempRow['id'] = $row['id'];
 			$tempRow['name'] = $row['name'];
 			$tempRow['status'] = ($row['status'] == 1) ? "<label class='label label-success'>Active</label>" : "<label class='label label-danger'>Inactive</label>";
-			$tempRow['created_at'] = $row['created_at'];
+			$tempRow['created_at'] = !empty($row['created_at']) ? date('d-m-Y H:i', strtotime($row['created_at'])) : '-';
 			$tempRow['operate'] = $operate;
 			$rows[] = $tempRow;
 		}
@@ -2461,6 +2462,7 @@ if ($role === 'sub admin') {
 			$tempRow['helper_price'] = '&#8377; '.number_format((float)$row['helper_price'], 2).'/helper';
 			$tempRow['sort_order'] = $row['sort_order'];
 			$tempRow['status'] = ($row['status'] == 1) ? "<label class='label label-success'>Active</label>" : "<label class='label label-danger'>Inactive</label>";
+			$tempRow['created_at'] = !empty($row['created_at']) ? date('d-m-Y H:i', strtotime($row['created_at'])) : '-';
 			$tempRow['operate'] = $operate;
 			$rows[] = $tempRow;
 		}
@@ -2553,7 +2555,8 @@ if ($role === 'sub admin') {
 			} else {
 				$tempRow['status'] = "<label class='label label-warning'>Order Placed</label>";
 			}
-			$tempRow['created_at'] = date('d-m-Y H:i', strtotime($row['created_at']));
+			$tempRow['created_at'] = !empty($row['created_at']) ? date('d-m-Y H:i', strtotime($row['created_at'])) : '-';
+			$tempRow['order_date'] = $tempRow['created_at'];
 			$tempRow['operate'] = $operate;
 			$rows[] = $tempRow;
 		}
@@ -2653,7 +2656,8 @@ if ($role === 'sub admin') {
 			}else{
 				$tempRow['status']="<label class='label label-warning'>Order Placed</label>";
 			}
-			$tempRow['created_at'] = $row['created_at'];
+			$tempRow['created_at'] = !empty($row['created_at']) ? date('d-m-Y H:i', strtotime($row['created_at'])) : '-';
+			$tempRow['order_date'] = $tempRow['created_at'];
 			$tempRow['operate'] = $operate;
 			$rows[] = $tempRow;
 		}
@@ -2799,7 +2803,8 @@ if ($role === 'sub admin') {
 				$tempRow['payment'] = "<span class='label label-warning'>PENDING (" . $pay_method . ")</span>";
 			}
 
-			$tempRow['created_at'] = date('d-m-Y H:i', strtotime($row['created_at']));
+			$tempRow['created_at'] = !empty($row['created_at']) ? date('d-m-Y H:i', strtotime($row['created_at'])) : '-';
+			$tempRow['order_date'] = $tempRow['created_at'];
 			$rows[] = $tempRow;
 		}
 		$bulkData['rows'] = $rows;
@@ -2890,7 +2895,8 @@ if ($role === 'sub admin') {
 				$tempRow['status'] = "<label class='label label-warning'>".$row['status']."</label>";
 			}
 			$tempRow['message'] = $row['message'];
-			$tempRow['transaction_date'] = $row['transaction_date'];
+			$tempRow['transaction_date'] = !empty($row['transaction_date']) ? date('d-m-Y H:i', strtotime($row['transaction_date'])) : (!empty($row['date_created']) ? date('d-m-Y H:i', strtotime($row['date_created'])) : '-');
+			$tempRow['order_date'] = $tempRow['transaction_date'];
 			$tempRow['operate'] = $operate;
 			$rows[] = $tempRow;
 		}
@@ -3148,6 +3154,7 @@ if ($role === 'sub admin') {
      
         $sort_map = array(
             'id'                  => 'o.id',
+            'order_date'          => 'o.date_added',
             'delivery_boy_name'   => 'db.name',
             'delivery_boy_mobile' => 'db.mobile',
             'zone_name'           => 'z.name',
@@ -3380,6 +3387,7 @@ if ($role === 'sub admin') {
             // reported alongside it because the two can legitimately differ.
             $tempRow['zone_name'] = !empty($row['zone_name']) ? $row['zone_name'] : 'Unassigned';
             $tempRow['delivery_boy_zone_name'] = !empty($row['delivery_boy_zone_name']) ? $row['delivery_boy_zone_name'] : '-';
+            $tempRow['order_date'] = !empty($row['date_added']) ? date('d-m-Y H:i', strtotime($row['date_added'])) : '-';
      
             $tempRow['product_details'] = !empty($row['product_details'])
                 ? explode('||', $row['product_details'])
@@ -3753,7 +3761,7 @@ if ($role === 'sub admin') {
                 ? explode('||', $row['product_details'])
                 : array('-');
      
-            $tempRow['order_date']     = $row['date_added'];
+            $tempRow['order_date']     = !empty($row['date_added']) ? date('d-m-Y H:i', strtotime($row['date_added'])) : '-';
             $tempRow['final_total']    = $row['final_total'];
             // Read from the order instead of a hardcoded 2, so a zone that
             // overrides the platform fee reports what was actually charged.

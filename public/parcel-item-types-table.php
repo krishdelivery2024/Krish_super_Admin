@@ -29,6 +29,7 @@
                             <th data-field="name" data-sortable="true">Name</th>
                             <th data-field="image">Icon</th>
                             <th data-field="status">Status</th>
+                            <th data-field="created_at" data-sortable="true">Date</th>
                             <th data-field="operate">Action</th>
                         </tr>
                         </thead>

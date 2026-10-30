@@ -189,6 +189,7 @@
                             <th data-field="delivery_boy_mobile" data-sortable="true">Delivery Boy Mobile</th>
                             <th data-field="zone_name" data-sortable="true">Order Zone</th>
                             <th data-field="delivery_boy_zone_name" data-sortable="true">Boy's Zone</th>
+                            <th data-field="order_date" data-sortable="true">Order Date</th>
                             <th data-field="product_details" data-formatter="productListFormatter">Product / Qty / Unit</th>
                             <th data-field="discounted_price" data-formatter="priceListFormatter" data-align="right" data-footer-formatter="dbMoneyFormatter">Discounted Price (&#8377;)</th>
                             <th data-field="platform_fee" data-sortable="true" data-align="right" data-footer-formatter="dbMoneyFormatter">Platform Fee (&#8377;)</th>

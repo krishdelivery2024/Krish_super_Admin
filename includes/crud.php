@@ -13,6 +13,7 @@ define('WP_DEBUG_DISPLAY', true); */
  
  error_reporting(E_ALL);
 ini_set('display_errors', 1);
+date_default_timezone_set('Asia/Kolkata');
 
 define('DOMAIN_URL','http://127.0.0.1/Krish/production/'); /* chnage to your domain here - Don't forget to add forward slash at the end like this "/" */
 // define('DOMAIN_URL','https://www.krishdelivery.com/'); /* chnage to your domain here - Don't forget to add forward slash at the end like this "/" */
@@ -61,6 +62,8 @@ class Database{
                 return false; // Problem selecting database return FALSE
             }else{
                 $this->con = true;
+                $this->myconn->query("SET NAMES utf8");
+                $this->myconn->query("SET `time_zone` = '+05:30'");
                 return true; // Connection has been made return TRUE
             } 
         }else{  

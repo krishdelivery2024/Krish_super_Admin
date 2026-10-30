@@ -30,17 +30,19 @@ $seller_id = $_SESSION['id'];
 
 // ================= DATE FORMAT =================
 
-$newmonth = $_GET['start'];
+function parse_date_param($d) {
+    $d = trim((string)$d);
+    if (strpos($d, '/') !== false) {
+        $parts = explode('/', $d);
+        if (count($parts) === 3) {
+            return trim($parts[2]) . '-' . trim($parts[1]) . '-' . trim($parts[0]);
+        }
+    }
+    return $d;
+}
 
-$monthformate = explode("/", trim($newmonth));
-
-$month = trim($monthformate[2])."-".$monthformate[1]."-".$monthformate[0];
-
-$newdaysago = $_GET['end'];
-
-$daysformate = explode("/", trim($newdaysago));
-
-$daysago = trim($daysformate[2])."-".$daysformate[1]."-".$daysformate[0];
+$month = parse_date_param($_GET['start'] ?? '');
+$daysago = parse_date_param($_GET['end'] ?? '');
 
 // ================= SEARCH =================
 
@@ -155,7 +157,7 @@ foreach ($rows as $row) {
 
         $row['qty'],
 
-        $row['date_added'],
+        !empty($row['date_added']) ? date('d-m-Y H:i', strtotime($row['date_added'])) : '-',
 
         $row['final_total'],
 

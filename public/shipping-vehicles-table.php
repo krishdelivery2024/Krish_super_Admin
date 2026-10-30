@@ -40,6 +40,7 @@ include_once('includes/functions.php');
                             <th data-field="helper_price" data-sortable="true">Helper Rate</th>
                             <th data-field="sort_order" data-sortable="true">Sort Order</th>
                             <th data-field="status">Status</th>
+                            <th data-field="created_at" data-sortable="true">Date</th>
                             <th data-field="operate">Action</th>
                         </tr>
                     </thead>
