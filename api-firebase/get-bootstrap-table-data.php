@@ -151,9 +151,9 @@
 		$db->sql($sql);
 		$res = $db->getResult();
 		for($i=0;$i<count($res);$i++) {
-			$sql="select oi.*,p.name as name, u.name as uname,v.measurement, (SELECT short_code FROM unit un where un.id=v.measurement_unit_id)as mesurement_unit_name,(SELECT status FROM orders o where o.id=oi.order_id)as order_status from `order_items` oi 
-			    join product_variant v on oi.product_variant_id=v.id 
-			    join products p on p.id=v.product_id 
+			$sql="select oi.*, COALESCE(NULLIF(oi.product_name, ''), p.name, '-') as name, u.name as uname, COALESCE(NULLIF(oi.measurement, ''), v.measurement, '') as measurement, COALESCE(NULLIF(oi.unit, ''), (SELECT short_code FROM unit un where un.id=v.measurement_unit_id), '') as mesurement_unit_name,(SELECT status FROM orders o where o.id=oi.order_id)as order_status from `order_items` oi 
+			    LEFT join product_variant v on oi.product_variant_id=v.id 
+			    LEFT join products p on p.id=v.product_id 
 			    JOIN users u ON u.id=oi.user_id 
 			    where oi.order_id=".$res[$i]['id'];
     		$db->sql($sql);
@@ -170,7 +170,7 @@
     			$temp = '';
     			$total_amt=0;
     			foreach($items as $item){
-    				$temp .= "<b>ID :</b>".$item['id']."<b> Product Variant Id :</b> ".$item['product_variant_id']."<b> Name : </b>".$item['name']." <b>Unit : </b>".$item['measurement'].$item['mesurement_unit_name']." <b>Price : </b>".$item['price']." <b>QTY : </b>".$item['quantity']." <b>Subtotal : </b>".$item['quantity']*$item['price']."<br>------<br>";
+    				$temp .= "<b>ID :</b>".$item['id']."<b> Product Variant Id :</b> ".$item['product_variant_id']."<b> Name : </b>".$item['name']." <b>Unit : </b>".$item['measurement']." ".$item['mesurement_unit_name']." <b>Price : </b>".$item['price']." <b>QTY : </b>".$item['quantity']." <b>Subtotal : </b>".$item['quantity']*$item['price']."<br>------<br>";
     				$total_amt += $item['sub_total'];
     			}
     
@@ -366,9 +366,9 @@
 		$res = $db->getResult();
  		//print_r($res);
 		for($i=0;$i<count($res);$i++) {
-			$sql="select oi.*,p.name as name, u.name as uname,v.measurement, (SELECT short_code FROM unit un where un.id=v.measurement_unit_id)as mesurement_unit_name,(SELECT status FROM orders o where o.id=oi.order_id)as order_status from `order_items` oi 
-			    join product_variant v on oi.product_variant_id=v.id 
-			    join products p on p.id=v.product_id 
+			$sql="select oi.*, COALESCE(NULLIF(oi.product_name, ''), p.name, '-') as name, u.name as uname, COALESCE(NULLIF(oi.measurement, ''), v.measurement, '') as measurement, COALESCE(NULLIF(oi.unit, ''), (SELECT short_code FROM unit un where un.id=v.measurement_unit_id), '') as mesurement_unit_name,(SELECT status FROM orders o where o.id=oi.order_id)as order_status from `order_items` oi 
+			    LEFT join product_variant v on oi.product_variant_id=v.id 
+			    LEFT join products p on p.id=v.product_id 
 			    JOIN users u ON u.id=oi.user_id 
 			    where oi.order_id=".$res[$i]['id'];
     		$db->sql($sql);
@@ -386,7 +386,7 @@
 			$temp = '';
 			$total_amt=0;
 			foreach($items as $item){
-				$temp .= "<b>ID :</b>".$item['id']."<b> Product Variant Id :</b> ".$item['product_variant_id']."<b> Name : </b>".$item['name']." <b>Unit : </b>".$item['measurement'].$item['mesurement_unit_name']." <b>Price : </b>".$item['price']." <b>QTY : </b>".$item['quantity']." <b>Subtotal : </b>".$item['quantity']*$item['price']."<br>------<br>";
+				$temp .= "<b>ID :</b>".$item['id']."<b> Product Variant Id :</b> ".$item['product_variant_id']."<b> Name : </b>".$item['name']." <b>Unit : </b>".$item['measurement']." ".$item['mesurement_unit_name']." <b>Price : </b>".$item['price']." <b>QTY : </b>".$item['quantity']." <b>Subtotal : </b>".$item['quantity']*$item['price']."<br>------<br>";
 				$total_amt += $item['sub_total'];
 			}
 
@@ -3572,10 +3572,9 @@ if ($role === 'sub admin') {
                 -- per item BEFORE aggregating, so they can never drift apart.
                 GROUP_CONCAT(
                     CONCAT(
-                        COALESCE(p.name, '-'),
+                        COALESCE(NULLIF(oi.product_name, ''), p.name, '-'),
                         ' (',
-                        COALESCE(pv.measurement, '-'),
-                        COALESCE(un.name, ''),
+                        TRIM(CONCAT(COALESCE(NULLIF(oi.measurement, ''), pv.measurement, ''), ' ', COALESCE(NULLIF(oi.unit, ''), un.short_code, un.name, ''))),
                         ')',
                         ' - x ',
                         COALESCE(oi.quantity, 0)

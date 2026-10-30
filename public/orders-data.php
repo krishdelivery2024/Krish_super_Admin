@@ -14,11 +14,11 @@ $error = array();
 if (isset($_POST['update_order_status'])) {
     $process = $db->escapeString($function->xss_clean($_POST['status']));
 }
-    $sql="SELECT oi.*,oi.id AS order_item_id,v.product_id, v.measurement,o.*,o.total as order_total,o.wallet_balance,oi.active_status as oi_active_status,u.email,u.name as uname,u.country_code,o.status as order_status,p.name as pname,p.hsn as hsn ,oi.sgst as sgstp,oi.cgst as cgstp,oi.igst as igstp,(SELECT short_code FROM unit un where un.id=v.measurement_unit_id)as mesurement_unit_name 
+    $sql="SELECT oi.*,oi.id AS order_item_id,v.product_id, COALESCE(NULLIF(oi.measurement, ''), v.measurement, '') as measurement,o.*,o.total as order_total,o.wallet_balance,oi.active_status as oi_active_status,u.email,u.name as uname,u.country_code,o.status as order_status,COALESCE(NULLIF(oi.product_name, ''), p.name, '-') as pname,p.hsn as hsn ,oi.sgst as sgstp,oi.cgst as cgstp,oi.igst as igstp,COALESCE(NULLIF(oi.unit, ''), (SELECT short_code FROM unit un where un.id=v.measurement_unit_id), '') as mesurement_unit_name 
         FROM `order_items` oi
         JOIN users u ON u.id=oi.user_id
-        JOIN product_variant v ON oi.product_variant_id=v.id
-        JOIN products p ON p.id=v.product_id
+        LEFT JOIN product_variant v ON oi.product_variant_id=v.id
+        LEFT JOIN products p ON p.id=v.product_id
         JOIN orders o ON o.id=oi.order_id
     WHERE o.id=".$ID;
     $db->sql($sql);

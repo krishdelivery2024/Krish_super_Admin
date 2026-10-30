@@ -69,6 +69,7 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'add_address')) {
 	$address_type 		= (isset($_POST['address_type']))?$db->escapeString($_POST['address_type']):"";
     $name 		= (isset($_POST['name']))?$db->escapeString($_POST['name']):"";
     $mobile 		= (isset($_POST['mobile']))?$db->escapeString($_POST['mobile']):"";
+    $alternate_mobile = (isset($_POST['alternate_mobile']))?$db->escapeString($_POST['alternate_mobile']):"";
     $state 		= (isset($_POST['state_id']))?$db->escapeString($_POST['state_id']):((isset($_POST['state']))?$db->escapeString($_POST['state']):"");
     $city 		= (isset($_POST['city_id']))?$db->escapeString($_POST['city_id']):((isset($_POST['city']))?$db->escapeString($_POST['city']):"");
     $area 		= (isset($_POST['area_id']))?$db->escapeString($_POST['area_id']):((isset($_POST['area']))?$db->escapeString($_POST['area']):"");
@@ -127,6 +128,7 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'add_address')) {
 		'address_type' => $address_type,
 		'name' => $name,
 	    'mobile' => $mobile,
+	    'alternate_mobile' => $alternate_mobile,
 	    'email' => $email,
 	    'user_id' => $user_id,
 	    'state' => $state,
@@ -172,6 +174,7 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'update_address')) {
 	$address_type 		= (isset($_POST['address_type']))?$db->escapeString($_POST['address_type']):"";
     $name 		= (isset($_POST['name']))?$db->escapeString($_POST['name']):"";
     $mobile 		= (isset($_POST['mobile']))?$db->escapeString($_POST['mobile']):"";
+    $alternate_mobile = (isset($_POST['alternate_mobile']))?$db->escapeString($_POST['alternate_mobile']):"";
     $email 		= (isset($_POST['email']))?$db->escapeString($_POST['email']):"";
     $state 		= (isset($_POST['state_id']))?$db->escapeString($_POST['state_id']):((isset($_POST['state']))?$db->escapeString($_POST['state']):"");
     $city 		= (isset($_POST['city_id']))?$db->escapeString($_POST['city_id']):((isset($_POST['city']))?$db->escapeString($_POST['city']):"");
@@ -190,6 +193,7 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'update_address')) {
 		'address_type' => $address_type,
 	    'name' => $name,
 	    'mobile' => $mobile,
+	    'alternate_mobile' => $alternate_mobile,
 		'email'=>$email,
 	    'state' => $state,
 		'city' => $city,

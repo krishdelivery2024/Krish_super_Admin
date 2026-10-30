@@ -442,6 +442,7 @@
                 <?php 
                     $db->select('unit','*');
                     $unit_data = $db->getResult();
+                    $res_unit = $unit_data;
                  ?>
               
             <div class="box-body">

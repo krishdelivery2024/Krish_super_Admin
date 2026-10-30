@@ -123,6 +123,14 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 	$user_id = $db->escapeString($function->xss_clean($_POST['user_id']));
 	$seller_id = $db->escapeString($function->xss_clean($_POST['seller_id']));
 	$mobile = $db->escapeString($function->xss_clean($_POST['mobile']));
+	$alternate_mobile = (isset($_POST['alternate_mobile'])) ? $db->escapeString($function->xss_clean($_POST['alternate_mobile'])) : '';
+	if(empty($alternate_mobile) && !empty($user_id)){
+		$db->sql("SELECT alternate_mobile FROM user_address WHERE user_id = '$user_id' AND alternate_mobile != '' ORDER BY is_default DESC LIMIT 1");
+		$alt_res = $db->getResult();
+		if(!empty($alt_res) && !empty($alt_res[0]['alternate_mobile'])){
+			$alternate_mobile = $alt_res[0]['alternate_mobile'];
+		}
+	}
 	$name = $db->escapeString($function->xss_clean($_POST['name']));
 	$email = $db->escapeString($function->xss_clean($_POST['email']));
     $store_id = (isset($_POST['store_id']) && is_numeric($_POST['store_id'])) ? $db->escapeString($function->xss_clean($_POST['store_id'])) : 0;
@@ -388,6 +396,7 @@ $db->sql("SELECT * FROM delivery_method WHERE id=1");
 		'seller_id'=>$seller_id,
 		'store_id'=>$store_id,
 		'mobile'=>$mobile,
+		'alternate_mobile'=>$alternate_mobile,
 		'name'=>$name,
 		'email'=>$email,
 		'delivery_method'=>$delivery_method,
@@ -460,6 +469,9 @@ $db->sql("SELECT * FROM delivery_method WHERE id=1");
 		    'user_id'=>$user_id,
 		    'order_id'=>$db->escapeString($order_id),
 		    'product_variant_id'=>$db->escapeString($product_variant_id),
+		    'product_name'=>isset($item_details[$i]['name']) ? $db->escapeString($item_details[$i]['name']) : '',
+		    'measurement'=>isset($item_details[$i]['measurement']) ? $db->escapeString($item_details[$i]['measurement']) : '',
+		    'unit'=>isset($item_details[$i]['measurement_unit_name']) ? $db->escapeString($item_details[$i]['measurement_unit_name']) : '',
 		    'quantity'=>$db->escapeString($quantity),
 		    'price'=>$db->escapeString($price),
 		    'discounted_price'=>($is_offer == 1 && $offer_price > 0) ? $db->escapeString($offer_price) : $db->escapeString($discounted_price),

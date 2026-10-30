@@ -663,9 +663,9 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 }
 
 	for ($i = 0; $i < count($res); $i++) {
-		$sql = "select oi.*,p.name as name, v.measurement,p.image, (SELECT short_code FROM unit un where un.id=v.measurement_unit_id)as mesurement_unit_name from `order_items` oi
-            join product_variant v on oi.product_variant_id=v.id
-            join products p on p.id=v.product_id
+		$sql = "select oi.*,COALESCE(NULLIF(oi.product_name, ''), p.name, '-') as name, COALESCE(NULLIF(oi.measurement, ''), v.measurement, '') as measurement,p.image, COALESCE(NULLIF(oi.unit, ''), (SELECT short_code FROM unit un where un.id=v.measurement_unit_id), '') as mesurement_unit_name from `order_items` oi
+            LEFT join product_variant v on oi.product_variant_id=v.id
+            LEFT join products p on p.id=v.product_id
             where oi.order_id=" . $res[$i]['id'];
 
 		$db->sql($sql);

@@ -24,7 +24,7 @@ if (isset($_GET['id'])) {
     </script>
     <?php
 }
-$sql_outer="SELECT oi.*,oi.id AS order_item_id,v.product_id, v.measurement,u.*,o.*,u.name as uname,d.name as delivery_boy,o.status as order_status,oi.active_status as order_item_status,p.name as pname,p.hsn as hsn ,oi.sgst as sgstp,oi.cgst as cgstp,oi.igst as igstp,(SELECT short_code FROM unit un where un.id=v.measurement_unit_id)as mesurement_unit_name FROM `order_items` oi JOIN users u ON u.id=oi.user_id JOIN product_variant v ON oi.product_variant_id=v.id JOIN products p ON p.id=v.product_id JOIN orders o ON o.id=oi.order_id LEFT JOIN delivery_boys d ON o.delivery_boy_id=d.id WHERE o.id=".$ID;
+$sql_outer="SELECT oi.*,oi.id AS order_item_id,v.product_id, COALESCE(NULLIF(oi.measurement, ''), v.measurement, '') as measurement,u.*,o.*,u.name as uname,d.name as delivery_boy,o.status as order_status,oi.active_status as order_item_status,COALESCE(NULLIF(oi.product_name, ''), p.name, '-') as pname,p.hsn as hsn ,oi.sgst as sgstp,oi.cgst as cgstp,oi.igst as igstp,COALESCE(NULLIF(oi.unit, ''), (SELECT short_code FROM unit un where un.id=v.measurement_unit_id), '') as mesurement_unit_name FROM `order_items` oi JOIN users u ON u.id=oi.user_id LEFT JOIN product_variant v ON oi.product_variant_id=v.id LEFT JOIN products p ON p.id=v.product_id JOIN orders o ON o.id=oi.order_id LEFT JOIN delivery_boys d ON o.delivery_boy_id=d.id WHERE o.id=".$ID;
     // Execute query
     $db->sql($sql_outer);
     // store result 
