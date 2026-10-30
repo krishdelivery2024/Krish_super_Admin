@@ -63,7 +63,7 @@ if ($action == 'get_customer_by_phone') {
 // 2. GET RESTAURANTS (SELLERS) BY ZONE
 // ==============================================================
 if ($action == 'get_sellers_by_zone') {
-    $zone_id = isset($_POST['zone_id']) ? (int)$_POST['zone_id'] : 0;
+    $zone_id = isset($_POST['zone_id']) ? (int) $_POST['zone_id'] : 0;
     if ($zone_id <= 0) {
         echo json_encode(array('error' => true, 'message' => 'Valid Zone ID is required', 'sellers' => array()));
         exit;
@@ -79,7 +79,7 @@ if ($action == 'get_sellers_by_zone') {
     }
 
     // Determine current open/close status
-    $now_min = ((int)date('G') * 60) + (int)date('i');
+    $now_min = ((int) date('G') * 60) + (int) date('i');
     foreach ($sellers as &$s) {
         $is_open = true;
         if (isset($s['store_status']) && $s['store_status'] == 'false') {
@@ -88,8 +88,8 @@ if ($action == 'get_sellers_by_zone') {
         if (!empty($s['opening_time']) && !empty($s['closing_time'])) {
             $parts_o = explode(':', $s['opening_time']);
             $parts_c = explode(':', $s['closing_time']);
-            $open_min = ((int)$parts_o[0] * 60) + (int)$parts_o[1];
-            $close_min = ((int)$parts_c[0] * 60) + (int)$parts_c[1];
+            $open_min = ((int) $parts_o[0] * 60) + (int) $parts_o[1];
+            $close_min = ((int) $parts_c[0] * 60) + (int) $parts_c[1];
             if ($now_min < $open_min || $now_min >= $close_min) {
                 $is_open = false;
             }
@@ -107,7 +107,7 @@ if ($action == 'get_sellers_by_zone') {
 // 3. GET PRODUCTS & VARIANTS BY RESTAURANT (SELLER)
 // ==============================================================
 if ($action == 'get_products_by_seller') {
-    $seller_id = isset($_POST['seller_id']) ? (int)$_POST['seller_id'] : 0;
+    $seller_id = isset($_POST['seller_id']) ? (int) $_POST['seller_id'] : 0;
     if ($seller_id <= 0) {
         echo json_encode(array('error' => true, 'message' => 'Valid Seller ID is required', 'products' => array()));
         exit;
@@ -145,10 +145,10 @@ if ($action == 'get_products_by_seller') {
             );
         }
 
-        $price = (float)$r['price'];
-        $discounted_price = (float)$r['discounted_price'];
-        $is_offer = (int)$r['is_offer'];
-        $offer_price = (float)$r['offer_price'];
+        $price = (float) $r['price'];
+        $discounted_price = (float) $r['discounted_price'];
+        $is_offer = (int) $r['is_offer'];
+        $offer_price = (float) $r['offer_price'];
 
         $effective_price = $price;
         if ($is_offer == 1 && $offer_price > 0) {
@@ -180,9 +180,9 @@ if ($action == 'get_products_by_seller') {
 // 4. CALCULATE FEES (SUBTOTAL + PLATFORM + CONVENIENCE + DELIVERY)
 // ==============================================================
 if ($action == 'calculate_fees') {
-    $zone_id = isset($_POST['zone_id']) ? (int)$_POST['zone_id'] : 0;
-    $seller_id = isset($_POST['seller_id']) ? (int)$_POST['seller_id'] : 0;
-    $subtotal = isset($_POST['subtotal']) ? (float)$_POST['subtotal'] : 0.0;
+    $zone_id = isset($_POST['zone_id']) ? (int) $_POST['zone_id'] : 0;
+    $seller_id = isset($_POST['seller_id']) ? (int) $_POST['seller_id'] : 0;
+    $subtotal = isset($_POST['subtotal']) ? (float) $_POST['subtotal'] : 0.0;
     $custom_delivery = isset($_POST['delivery_charge']) ? trim($_POST['delivery_charge']) : '';
 
     $fee_settings = $settings;
@@ -194,10 +194,10 @@ if ($action == 'calculate_fees') {
     // Delivery charge resolution
     $delivery_charge = 0.0;
     if ($custom_delivery !== '' && is_numeric($custom_delivery)) {
-        $delivery_charge = (float)$custom_delivery;
+        $delivery_charge = (float) $custom_delivery;
     } else {
         // Default delivery charge from system settings
-        $delivery_charge = isset($settings['delivery_charge']) && is_numeric($settings['delivery_charge']) ? (float)$settings['delivery_charge'] : 45.0;
+        $delivery_charge = isset($settings['delivery_charge']) && is_numeric($settings['delivery_charge']) ? (float) $settings['delivery_charge'] : 45.0;
     }
 
     $final_total = round($subtotal + $delivery_charge + $platform_fee + $convenience_fee + $tax_amount, 2);
@@ -221,10 +221,10 @@ if ($action == 'place_admin_order') {
     $name = isset($_POST['name']) ? trim($_POST['name']) : '';
     $mobile = isset($_POST['mobile']) ? trim($_POST['mobile']) : '';
     $address = isset($_POST['address']) ? trim($_POST['address']) : '';
-    $zone_id = isset($_POST['zone_id']) ? (int)$_POST['zone_id'] : 0;
-    $seller_id = isset($_POST['seller_id']) ? (int)$_POST['seller_id'] : 0;
+    $zone_id = isset($_POST['zone_id']) ? (int) $_POST['zone_id'] : 0;
+    $seller_id = isset($_POST['seller_id']) ? (int) $_POST['seller_id'] : 0;
     $payment_method = isset($_POST['payment_method']) ? trim($_POST['payment_method']) : 'Paid to Admin';
-    $delivery_charge = isset($_POST['delivery_charge']) ? (float)$_POST['delivery_charge'] : 45.0;
+    $delivery_charge = isset($_POST['delivery_charge']) ? (float) $_POST['delivery_charge'] : 45.0;
     $notes = isset($_POST['notes']) ? trim($_POST['notes']) : '';
     $latitude = isset($_POST['latitude']) ? trim($_POST['latitude']) : '0';
     $longitude = isset($_POST['longitude']) ? trim($_POST['longitude']) : '0';
@@ -269,12 +269,20 @@ if ($action == 'place_admin_order') {
     $user_res = $db->getResult();
 
     if (!empty($user_res)) {
-        $user_id = (int)$user_res[0]['id'];
+        $user_id = (int) $user_res[0]['id'];
         $up_data = array();
-        if (!empty($name)) { $up_data['name'] = $db->escapeString($function->xss_clean($name)); }
-        if (!empty($address)) { $up_data['address'] = $db->escapeString($function->xss_clean($address)); }
-        if ($latitude != '0' && !empty($latitude)) { $up_data['latitude'] = $db->escapeString($latitude); }
-        if ($longitude != '0' && !empty($longitude)) { $up_data['longitude'] = $db->escapeString($longitude); }
+        if (!empty($name)) {
+            $up_data['name'] = $db->escapeString($function->xss_clean($name));
+        }
+        if (!empty($address)) {
+            $up_data['address'] = $db->escapeString($function->xss_clean($address));
+        }
+        if ($latitude != '0' && !empty($latitude)) {
+            $up_data['latitude'] = $db->escapeString($latitude);
+        }
+        if ($longitude != '0' && !empty($longitude)) {
+            $up_data['longitude'] = $db->escapeString($longitude);
+        }
         if (!empty($up_data)) {
             $db->update('users', $up_data, "id = $user_id");
         }
@@ -308,7 +316,7 @@ if ($action == 'place_admin_order') {
         );
         $db->insert('users', $new_user_data);
         $ins_res = $db->getResult();
-        $user_id = (int)$ins_res[0];
+        $user_id = (int) $ins_res[0];
     }
 
     // 2. Resolve items & prices
@@ -316,9 +324,10 @@ if ($action == 'place_admin_order') {
     $total_subtotal = 0.0;
 
     foreach ($items as $itm) {
-        $vid = isset($itm['variant_id']) ? (int)$itm['variant_id'] : 0;
-        $qty = isset($itm['quantity']) ? (int)$itm['quantity'] : 0;
-        if ($vid <= 0 || $qty <= 0) continue;
+        $vid = isset($itm['variant_id']) ? (int) $itm['variant_id'] : 0;
+        $qty = isset($itm['quantity']) ? (int) $itm['quantity'] : 0;
+        if ($vid <= 0 || $qty <= 0)
+            continue;
 
         $db->sql("SELECT pv.*, p.name as product_name, p.seller_id as p_seller_id, 
                          COALESCE(p.sgst, 0) as p_sgst, COALESCE(p.cgst, 0) as p_cgst, COALESCE(p.igst, 0) as p_igst 
@@ -326,14 +335,15 @@ if ($action == 'place_admin_order') {
                   JOIN products p ON p.id = pv.product_id 
                   WHERE pv.id = $vid LIMIT 1");
         $var_res = $db->getResult();
-        if (empty($var_res)) continue;
+        if (empty($var_res))
+            continue;
 
         $vrow = $var_res[0];
-        $price = (float)$vrow['price'];
-        $disc_price = (float)$vrow['discounted_price'];
-        $vendor_price = (float)$vrow['vendor_price'];
-        $is_offer = isset($vrow['is_offer']) ? (int)$vrow['is_offer'] : 0;
-        $offer_price = isset($vrow['offer_price']) ? (float)$vrow['offer_price'] : 0.0;
+        $price = (float) $vrow['price'];
+        $disc_price = (float) $vrow['discounted_price'];
+        $vendor_price = (float) $vrow['vendor_price'];
+        $is_offer = isset($vrow['is_offer']) ? (int) $vrow['is_offer'] : 0;
+        $offer_price = isset($vrow['offer_price']) ? (float) $vrow['offer_price'] : 0.0;
 
         if ($is_offer == 1 && $offer_price > 0) {
             $unit_price = $offer_price;
@@ -383,7 +393,7 @@ if ($action == 'place_admin_order') {
     // Snapshot commissions
     $admin_seller_comm = 0.0;
     if (!empty($seller_id)) {
-        $db->sql("SELECT commission FROM seller WHERE id = " . (int)$seller_id . " LIMIT 1");
+        $db->sql("SELECT commission FROM seller WHERE id = " . (int) $seller_id . " LIMIT 1");
         $asc_res = $db->getResult();
         if (!empty($asc_res) && isset($asc_res[0]['commission']) && $asc_res[0]['commission'] !== '' && floatval($asc_res[0]['commission']) > 0) {
             $admin_seller_comm = floatval($asc_res[0]['commission']);
@@ -415,7 +425,7 @@ if ($action == 'place_admin_order') {
         'payment_status' => $payment_status,
         'address' => $db->escapeString($function->xss_clean($address)),
         'delivery_city' => 0,
-        'delivery_state' => '',
+        'delivery_state' => 0,
         'delivery_zone' => $zone_id,
         'zone_id' => $zone_id,
         'gst_no' => '',
@@ -461,7 +471,7 @@ if ($action == 'place_admin_order') {
 
         // Deduct variant stock
         if ($itm['type'] == 'packet') {
-            $new_stock = (float)$itm['stock'] - (int)$itm['quantity'];
+            $new_stock = (float) $itm['stock'] - (int) $itm['quantity'];
             $db->sql("UPDATE product_variant SET stock = '$new_stock' WHERE id = " . $itm['variant_id']);
             if ($new_stock <= 0) {
                 $db->sql("UPDATE product_variant SET serve_for = 'Sold Out' WHERE id = " . $itm['variant_id']);
@@ -473,13 +483,17 @@ if ($action == 'place_admin_order') {
     $notif_message = "New order ID : #" . $order_id . " received please take note of it and proceed further";
     try {
         $function->send_new_order_notification("New Order Received", $notif_message, 'order');
-    } catch (Exception $e) {} catch (Error $e) {}
+    } catch (Exception $e) {
+    } catch (Error $e) {
+    }
 
     try {
         if (!empty($seller_id)) {
             $function->send_notification_to_seller($seller_id, "New Order Received", $notif_message, 'order', $order_id);
         }
-    } catch (Exception $e) {} catch (Error $e) {}
+    } catch (Exception $e) {
+    } catch (Error $e) {
+    }
 
     echo json_encode(array(
         'error' => false,
