@@ -3270,7 +3270,7 @@ if ($role === 'sub admin') {
                 -- No DISTINCT here, and same ORDER BY oi.id as above, so this
                 -- list stays the same length/order as product_details.
                 GROUP_CONCAT(
-                    COALESCE(NULLIF(oi.discounted_price, 0), oi.price, pv.discounted_price, 0)
+                    ROUND(COALESCE(NULLIF(oi.sub_total, 0), (COALESCE(NULLIF(oi.discounted_price, 0), oi.price, pv.discounted_price, 0) * COALESCE(oi.quantity, 1))), 2)
                     ORDER BY oi.id SEPARATOR '||'
                 ) AS discounted_price_list
      
@@ -3585,12 +3585,12 @@ if ($role === 'sub admin') {
                 -- No DISTINCT here, and same ORDER BY oi.id as above, so this
                 -- list stays the same length/order as product_details.
                 GROUP_CONCAT(
-                    COALESCE(NULLIF(oi.vendor_price, ''), NULLIF(pv.vendor_price, ''), oi.price, 0)
+                    ROUND(COALESCE(NULLIF(oi.vendor_price, ''), NULLIF(pv.vendor_price, ''), oi.price, 0) * COALESCE(oi.quantity, 1), 2)
                     ORDER BY oi.id SEPARATOR '||'
                 ) AS vendor_price_list,
      
                 GROUP_CONCAT(
-                    COALESCE(NULLIF(oi.discounted_price, 0), oi.price, pv.discounted_price, 0)
+                    ROUND(COALESCE(NULLIF(oi.sub_total, 0), (COALESCE(NULLIF(oi.discounted_price, 0), oi.price, pv.discounted_price, 0) * COALESCE(oi.quantity, 1))), 2)
                     ORDER BY oi.id SEPARATOR '||'
                 ) AS discounted_price_list,
 
