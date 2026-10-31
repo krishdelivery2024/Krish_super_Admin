@@ -15,6 +15,17 @@
     $db->sql("SELECT id, name, mobile FROM delivery_boys WHERE status = 1 ORDER BY name ASC");
     $res_delivery_boys = $db->getResult();
     if(empty($res_delivery_boys)) $res_delivery_boys = array();
+
+    // Fetch passenger vehicle types
+    $db->sql("SELECT vehicle_type, display_name FROM service_pricing WHERE service_type = 'passenger' ORDER BY id ASC");
+    $res_vehicles = $db->getResult();
+    if(empty($res_vehicles)){
+        $res_vehicles = array(
+            array('vehicle_type' => 'bike', 'display_name' => 'Passenger Bike Taxi'),
+            array('vehicle_type' => 'auto', 'display_name' => 'Passenger Auto Rickshaw'),
+            array('vehicle_type' => 'cab', 'display_name' => 'Passenger Cab / Car'),
+        );
+    }
 ?>
     <!-- Main row -->
     <div class="row">
@@ -33,6 +44,18 @@
                                 <input type="text" id="ride_date" name="ride_date" class="form-control" placeholder="Select date range" autocomplete="off" />
                                 <input type="hidden" id="ride_start_date" name="ride_start_date" />
                                 <input type="hidden" id="ride_end_date" name="ride_end_date" />
+                            </div>
+
+                            <div class="col-md-2 form-group">
+                                <label for="ride_vehicle" class="control-label"><i class="fa fa-car"></i> Vehicle Type:</label>
+                                <select id="ride_vehicle" name="ride_vehicle" class="form-control">
+                                    <option value="">All Vehicles</option>
+                                    <?php foreach($res_vehicles as $v){ 
+                                        $v_label = !empty($v['display_name']) ? ucfirst($v['vehicle_type']) . ' (' . trim(str_ireplace('Passenger', '', $v['display_name'])) . ')' : ucfirst($v['vehicle_type']);
+                                    ?>
+                                        <option value="<?=htmlspecialchars($v['vehicle_type'])?>"><?=htmlspecialchars($v_label)?></option>
+                                    <?php } ?>
+                                </select>
                             </div>
 
                             <div class="col-md-2 form-group">
@@ -67,8 +90,9 @@
                                     <?php } ?>
                                 </select>
                             </div>
-
-                            <div class="col-md-2 form-group">
+                        </div>
+                        <div class="row">
+                            <div class="col-md-3 form-group">
                                 <label for="ride_payment_method" class="control-label"><i class="fa fa-credit-card"></i> Payment:</label>
                                 <select id="ride_payment_method" name="ride_payment_method" class="form-control">
                                     <option value="">All Methods</option>
@@ -76,9 +100,8 @@
                                     <option value="online">Online / Paid</option>
                                 </select>
                             </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-12 text-right">
+
+                            <div class="col-md-9 text-right" style="margin-top: 25px;">
                                 <button type="button" id="btn_clear_ride_filters" class="btn btn-default btn-sm"><i class="fa fa-refresh"></i> Reset Filters</button>
                             </div>
                         </div>
@@ -93,10 +116,16 @@
                         data-side-pagination="server" data-pagination="true"
                         data-search="true" data-trim-on-search="false"
                         data-sort-name="id" data-sort-order="desc"
+                        data-show-export="true"
+                        data-export-types='["excel","pdf","csv"]'
+                        data-export-data-type="all"
+                        data-show-footer="true"
+                        data-export-footer="true"
+                        data-export-options='{"fileName": "passenger-rides-<?=date('d-m-Y')?>", "ignoreColumn": ["operate"]}'
                         data-query-params="passenger_ride_query_params">
                         <thead>
                         <tr>
-                            <th data-field="id" data-sortable="true">Ride ID</th>
+                            <th data-field="id" data-sortable="true" data-footer-formatter="rideTotalLabel">Ride ID</th>
                             <th data-field="created_at" data-sortable="true">Date &amp; Time</th>
                             <th data-field="zone_name" data-sortable="true">Zone</th>
                             <th data-field="vehicle">Vehicle</th>
@@ -104,11 +133,11 @@
                             <th data-field="pickup_location" data-sortable="true">Pickup Location</th>
                             <th data-field="drop_location" data-sortable="true">Drop Location</th>
                             <th data-field="distance_km" data-sortable="true">Distance</th>
-                            <th data-field="trip_fare" data-sortable="true">Trip Fare</th>
-                            <th data-field="platform_fee" data-sortable="true">Platform Fee</th>
-                            <th data-field="convenience_fee" data-sortable="true">Convenience Fee</th>
-                            <th data-field="grand_total" data-sortable="true">Grand Total</th>
-                            <th data-field="driver_commission" data-sortable="true">Driver Comm.</th>
+                            <th data-field="trip_fare" data-sortable="true" data-align="right" data-footer-formatter="rideMoneyFormatter">Trip Fare</th>
+                            <th data-field="platform_fee" data-sortable="true" data-align="right" data-footer-formatter="rideMoneyFormatter">Platform Fee</th>
+                            <th data-field="convenience_fee" data-sortable="true" data-align="right" data-footer-formatter="rideMoneyFormatter">Convenience Fee</th>
+                            <th data-field="grand_total" data-sortable="true" data-align="right" data-footer-formatter="rideMoneyFormatter">Grand Total</th>
+                            <th data-field="driver_commission" data-sortable="true" data-align="right" data-footer-formatter="rideMoneyFormatter">Driver Comm.</th>
                             <th data-field="driver_name">Assigned Driver</th>
                             <th data-field="otp">Start OTP</th>
                             <th data-field="status">Trip Status</th>
@@ -123,10 +152,36 @@
     </div>
 
 <script>
+function rideNum(v) {
+    if (!v) return 0;
+    var s = String(v).replace(/\u20B9|&#8377;/g, '');
+    var n = parseFloat(s.replace(/[^0-9.\-]/g, ''));
+    return isNaN(n) ? 0 : n;
+}
+
+function rideTotalLabel() {
+    return '<span style="color:green;font-weight:bold;font-size:large;">TOTAL</span>';
+}
+
+function rideMoneyFormatter(data) {
+    var field = this.field;
+    var sum = 0;
+    if (data && data.length) {
+        for (var i = 0; i < data.length; i++) {
+            var row = data[i];
+            if (row && row[field] !== undefined) {
+                sum += rideNum(row[field]);
+            }
+        }
+    }
+    return '<span style="color:green;font-weight:bold;font-size:large;">\u20B9 ' + sum.toFixed(2) + '</span>';
+}
+
 function passenger_ride_query_params(p) {
     return {
         "start_date": $('#ride_start_date').val(),
         "end_date": $('#ride_end_date').val(),
+        "vehicle_type": $('#ride_vehicle').val(),
         "status": $('#ride_status').val(),
         "filter_zone": $('#ride_zone').val(),
         "delivery_boy_id": $('#ride_delivery_boy').val(),
@@ -140,6 +195,58 @@ function passenger_ride_query_params(p) {
 }
 
 $(document).ready(function() {
+    var exportConfig = {
+        fileName: 'passenger-rides-' + (typeof moment !== 'undefined' ? moment().format('DD-MM-YYYY') : '<?=date("d-m-Y")?>'),
+        ignoreColumn: ['operate'],
+        onCellHtmlData: function(cell, row, col, data) {
+            if (cell.is('th')) {
+                return cell.find('.th-inner').text().trim();
+            }
+            if (cell.is('td')) {
+                var html = data || '';
+                var clean = html.replace(/<br\s*[\/]?>/gi, ' ');
+                var txt = $('<div>').html(clean).text().trim();
+                return txt
+                    .replace(/\u20B9|&#8377;/g, 'Rs. ')
+                    .replace(/\u2014|\u2013/g, '-')
+                    .replace(/&mdash;/g, '-')
+                    .replace(/&nbsp;|\u00a0/g, ' ')
+                    .replace(/\s+/g, ' ');
+            }
+            return data;
+        },
+        jspdf: {
+            orientation: 'landscape',
+            format: 'a4',
+            autotable: {
+                theme: 'striped',
+                styles: {
+                    fontSize: 6,
+                    cellPadding: 1.5,
+                    overflow: 'linebreak'
+                },
+                headStyles: {
+                    fillColor: [52, 73, 94],
+                    textColor: 255,
+                    fontSize: 6.5,
+                    fontStyle: 'bold'
+                },
+                alternateRowStyles: {
+                    fillColor: [248, 249, 250]
+                }
+            }
+        }
+    };
+
+    if ($.fn.bootstrapTable && $.fn.bootstrapTable.defaults) {
+        $.fn.bootstrapTable.defaults.exportOptions = $.extend(true, {}, $.fn.bootstrapTable.defaults.exportOptions || {}, exportConfig);
+    }
+    if (typeof $('#passenger_rides_list').bootstrapTable === 'function') {
+        $('#passenger_rides_list').bootstrapTable('refreshOptions', {
+            exportOptions: exportConfig
+        });
+    }
+
     if ($.fn.daterangepicker) {
         $('#ride_date').daterangepicker({
             autoUpdateInput: false,
@@ -175,7 +282,7 @@ $(document).ready(function() {
         });
     }
 
-    $('#ride_status, #ride_zone, #ride_delivery_boy, #ride_payment_method').on('change', function() {
+    $('#ride_vehicle, #ride_status, #ride_zone, #ride_delivery_boy, #ride_payment_method').on('change', function() {
         $('#passenger_rides_list').bootstrapTable('refresh');
     });
 
@@ -184,6 +291,7 @@ $(document).ready(function() {
         $('#ride_date').val('');
         $('#ride_start_date').val('');
         $('#ride_end_date').val('');
+        $('#ride_vehicle').val('');
         $('#ride_status').val('');
         $('#ride_zone').val('');
         $('#ride_delivery_boy').val('');

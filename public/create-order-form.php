@@ -369,10 +369,11 @@ $default_delivery_charge = isset($settings['delivery_charge']) && is_numeric($se
                         <span id="txt_subtotal" style="font-weight: 600;">&#8377; 0.00</span>
                     </div>
                     <div class="price-breakdown-row" style="align-items: center;">
-                        <span>Delivery Charge:</span>
+                        <span>Delivery Charge <span id="txt_delivery_distance"></span>:</span>
                         <div style="display: flex; align-items: center; gap: 4px;">
                             <span>&#8377;</span>
                             <input type="number" id="input_delivery_charge" class="form-control input-sm" style="width: 80px; text-align: right; height: 26px; padding: 2px 6px;" value="<?=$default_delivery_charge?>" min="0" step="1">
+                            <button type="button" id="btn_reset_delivery_charge" class="btn btn-default btn-xs" style="height: 26px; padding: 2px 6px; display: none;" title="Reset to auto-calculated delivery charge"><i class="fa fa-refresh"></i></button>
                         </div>
                     </div>
                     <div class="price-breakdown-row">
@@ -488,6 +489,7 @@ function setDeliveryLocation(lat, lng, address) {
             }
         });
     }
+    $(document).trigger('delivery_location_changed', [lat, lng]);
 }
 
 // Global callback for Google Maps API
@@ -672,14 +674,18 @@ $(document).ready(function(){
     $('#order_seller').on('change', function(){
         var sellerId = $(this).val();
         clearCart();
+        isManualDeliveryCharge = false;
         
         if(!sellerId){
             $('#products_container').html('<div class="empty-cart-state"><i class="fa fa-store"></i><p>Select a restaurant to view food menu.</p></div>');
             $('#product_search_filter').prop('disabled', true).val('');
             $('#product_count_badge').text('0 Products');
             $('#seller_status_notice').hide();
+            $('#txt_delivery_distance').empty();
             return;
         }
+
+        recalculateDeliveryAndFees();
 
         var isOpen = $('#order_seller option:selected').data('open') == '1';
         if(!isOpen){
@@ -850,6 +856,9 @@ $(document).ready(function(){
     function resetSellerAndProducts(){
         $('#order_seller').val('').prop('disabled', true);
         $('#seller_status_notice').hide();
+        $('#txt_delivery_distance').empty();
+        $('#btn_reset_delivery_charge').hide();
+        isManualDeliveryCharge = false;
         loadedProducts = [];
         $('#product_count_badge').text('0 Products');
         $('#product_search_filter').prop('disabled', true).val('');
@@ -900,15 +909,39 @@ $(document).ready(function(){
         computeTotals(subtotal);
     }
 
+    var isManualDeliveryCharge = false;
+    var calcFeesAjax = null;
+
+    function recalculateDeliveryAndFees(){
+        var subtotal = 0.0;
+        Object.keys(cartItems).forEach(function(vid){
+            subtotal += cartItems[vid].price * cartItems[vid].qty;
+        });
+        computeTotals(subtotal, isManualDeliveryCharge);
+    }
+
     // 8. Compute Totals (via Backend API)
-    function computeTotals(subtotal){
+    function computeTotals(subtotal, isManual){
+        if(typeof isManual === 'undefined'){
+            isManual = isManualDeliveryCharge;
+        }
         var zoneId = $('#order_zone').val() || 0;
         var sellerId = $('#order_seller').val() || 0;
-        var deliveryCharge = $('#input_delivery_charge').val();
+        var deliveryCharge = $('#input_delivery_charge').val() || 0;
+        var userLat = $('#cust_latitude').val() || 0;
+        var userLng = $('#cust_longitude').val() || 0;
 
         $('#txt_subtotal').html('&#8377; ' + subtotal.toFixed(2));
 
-        $.ajax({
+        if(calcFeesAjax && calcFeesAjax.readyState !== 4){
+            calcFeesAjax.abort();
+        }
+
+        if(sellerId && userLat && userLng && parseFloat(userLat) !== 0 && !isManual){
+            $('#txt_delivery_distance').html('<small class="text-muted" style="margin-left: 5px; font-weight: normal;"><i class="fa fa-spinner fa-spin"></i> calculating...</small>');
+        }
+
+        calcFeesAjax = $.ajax({
             url: 'api-firebase/create-admin-order.php',
             type: 'POST',
             data: {
@@ -916,11 +949,34 @@ $(document).ready(function(){
                 zone_id: zoneId,
                 seller_id: sellerId,
                 subtotal: subtotal,
-                delivery_charge: deliveryCharge
+                delivery_charge: deliveryCharge,
+                latitude: userLat,
+                longitude: userLng,
+                manual_delivery: isManual ? 1 : 0
             },
             dataType: 'json',
             success: function(resp){
                 if(!resp.error){
+                    // Update delivery charge input if not manually typed by admin
+                    if(!isManual && resp.delivery_charge !== undefined){
+                        $('#input_delivery_charge').val(resp.delivery_charge);
+                    }
+
+                    // Display distance in delivery charge row
+                    if(resp.distance_str && resp.distance_km > 0){
+                        $('#txt_delivery_distance').html('<span class="label label-info" style="font-size: 11px; font-weight: 600; margin-left: 5px;"><i class="fa fa-road"></i> ' + resp.distance_str + '</span>');
+                        var coordsText = 'Lat: ' + parseFloat(userLat).toFixed(5) + ', Lng: ' + parseFloat(userLng).toFixed(5) + ' | Distance: ' + resp.distance_str;
+                        $('#coords_indicator').text(coordsText);
+                    } else {
+                        $('#txt_delivery_distance').empty();
+                    }
+
+                    if(isManual){
+                        $('#btn_reset_delivery_charge').show();
+                    } else {
+                        $('#btn_reset_delivery_charge').hide();
+                    }
+
                     $('#txt_platform_fee').html('&#8377; ' + resp.platform_fee.toFixed(2));
                     $('#txt_convenience_fee').html('&#8377; ' + resp.convenience_fee.toFixed(2));
                     if(resp.tax_amount > 0){
@@ -935,12 +991,26 @@ $(document).ready(function(){
         });
     }
 
-    $('#input_delivery_charge').on('input change', function(){
+    $('#input_delivery_charge').on('input', function(){
+        isManualDeliveryCharge = true;
+        $('#btn_reset_delivery_charge').show();
         var subtotal = 0.0;
         Object.keys(cartItems).forEach(function(vid){
             subtotal += cartItems[vid].price * cartItems[vid].qty;
         });
-        computeTotals(subtotal);
+        computeTotals(subtotal, true);
+    });
+
+    $('#btn_reset_delivery_charge').on('click', function(){
+        isManualDeliveryCharge = false;
+        $(this).hide();
+        recalculateDeliveryAndFees();
+    });
+
+    // When delivery location is pinned or moved on the map
+    $(document).on('delivery_location_changed', function(e, lat, lng){
+        isManualDeliveryCharge = false;
+        recalculateDeliveryAndFees();
     });
 
     // 9. Payment Option Card Selection

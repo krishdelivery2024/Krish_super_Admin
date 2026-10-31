@@ -2718,6 +2718,15 @@ if ($role === 'sub admin') {
 			$status_filter = $db->escapeString(trim($_GET['status']));
 			$where .= " AND pr.status = '$status_filter'";
 		}
+		$vehicle_filter = !empty($_GET['vehicle_type']) ? $_GET['vehicle_type'] : (!empty($_GET['vehicle']) ? $_GET['vehicle'] : '');
+		if(!empty($vehicle_filter)){
+			$v_type = strtolower($db->escapeString(trim($vehicle_filter)));
+			if($v_type == 'auto'){
+				$where .= " AND (LOWER(pr.passenger_vehicle) = 'auto' OR pr.passenger_vehicle IS NULL OR pr.passenger_vehicle = '')";
+			} else {
+				$where .= " AND LOWER(pr.passenger_vehicle) = '$v_type'";
+			}
+		}
 		if(!empty($_GET['filter_zone'])){
 			$zone_filter = (int)$_GET['filter_zone'];
 			$where .= " AND pr.zone_id = '$zone_filter'";
@@ -2744,6 +2753,9 @@ if ($role === 'sub admin') {
 		$db->sql($sql);
 		$res = $db->getResult();
 		$total = !empty($res) ? $res[0]['total'] : 0;
+		if($limit <= 0){
+			$limit = ($total > 0) ? $total : 10;
+		}
 
 		// Fetch global delivery boy commission rate
 		$global_comm = 5.0;

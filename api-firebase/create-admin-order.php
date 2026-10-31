@@ -203,6 +203,9 @@ if ($action == 'calculate_fees') {
     $seller_id = isset($_POST['seller_id']) ? (int) $_POST['seller_id'] : 0;
     $subtotal = isset($_POST['subtotal']) ? (float) $_POST['subtotal'] : 0.0;
     $custom_delivery = isset($_POST['delivery_charge']) ? trim($_POST['delivery_charge']) : '';
+    $user_lat = isset($_POST['latitude']) ? (float) $_POST['latitude'] : 0.0;
+    $user_lng = isset($_POST['longitude']) ? (float) $_POST['longitude'] : 0.0;
+    $manual_delivery = isset($_POST['manual_delivery']) && ($_POST['manual_delivery'] == '1' || $_POST['manual_delivery'] === 'true');
 
     $fee_settings = $settings;
     $zone_fees = $function->split_zone_fees($subtotal, $zone_id, $fee_settings);
@@ -210,12 +213,56 @@ if ($action == 'calculate_fees') {
     $convenience_fee = $zone_fees['convenience_fee'];
     $tax_amount = isset($zone_fees['gst']) ? $zone_fees['gst'] : 0.0;
 
-    // Delivery charge resolution
+    $distance_km = 0.0;
+    $distance_str = '';
+    $calculated_delivery = null;
+
+    if ($seller_id > 0 && $user_lat != 0 && $user_lng != 0) {
+        $db->sql("SELECT latitude, longitude, zone_id FROM seller WHERE id = $seller_id LIMIT 1");
+        $seller_res = $db->getResult();
+        if (!empty($seller_res)) {
+            $store_lat = (float) $seller_res[0]['latitude'];
+            $store_lng = (float) $seller_res[0]['longitude'];
+            if ($store_lat == 0 && isset($settings['store_lattitude'])) {
+                $store_lat = (float) $settings['store_lattitude'];
+            }
+            if ($store_lng == 0 && isset($settings['store_longitude'])) {
+                $store_lng = (float) $settings['store_longitude'];
+            }
+
+            if ($store_lat != 0 && $store_lng != 0) {
+                $road = $function->get_road_distance_km($store_lat, $store_lng, $user_lat, $user_lng);
+                if (isset($road['km'])) {
+                    $distance_km = round((float) $road['km'], 2);
+                    $distance_str = $distance_km . ' km';
+
+                    $effective_zone = $zone_id > 0 ? $zone_id : (!empty($seller_res[0]['zone_id']) ? (int) $seller_res[0]['zone_id'] : 0);
+
+                    $db->sql("SELECT * FROM delivery_method WHERE id = 1 LIMIT 1");
+                    $dm_res = $db->getResult();
+                    $dm_row = !empty($dm_res) ? $dm_res[0] : array();
+                    $dm_zone_cfg = $function->get_zone_delivery_config($effective_zone, $dm_row);
+
+                    if (!empty($dm_zone_cfg['in_persion_data'])) {
+                        $calculated_delivery = (float) $function->food_delivery_tariff_charge($distance_km, $dm_zone_cfg['in_persion_data']);
+                    }
+                }
+            }
+        }
+    }
+
+    // Delivery charge resolution:
+    // If admin explicitly manually entered a delivery charge, respect it;
+    // otherwise if distance-based delivery charge was calculated, use that;
+    // fallback to provided custom delivery if numeric, else system default.
     $delivery_charge = 0.0;
-    if ($custom_delivery !== '' && is_numeric($custom_delivery)) {
+    if ($manual_delivery && $custom_delivery !== '' && is_numeric($custom_delivery)) {
+        $delivery_charge = (float) $custom_delivery;
+    } elseif ($calculated_delivery !== null) {
+        $delivery_charge = $calculated_delivery;
+    } elseif ($custom_delivery !== '' && is_numeric($custom_delivery)) {
         $delivery_charge = (float) $custom_delivery;
     } else {
-        // Default delivery charge from system settings
         $delivery_charge = isset($settings['delivery_charge']) && is_numeric($settings['delivery_charge']) ? (float) $settings['delivery_charge'] : 45.0;
     }
 
@@ -225,6 +272,8 @@ if ($action == 'calculate_fees') {
         'error' => false,
         'subtotal' => round($subtotal, 2),
         'delivery_charge' => round($delivery_charge, 2),
+        'distance_km' => round($distance_km, 2),
+        'distance_str' => $distance_str,
         'platform_fee' => round($platform_fee, 2),
         'convenience_fee' => round($convenience_fee, 2),
         'tax_amount' => round($tax_amount, 2),

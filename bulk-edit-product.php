@@ -7,12 +7,37 @@ include"header.php";?>
 	background-color: #f5f7fa !important;
 }
 .pt-3-half { padding-top: 1.4rem; width:10% }
-/* select {
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    text-indent: 1px;
-    text-overflow: '';
-} */
+
+/* Sticky table header styles for bulk edit */
+#wrapper {
+    transform: none !important;
+    -webkit-transform: none !important;
+    overflow: visible !important;
+}
+.main-content {
+    overflow: visible !important;
+}
+.card, .card-body, .table-editable {
+    overflow: visible !important;
+}
+.fixed-navbar {
+    z-index: 105 !important;
+}
+#editableTable {
+    border-collapse: separate !important;
+    border-spacing: 0;
+}
+#editableTable thead th {
+    position: -webkit-sticky;
+    position: sticky;
+    top: 75px;
+    z-index: 99;
+    background-color: #f8f9fa !important;
+    color: #333 !important;
+    border-top: 1px solid #ddd !important;
+    border-bottom: 2px solid #ccc !important;
+    box-shadow: 0 3px 5px -1px rgba(0, 0, 0, 0.12);
+}
 </style>
 <?php
  $Query="SELECT * FROM `category` WHERE `main_cat` = $main_cat_id";
@@ -309,6 +334,13 @@ function update_product(type,id,value){
 
 
 $(document).ready(function(){
+
+  function updateStickyHeaderTop() {
+    var navHeight = $('.fixed-navbar').outerHeight() || 75;
+    $('#editableTable thead th').css('top', navHeight + 'px');
+  }
+  updateStickyHeaderTop();
+  $(window).on('resize scroll', updateStickyHeaderTop);
 
   // Search all columns
   $('#txt_searchall').keyup(function(){

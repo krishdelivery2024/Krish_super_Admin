@@ -61,14 +61,22 @@ if($res_zone_dbs){
 	}
 }
 
-/* Parcel requests aggregated per zone */
-$sql_zone_parcels = "SELECT zone_id, COUNT(*) AS total_parcels FROM parcel_requests WHERE 1=1 ".$zone_where." GROUP BY zone_id";
-$db->sql($sql_zone_parcels);
-$res_zone_parcels = $db->getResult();
+/* Parcel, Shipping and Passenger requests aggregated per zone */
+$sql_zone_services = "SELECT zone_id, 
+		SUM(CASE WHEN (service_type = 'parcel' OR service_type IS NULL OR service_type = '') THEN 1 ELSE 0 END) AS total_parcels,
+		SUM(CASE WHEN service_type = 'shipping' THEN 1 ELSE 0 END) AS total_shipping,
+		SUM(CASE WHEN service_type = 'passenger' THEN 1 ELSE 0 END) AS total_passenger
+		FROM parcel_requests WHERE 1=1 ".$zone_where." GROUP BY zone_id";
+$db->sql($sql_zone_services);
+$res_zone_services = $db->getResult();
 $zone_parcels = array();
-if($res_zone_parcels){
-	foreach($res_zone_parcels as $row){
-		$zone_parcels[$row['zone_id']] = $row['total_parcels'];
+$zone_shipping = array();
+$zone_passenger = array();
+if($res_zone_services){
+	foreach($res_zone_services as $row){
+		$zone_parcels[$row['zone_id']] = (int)$row['total_parcels'];
+		$zone_shipping[$row['zone_id']] = (int)$row['total_shipping'];
+		$zone_passenger[$row['zone_id']] = (int)$row['total_passenger'];
 	}
 }
 
@@ -109,17 +117,47 @@ if($selected_zone > 0){
 	$customers_kpi = $function->rows_count('users');
 }
 
-/* Parcel Orders KPI - today only, zone filtered */
+/* Parcel Orders KPI - zone filtered */
+$parcel_service_cond = "(service_type = 'parcel' OR service_type IS NULL OR service_type = '')";
 if($selected_zone > 0){
-	$parcel_kpi = $function->rows_count('parcel_requests', '*', "zone_id='".$selected_zone."' AND ".$today_parcels_where);
+	$parcel_kpi = $function->rows_count('parcel_requests', '*', "zone_id='".$selected_zone."' AND ".$parcel_service_cond);
+	$parcel_today_kpi = $function->rows_count('parcel_requests', '*', "zone_id='".$selected_zone."' AND ".$parcel_service_cond." AND ".$today_parcels_where);
 } else if(!empty($my_zone_scope)){
-	$parcel_kpi = $function->rows_count('parcel_requests', '*', "zone_id".$scope_sql." AND ".$today_parcels_where);
+	$parcel_kpi = $function->rows_count('parcel_requests', '*', "zone_id".$scope_sql." AND ".$parcel_service_cond);
+	$parcel_today_kpi = $function->rows_count('parcel_requests', '*', "zone_id".$scope_sql." AND ".$parcel_service_cond." AND ".$today_parcels_where);
 } else {
-	$parcel_kpi = $function->rows_count('parcel_requests', '*', $today_parcels_where);
+	$parcel_kpi = $function->rows_count('parcel_requests', '*', $parcel_service_cond);
+	$parcel_today_kpi = $function->rows_count('parcel_requests', '*', $parcel_service_cond." AND ".$today_parcels_where);
 }
 
-/* Total Orders = Food orders + Parcel orders (today only) */
-$orders_kpi = $food_kpi + $parcel_kpi;
+/* Shipping Requests KPI - zone filtered */
+$shipping_service_cond = "service_type = 'shipping'";
+if($selected_zone > 0){
+	$shipping_kpi = $function->rows_count('parcel_requests', '*', "zone_id='".$selected_zone."' AND ".$shipping_service_cond);
+	$shipping_today_kpi = $function->rows_count('parcel_requests', '*', "zone_id='".$selected_zone."' AND ".$shipping_service_cond." AND ".$today_parcels_where);
+} else if(!empty($my_zone_scope)){
+	$shipping_kpi = $function->rows_count('parcel_requests', '*', "zone_id".$scope_sql." AND ".$shipping_service_cond);
+	$shipping_today_kpi = $function->rows_count('parcel_requests', '*', "zone_id".$scope_sql." AND ".$shipping_service_cond." AND ".$today_parcels_where);
+} else {
+	$shipping_kpi = $function->rows_count('parcel_requests', '*', $shipping_service_cond);
+	$shipping_today_kpi = $function->rows_count('parcel_requests', '*', $shipping_service_cond." AND ".$today_parcels_where);
+}
+
+/* Passenger Rides KPI - zone filtered */
+$passenger_service_cond = "service_type = 'passenger'";
+if($selected_zone > 0){
+	$passenger_kpi = $function->rows_count('parcel_requests', '*', "zone_id='".$selected_zone."' AND ".$passenger_service_cond);
+	$passenger_today_kpi = $function->rows_count('parcel_requests', '*', "zone_id='".$selected_zone."' AND ".$passenger_service_cond." AND ".$today_parcels_where);
+} else if(!empty($my_zone_scope)){
+	$passenger_kpi = $function->rows_count('parcel_requests', '*', "zone_id".$scope_sql." AND ".$passenger_service_cond);
+	$passenger_today_kpi = $function->rows_count('parcel_requests', '*', "zone_id".$scope_sql." AND ".$passenger_service_cond." AND ".$today_parcels_where);
+} else {
+	$passenger_kpi = $function->rows_count('parcel_requests', '*', $passenger_service_cond);
+	$passenger_today_kpi = $function->rows_count('parcel_requests', '*', $passenger_service_cond." AND ".$today_parcels_where);
+}
+
+/* Total Orders = Food orders + Parcel orders + Shipping + Passenger (today only) */
+$orders_kpi = $food_kpi + $parcel_today_kpi + $shipping_today_kpi + $passenger_today_kpi;
 
 /* Delivery Boys KPI - total / online / offline (zone filtered)
    Source of truth: delivery_boys.active_status, set by the delivery boy app
@@ -218,7 +256,29 @@ $boys_offline_kpi = isset($res_db_kpi[0]['offline_boys_kpi']) ? (int)$res_db_kpi
 					<div class="statistics-box with-icon">
 						<i class="ico ti-package text-warning"></i>
 						<h2 class="counter text-warning"><?=$parcel_kpi;?></h2>
-						<p class="text">Parcel Orders</p>
+						<p class="text">Parcel Orders<?php if($parcel_today_kpi > 0){ ?><small class="text-muted" style="display:block;font-size:11px;">Today: <?=$parcel_today_kpi;?></small><?php } ?></p>
+					</div>
+					<!-- .statistics-box .with-icon -->
+				</div></a>
+				<!-- /.box-content -->
+			</div>
+			<div class="col-xs-6" style="flex:1 1 0;min-width:190px;">
+				<a href="shipping-requests.php"><div class="box-content">
+					<div class="statistics-box with-icon">
+						<i class="ico fa fa-truck text-info"></i>
+						<h2 class="counter text-info"><?=$shipping_kpi;?></h2>
+						<p class="text">Shipping Requests<?php if($shipping_today_kpi > 0){ ?><small class="text-muted" style="display:block;font-size:11px;">Today: <?=$shipping_today_kpi;?></small><?php } ?></p>
+					</div>
+					<!-- .statistics-box .with-icon -->
+				</div></a>
+				<!-- /.box-content -->
+			</div>
+			<div class="col-xs-6" style="flex:1 1 0;min-width:190px;">
+				<a href="passenger-rides.php"><div class="box-content">
+					<div class="statistics-box with-icon">
+						<i class="ico fa fa-car text-danger"></i>
+						<h2 class="counter text-danger"><?=$passenger_kpi;?></h2>
+						<p class="text">Passenger Rides<?php if($passenger_today_kpi > 0){ ?><small class="text-muted" style="display:block;font-size:11px;">Today: <?=$passenger_today_kpi;?></small><?php } ?></p>
 					</div>
 					<!-- .statistics-box .with-icon -->
 				</div></a>
@@ -339,17 +399,19 @@ $boys_offline_kpi = isset($res_db_kpi[0]['offline_boys_kpi']) ? (int)$res_db_kpi
 						$col_zones = ($selected_zone > 0)
 							? array_filter($zones_list, function($z) use ($selected_zone){ return $z['id'] == $selected_zone; })
 							: $zones_list;
-						$total_orders = $total_food = $total_delivered = $total_cancelled = $total_processing = $total_sales = $total_sellers = $total_boys = $total_parcels = 0;
+						$total_orders = $total_food = $total_delivered = $total_cancelled = $total_processing = $total_sales = $total_sellers = $total_boys = $total_parcels = $total_shipping = $total_passenger = 0;
 
 						if($selected_zone > 0){
 							$z = $col_zones ? array_values($col_zones)[0] : null;
 							if($z){
 								$o = isset($zone_orders[$z['id']]) ? $zone_orders[$z['id']] : array('total_orders'=>0,'delivered_orders'=>0,'cancelled_orders'=>0,'sales'=>0);
 								$par = isset($zone_parcels[$z['id']]) ? $zone_parcels[$z['id']] : 0;
+								$ship = isset($zone_shipping[$z['id']]) ? $zone_shipping[$z['id']] : 0;
+								$pass = isset($zone_passenger[$z['id']]) ? $zone_passenger[$z['id']] : 0;
 								$zone_stat[] = array(
 									'name' => $z['name'],
 									'status' => $z['status'],
-									'orders_total' => $o['total_orders']+$par,
+									'orders_total' => $o['total_orders']+$par+$ship+$pass,
 									'order' => $o['total_orders'],
 									'delivered' => $o['delivered_orders'],
 									'cancelled' => $o['cancelled_orders'],
@@ -358,6 +420,8 @@ $boys_offline_kpi = isset($res_db_kpi[0]['offline_boys_kpi']) ? (int)$res_db_kpi
 									'sellers' => isset($zone_sellers[$z['id']]) ? $zone_sellers[$z['id']] : 0,
 									'boys' => isset($zone_boys[$z['id']]) ? $zone_boys[$z['id']] : 0,
 									'parcels' => $par,
+									'shipping' => $ship,
+									'passenger' => $pass,
 								);
 							}
 						} else {
@@ -365,10 +429,12 @@ $boys_offline_kpi = isset($res_db_kpi[0]['offline_boys_kpi']) ? (int)$res_db_kpi
 								$oid = $z['id'];
 								$o = isset($zone_orders[$oid]) ? $zone_orders[$oid] : array('total_orders'=>0,'delivered_orders'=>0,'cancelled_orders'=>0,'sales'=>0);
 								$par = isset($zone_parcels[$oid]) ? $zone_parcels[$oid] : 0;
+								$ship = isset($zone_shipping[$oid]) ? $zone_shipping[$oid] : 0;
+								$pass = isset($zone_passenger[$oid]) ? $zone_passenger[$oid] : 0;
 								$zone_stat[] = array(
 									'name' => $z['name'],
 									'status' => $z['status'],
-									'orders_total' => $o['total_orders']+$par,
+									'orders_total' => $o['total_orders']+$par+$ship+$pass,
 									'order' => $o['total_orders'],
 									'delivered' => $o['delivered_orders'],
 									'cancelled' => $o['cancelled_orders'],
@@ -377,6 +443,8 @@ $boys_offline_kpi = isset($res_db_kpi[0]['offline_boys_kpi']) ? (int)$res_db_kpi
 									'sellers' => isset($zone_sellers[$oid]) ? $zone_sellers[$oid] : 0,
 									'boys' => isset($zone_boys[$oid]) ? $zone_boys[$oid] : 0,
 									'parcels' => $par,
+									'shipping' => $ship,
+									'passenger' => $pass,
 								);
 							}
 						}
@@ -391,6 +459,8 @@ $boys_offline_kpi = isset($res_db_kpi[0]['offline_boys_kpi']) ? (int)$res_db_kpi
 									<th>Orders</th>
 									<th>Food Orders</th>
 									<th>Parcel</th>
+									<th>Shipping</th>
+									<th>Passenger Rides</th>
 									<th>Delivered</th>
 									<th>Processing</th>
 									<th>Cancelled</th>
@@ -401,11 +471,13 @@ $boys_offline_kpi = isset($res_db_kpi[0]['offline_boys_kpi']) ? (int)$res_db_kpi
 							</thead>
 							<tbody>
 								<?php if(empty($zone_stat)){ ?>
-									<tr><td colspan="12" class="text-center">No data found.</td></tr>
+									<tr><td colspan="14" class="text-center">No data found.</td></tr>
 								<?php } else { $sn = 1; foreach($zone_stat as $st){
 									$total_orders += $st['orders_total'];
 									$total_food += $st['order'];
 									$total_parcels += $st['parcels'];
+									$total_shipping += $st['shipping'];
+									$total_passenger += $st['passenger'];
 									$total_delivered += $st['delivered'];
 									$total_cancelled += $st['cancelled'];
 									$total_processing += $st['processing'];
@@ -420,6 +492,8 @@ $boys_offline_kpi = isset($res_db_kpi[0]['offline_boys_kpi']) ? (int)$res_db_kpi
 										<td><?=$st['orders_total']?></td>
 										<td><?=$st['order']?></td>
 										<td><?=$st['parcels']?></td>
+										<td><?=$st['shipping']?></td>
+										<td><?=$st['passenger']?></td>
 										<td><?=$st['delivered']?></td>
 										<td><?=$st['processing']?></td>
 										<td><?=$st['cancelled']?></td>
@@ -436,6 +510,8 @@ $boys_offline_kpi = isset($res_db_kpi[0]['offline_boys_kpi']) ? (int)$res_db_kpi
 									<th><?=$total_orders?></th>
 									<th><?=$total_food?></th>
 									<th><?=$total_parcels?></th>
+									<th><?=$total_shipping?></th>
+									<th><?=$total_passenger?></th>
 									<th><?=$total_delivered?></th>
 									<th><?=$total_processing?></th>
 									<th><?=$total_cancelled?></th>

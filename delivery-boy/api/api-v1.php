@@ -1048,6 +1048,7 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 		$tempRow['delivery_boy_id'] = $row['delivery_boy_id'];
 		$tempRow['name'] = $row['username'];
 		$tempRow['mobile'] = $row['mobile'];
+		$tempRow['alternate_mobile'] = isset($row['alternate_mobile']) ? (string)$row['alternate_mobile'] : '';
 		$tempRow['seller_name'] = $row['seller_name'];
 		$tempRow['seller_company_name'] = $row['seller_company_name'];
 		$tempRow['seller_mobile'] = $row['seller_mobile'];
