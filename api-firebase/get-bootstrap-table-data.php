@@ -465,31 +465,62 @@
 		// Default values
 		$offset = isset($_GET['offset']) ? intval($_GET['offset']) : 0;
 		$limit = isset($_GET['limit']) ? intval($_GET['limit']) : 10;
-		$sort = isset($_GET['sort']) ? $_GET['sort'] : 'c.id';
 		$order = (isset($_GET['order']) && strtoupper($_GET['order']) === 'ASC') ? 'ASC' : 'DESC';
 
-		// Whitelist for sortable columns
-		$allowedSorts = ['c.id', 'c.name', 'c.subtitle', 'c.image'];
-		if (!in_array($sort, $allowedSorts)) {
-			$sort = 'c.id';
-		}
+		// Whitelist / mapping for sortable columns
+		$sortMap = [
+			'id' => 'c.id',
+			'name' => 'c.name',
+			'subtitle' => 'c.subtitle',
+			'main_category_name' => 'm.name',
+			'c.id' => 'c.id',
+			'c.name' => 'c.name',
+			'c.subtitle' => 'c.subtitle',
+			'image' => 'c.image'
+		];
+		$sortParam = $_GET['sort'] ?? 'id';
+		$sort = $sortMap[$sortParam] ?? 'c.id';
 
-		// Initialize WHERE clause
-		$where = '';
+		// Build WHERE clauses
+		$where_clauses = [];
+
 		if (isset($_GET['search']) && !empty($_GET['search'])) {
 			$search = $db->escapeString($_GET['search']);
-			$where = " WHERE `c`.`id` LIKE '%$search%' OR `c`.`name` LIKE '%$search%' OR `c`.`subtitle` LIKE '%$search%' OR `c`.`image` LIKE '%$search%'";
+			$where_clauses[] = "(`c`.`id` LIKE '%$search%' OR `c`.`name` LIKE '%$search%' OR `c`.`subtitle` LIKE '%$search%' OR `m`.`name` LIKE '%$search%')";
+		}
+
+		// Filter by main category if provided
+		$filter_main_cat = '';
+		if (isset($_GET['main_cat_id']) && $_GET['main_cat_id'] !== '') {
+			$filter_main_cat = $_GET['main_cat_id'];
+		} elseif (isset($_GET['main_cat']) && $_GET['main_cat'] !== '') {
+			$filter_main_cat = $_GET['main_cat'];
+		}
+
+		if ($filter_main_cat !== '') {
+			$filter_main_cat = $db->escapeString($filter_main_cat);
+			$where_clauses[] = "`c`.`main_cat` = '$filter_main_cat'";
+		} elseif (isset($_SESSION['role']) && $_SESSION['role'] == 'seller' && !empty($_SESSION['main_cat_id'])) {
+			$seller_main_cat = $db->escapeString($_SESSION['main_cat_id']);
+			$where_clauses[] = "`c`.`main_cat` = '$seller_main_cat'";
+		}
+
+		$where = '';
+		if (!empty($where_clauses)) {
+			$where = " WHERE " . implode(" AND ", $where_clauses);
 		}
 
 		// Get total count
-		$sql = "SELECT COUNT(*) as total FROM `category` c $where";
+		$sql = "SELECT COUNT(*) as total FROM `category` c LEFT JOIN `main_category` m ON m.id = c.main_cat $where";
 		$db->sql($sql);
 		$res = $db->getResult();
 		$total = $res[0]['total'] ?? 0;
 
 		// Get category data
-		$sql = "SELECT c.*, (SELECT name FROM main_category m WHERE m.id = c.main_cat) AS main_category_name 
-				FROM `category` c $where 
+		$sql = "SELECT c.*, m.name AS main_category_name 
+				FROM `category` c 
+				LEFT JOIN `main_category` m ON m.id = c.main_cat 
+				$where 
 				ORDER BY $sort $order 
 				LIMIT $offset, $limit";
 		$db->sql($sql);
@@ -501,11 +532,11 @@
 		$rows = [];
 
 		foreach ($res as $row) {
-			$id = htmlspecialchars($row['id']);
-			$name = htmlspecialchars($row['name']);
-			$subtitle = htmlspecialchars($row['subtitle']);
-			$imageUrl = htmlspecialchars($row['image']);
-			$main_category_name = htmlspecialchars($row['main_category_name']);
+			$id = htmlspecialchars($row['id'] ?? '');
+			$name = htmlspecialchars($row['name'] ?? '');
+			$subtitle = htmlspecialchars($row['subtitle'] ?? '');
+			$imageUrl = htmlspecialchars($row['image'] ?? '');
+			$main_category_name = !empty($row['main_category_name']) ? htmlspecialchars($row['main_category_name']) : '-';
 
 			$operate = '';
 			$operate .= '<a href="edit-category.php?id=' . $id . '"><i class="fa fa-edit"></i>Edit</a> ';

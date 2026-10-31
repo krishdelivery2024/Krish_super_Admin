@@ -4555,7 +4555,27 @@ $(document).on('change','#loose',function(){
 });
 </script>
 <?php } ?>
-<?php if($page=="Main Category" || $page=="Categories" || $page=="Brands" || $page=="Parcel Pickup" || $page=="Parcel Requests"){ ?>
+<?php if($page=="Categories"){ ?>
+    <script>
+function queryParams_category(p){
+    return {
+        "main_cat_id": $('#filter_main_cat').val(),
+        limit:p.limit,
+        sort:p.sort,
+        order:p.order,
+        offset:p.offset,
+        search:p.search
+    };
+}
+function queryParams_1(p){
+    return queryParams_category(p);
+}
+$('#filter_main_cat').on('change', function(){
+    $('#cateory_list').bootstrapTable('refresh');
+});
+</script>
+<?php } ?>
+<?php if($page=="Main Category" || $page=="Brands" || $page=="Parcel Pickup" || $page=="Parcel Requests"){ ?>
     <script>
 function queryParams_1(p){
     return {
