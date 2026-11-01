@@ -71,13 +71,9 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'add_address')) {
 	$name = (isset($_POST['name'])) ? $db->escapeString($_POST['name']) : "";
 	$mobile = (isset($_POST['mobile'])) ? $db->escapeString($_POST['mobile']) : "";
 	$alternate_mobile = (isset($_POST['alternate_mobile'])) ? $db->escapeString($_POST['alternate_mobile']) : "";
-	$state_raw = (isset($_POST['state_id'])) ? $_POST['state_id'] : ((isset($_POST['state'])) ? $_POST['state'] : '');
-	$city_raw = (isset($_POST['city_id'])) ? $_POST['city_id'] : ((isset($_POST['city'])) ? $_POST['city'] : '');
-	$area_raw = (isset($_POST['area_id'])) ? $_POST['area_id'] : ((isset($_POST['area'])) ? $_POST['area'] : '');
-
-	$state = is_numeric($state_raw) ? (int) $state_raw : 0;
-	$city = is_numeric($city_raw) ? (int) $city_raw : 0;
-	$area = is_numeric($area_raw) ? (int) $area_raw : 0;
+	$state = (isset($_POST['state_id']) && trim($_POST['state_id']) !== '') ? $db->escapeString(trim($_POST['state_id'])) : ((isset($_POST['state']) && trim($_POST['state']) !== '') ? $db->escapeString(trim($_POST['state'])) : "");
+	$city = (isset($_POST['city_id']) && trim($_POST['city_id']) !== '') ? $db->escapeString(trim($_POST['city_id'])) : ((isset($_POST['city']) && trim($_POST['city']) !== '') ? $db->escapeString(trim($_POST['city'])) : "");
+	$area = (isset($_POST['area_id']) && trim($_POST['area_id']) !== '') ? $db->escapeString(trim($_POST['area_id'])) : ((isset($_POST['area']) && trim($_POST['area']) !== '') ? $db->escapeString(trim($_POST['area'])) : "");
 	$landmark = (isset($_POST['landmark'])) ? $db->escapeString($_POST['landmark']) : "";
 	$flat_no = (isset($_POST['flat_no'])) ? $db->escapeString($_POST['flat_no']) : "";
 	$street = (isset($_POST['street'])) ? $db->escapeString($_POST['street']) : "";
@@ -181,13 +177,9 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'update_address')) {
 	$mobile = (isset($_POST['mobile'])) ? $db->escapeString($_POST['mobile']) : "";
 	$alternate_mobile = (isset($_POST['alternate_mobile'])) ? $db->escapeString($_POST['alternate_mobile']) : "";
 	$email = (isset($_POST['email'])) ? $db->escapeString($_POST['email']) : "";
-	$state_raw = (isset($_POST['state_id'])) ? $_POST['state_id'] : ((isset($_POST['state'])) ? $_POST['state'] : '');
-	$city_raw = (isset($_POST['city_id'])) ? $_POST['city_id'] : ((isset($_POST['city'])) ? $_POST['city'] : '');
-	$area_raw = (isset($_POST['area_id'])) ? $_POST['area_id'] : ((isset($_POST['area'])) ? $_POST['area'] : '');
-
-	$state = is_numeric($state_raw) ? (int) $state_raw : 0;
-	$city = is_numeric($city_raw) ? (int) $city_raw : 0;
-	$area = is_numeric($area_raw) ? (int) $area_raw : 0;
+	$state = (isset($_POST['state_id']) && trim($_POST['state_id']) !== '') ? $db->escapeString(trim($_POST['state_id'])) : ((isset($_POST['state']) && trim($_POST['state']) !== '') ? $db->escapeString(trim($_POST['state'])) : "");
+	$city = (isset($_POST['city_id']) && trim($_POST['city_id']) !== '') ? $db->escapeString(trim($_POST['city_id'])) : ((isset($_POST['city']) && trim($_POST['city']) !== '') ? $db->escapeString(trim($_POST['city'])) : "");
+	$area = (isset($_POST['area_id']) && trim($_POST['area_id']) !== '') ? $db->escapeString(trim($_POST['area_id'])) : ((isset($_POST['area']) && trim($_POST['area']) !== '') ? $db->escapeString(trim($_POST['area'])) : "");
 	$landmark = (isset($_POST['landmark'])) ? $db->escapeString($_POST['landmark']) : "";
 	$flat_no = (isset($_POST['flat_no'])) ? $db->escapeString($_POST['flat_no']) : "";
 	$street = (isset($_POST['street'])) ? $db->escapeString($_POST['street']) : "";

@@ -28,16 +28,35 @@ if(isset($_POST['accesskey'])) {
 			the lookup tables keeps the real name, while a non numeric value is
 			taken as the name itself. A numeric value with no matching row stays NULL
 			so the app asks for a proper selection instead of showing a bare id. */
-		$sql_query = "SELECT * ,
-			CASE WHEN u.state REGEXP '^[0-9]+$' THEN (select name from state s where s.id=u.state)
-				WHEN TRIM(u.state) = '' OR u.state = '0' THEN NULL
-				ELSE TRIM(u.state) END as state_name ,
-			CASE WHEN u.city REGEXP '^[0-9]+$' THEN (select name from city c where c.id=u.city)
-				WHEN TRIM(u.city) = '' OR u.city = '0' THEN NULL
-				ELSE TRIM(u.city) END as city_name ,
-			CASE WHEN u.area REGEXP '^[0-9]+$' THEN (select name from area a where a.id=u.area)
-				WHEN TRIM(u.area) = '' OR u.area = '0' THEN NULL
-				ELSE TRIM(u.area) END as area_name
+		$sql_query = "SELECT u.*,
+			IF(u.country_code IS NULL OR TRIM(u.country_code) = '', '+91', u.country_code) as country_code,
+			COALESCE(
+				NULLIF(NULLIF(TRIM(u.state), ''), '0'),
+				(SELECT NULLIF(NULLIF(TRIM(ua.state), ''), '0') FROM user_address ua WHERE ua.user_id = u.id AND ua.is_default = 1 LIMIT 1)
+			) as state,
+			COALESCE(
+				NULLIF(NULLIF(TRIM(u.city), ''), '0'),
+				(SELECT NULLIF(NULLIF(TRIM(ua.city), ''), '0') FROM user_address ua WHERE ua.user_id = u.id AND ua.is_default = 1 LIMIT 1)
+			) as city,
+			COALESCE(
+				NULLIF(NULLIF(TRIM(u.area), ''), '0'),
+				(SELECT NULLIF(NULLIF(TRIM(ua.area), ''), '0') FROM user_address ua WHERE ua.user_id = u.id AND ua.is_default = 1 LIMIT 1)
+			) as area,
+			CASE 
+				WHEN u.state REGEXP '^[0-9]+$' AND u.state != '0' THEN COALESCE((select name from state s where s.id=u.state), u.state)
+				WHEN TRIM(u.state) != '' AND u.state != '0' THEN TRIM(u.state)
+				ELSE (SELECT NULLIF(NULLIF(TRIM(ua.state), ''), '0') FROM user_address ua WHERE ua.user_id = u.id AND ua.is_default = 1 LIMIT 1)
+			END as state_name,
+			CASE 
+				WHEN u.city REGEXP '^[0-9]+$' AND u.city != '0' THEN COALESCE((select name from city c where c.id=u.city), u.city)
+				WHEN TRIM(u.city) != '' AND u.city != '0' THEN TRIM(u.city)
+				ELSE (SELECT NULLIF(NULLIF(TRIM(ua.city), ''), '0') FROM user_address ua WHERE ua.user_id = u.id AND ua.is_default = 1 LIMIT 1)
+			END as city_name,
+			CASE 
+				WHEN u.area REGEXP '^[0-9]+$' AND u.area != '0' THEN COALESCE((select name from area a where a.id=u.area), u.area)
+				WHEN TRIM(u.area) != '' AND u.area != '0' THEN TRIM(u.area)
+				ELSE (SELECT NULLIF(NULLIF(TRIM(ua.area), ''), '0') FROM user_address ua WHERE ua.user_id = u.id AND ua.is_default = 1 LIMIT 1)
+			END as area_name
 			FROM users u WHERE status = '1' AND id ='$user_id'  
 			ORDER BY id ASC ";
 		$db->sql($sql_query);

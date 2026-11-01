@@ -100,8 +100,9 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'register')) {
 	$username = (isset($_POST['username']) && !empty($_POST['username'])) ? $db->escapeString($_POST['username']) : "";
 	$email = (isset($_POST['email']) && !empty($_POST['email'])) ? $db->escapeString($_POST['email']) : "";
 	$password = md5($_POST['password']);
-	$city = (isset($_POST['city_id'])) ? $db->escapeString($_POST['city_id']) : "";
-	$area = (isset($_POST['area_id'])) ? $db->escapeString($_POST['area_id']) : "";
+	$state = (isset($_POST['state_id']) && trim($_POST['state_id']) !== '') ? $db->escapeString(trim($_POST['state_id'])) : ((isset($_POST['state']) && trim($_POST['state']) !== '') ? $db->escapeString(trim($_POST['state'])) : "");
+	$city = (isset($_POST['city_id']) && trim($_POST['city_id']) !== '') ? $db->escapeString(trim($_POST['city_id'])) : ((isset($_POST['city']) && trim($_POST['city']) !== '') ? $db->escapeString(trim($_POST['city'])) : "");
+	$area = (isset($_POST['area_id']) && trim($_POST['area_id']) !== '') ? $db->escapeString(trim($_POST['area_id'])) : ((isset($_POST['area']) && trim($_POST['area']) !== '') ? $db->escapeString(trim($_POST['area'])) : "");
 	$street = (isset($_POST['street'])) ? $db->escapeString($_POST['street']) : "";
 	$address = (isset($_POST['address'])) ? $db->escapeString($_POST['address']) : "";
 	$pincode = (isset($_POST['pincode'])) ? $db->escapeString($_POST['pincode']) : "";
@@ -208,6 +209,7 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'register')) {
 		'country_code' => $country_code,
 		'fcm_id' => $fcm_id,
 		'dob' => $dob,
+		'state' => $state,
 		'city' => $city,
 		'area' => $area,
 		'street' => $street,
@@ -228,6 +230,7 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'register')) {
 		'name' => $name,
 		'mobile' => $mobile,
 		'user_id' => $res[0],
+		'state' => $state,
 		'city' => $city,
 		'area' => $area,
 		'street' => $street,
@@ -240,20 +243,9 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'register')) {
 	);
 	//$db->insert('user_address',$data1);
 	$res23 = $db->getResult();
-	if (!empty($data['city']) && is_numeric($data['city']) && intval($data['city']) > 0) {
-		$db->sql('SELECT name FROM city WHERE id=' . intval($data['city']));
-		$res24 = $db->getResult();
-		$city_name = $res24[0]['name'] ?? '';
-	} else {
-		$city_name = $data['city'] ?? '';
-	}
-	if (!empty($data['area']) && is_numeric($data['area']) && intval($data['area']) > 0) {
-		$db->sql('SELECT name FROM area WHERE id=' . intval($data['area']));
-		$res25 = $db->getResult();
-		$area_name = $res25[0]['name'] ?? '';
-	} else {
-		$area_name = $data['area'] ?? '';
-	}
+	$state_name = $data['state'] ?? '';
+	$city_name = $data['city'] ?? '';
+	$area_name = $data['area'] ?? '';
 
 	$response["error"] = false;
 	$response["message"] = "User registered successfully";
@@ -264,6 +256,8 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'register')) {
 	$response['country_code'] = $data['country_code'];
 	$response['fcm_id'] = $data['fcm_id'];
 	$response['dob'] = $data['dob'];
+	$response['state_id'] = !empty($data['state']) ? $data['state'] : '';
+	$response['state_name'] = !empty($state_name) ? $state_name : '';
 	$response['city_id'] = !empty($data['city']) ? $data['city'] : '';
 	$response['city_name'] = !empty($city_name) ? $city_name : '';
 	$response['area_id'] = !empty($data['area']) ? $data['area'] : '';
@@ -291,13 +285,10 @@ if (isset($_POST['type']) && $_POST['type'] != '' && $_POST['type'] == 'edit-pro
 	$id = $db->escapeString($_POST['id']);
 	$name = $db->escapeString($_POST['name']);
 	$email = $db->escapeString($_POST['email']);
-	$state_raw = (isset($_POST['state_id'])) ? $_POST['state_id'] : ((isset($_POST['state'])) ? $_POST['state'] : '');
-	$city_raw = (isset($_POST['city_id'])) ? $_POST['city_id'] : ((isset($_POST['city'])) ? $_POST['city'] : '');
-	$area_raw = (isset($_POST['area_id'])) ? $_POST['area_id'] : ((isset($_POST['area'])) ? $_POST['area'] : '');
-
-	$state = is_numeric($state_raw) ? (int) $state_raw : 0;
-	$city = is_numeric($city_raw) ? (int) $city_raw : 0;
-	$area = is_numeric($area_raw) ? (int) $area_raw : 0;
+	$state = (isset($_POST['state_id']) && trim($_POST['state_id']) !== '') ? $db->escapeString(trim($_POST['state_id'])) : ((isset($_POST['state']) && trim($_POST['state']) !== '') ? $db->escapeString(trim($_POST['state'])) : '');
+	$city = (isset($_POST['city_id']) && trim($_POST['city_id']) !== '') ? $db->escapeString(trim($_POST['city_id'])) : ((isset($_POST['city']) && trim($_POST['city']) !== '') ? $db->escapeString(trim($_POST['city'])) : '');
+	$area = (isset($_POST['area_id']) && trim($_POST['area_id']) !== '') ? $db->escapeString(trim($_POST['area_id'])) : ((isset($_POST['area']) && trim($_POST['area']) !== '') ? $db->escapeString(trim($_POST['area'])) : '');
+	$country_code = (isset($_POST['country_code']) && trim($_POST['country_code']) !== '') ? $db->escapeString(trim($_POST['country_code'])) : ((isset($_POST['country']) && trim($_POST['country']) !== '') ? $db->escapeString(trim($_POST['country'])) : '');
 	$street = $db->escapeString($_POST['street']);
 	// Older clients only send `street`, so the address falls back to it rather
 	// than going stale from whatever was stored at registration time.
@@ -314,8 +305,14 @@ if (isset($_POST['type']) && $_POST['type'] != '' && $_POST['type'] == 'edit-pro
 	$res = $db->getResult();
 
 	if (!empty($res)) {
+		$country_code_sql = '';
+		if ($country_code !== '') {
+			$country_code_sql = ',`country_code`="' . $country_code . '"';
+		} elseif (empty($res[0]['country_code'])) {
+			$country_code_sql = ',`country_code`="+91"';
+		}
 
-		$sql = 'UPDATE `users` SET `name`="' . $name . '",`email`="' . $email . '",`dob`="' . $dob . '",`state`="' . $state . '",`city`="' . $city . '",`area`="' . $area . '",`street`="' . $street . '",`address`="' . $address . '",`pincode`="' . $pincode . '",`latitude`="' . $latitude . '",`longitude`="' . $longitude . '" WHERE `id`=' . $id;
+		$sql = 'UPDATE `users` SET `name`="' . $name . '",`email`="' . $email . '",`dob`="' . $dob . '",`state`="' . $state . '",`city`="' . $city . '",`area`="' . $area . '",`street`="' . $street . '",`address`="' . $address . '",`pincode`="' . $pincode . '",`latitude`="' . $latitude . '",`longitude`="' . $longitude . '"' . $country_code_sql . ' WHERE `id`=' . $id;
 		$db->sql($sql);
 		$db->getResult();
 
