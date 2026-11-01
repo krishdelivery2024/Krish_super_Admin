@@ -16,13 +16,13 @@ if (empty($_SESSION['csrf_token'])) {
     $currentTime = time() + 25200;
     $expired = 3600;
     if (isset($_SESSION['id']) && "super admin" == $_SESSION['role'] ) {
-        $sql_login="select id from `admin` where id=".$_SESSION['id']." AND web_login='".$_SESSION['secretkey']."'";
-        $db->sql($sql_login);
-        $sql_login=$db->getResult();  
-        if(count($sql_login)==0){
+        $secretkey = $_SESSION['secretkey'] ?? '';
+        $isValidSession = $function->validate_admin_session($_SESSION['id'], $secretkey);
+        if (!$isValidSession) {
             echo "<script>alert('This login is accessed in Another place. Please Re-login');</script>";
             session_destroy();
             header("location:index.php");
+            exit;
         }
     }
     

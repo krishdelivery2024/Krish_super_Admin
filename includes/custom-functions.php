@@ -3852,6 +3852,67 @@ public function get_permissions($id){
             'can_sync' => $can_sync
         );
     }
-}
 
+    public function record_admin_session($admin_id, $session_key, $max_concurrent = 5) {
+        $admin_id = (int)$admin_id;
+        $session_key = $this->db->escapeString(trim((string)$session_key));
+        if ($admin_id <= 0 || empty($session_key)) {
+            return false;
+        }
+
+        // 1. Keep legacy column updated so any old direct queries still see the latest key
+        $this->db->sql("UPDATE `admin` SET `web_login` = '$session_key' WHERE `id` = $admin_id");
+
+        // 2. Insert new session into admin_sessions
+        $this->db->sql("INSERT INTO `admin_sessions`(`admin_id`, `session_key`, `created_at`) VALUES ($admin_id, '$session_key', NOW())");
+
+        // 3. Keep latest N active sessions for this admin (prune older ones beyond $max_concurrent)
+        $max_concurrent = max(1, (int)$max_concurrent);
+        $this->db->sql("DELETE FROM `admin_sessions` WHERE `admin_id` = $admin_id AND `id` NOT IN (
+            SELECT `id` FROM (
+                SELECT `id` FROM `admin_sessions` WHERE `admin_id` = $admin_id ORDER BY `id` DESC LIMIT $max_concurrent
+            ) AS recent_sessions
+        )");
+
+        return true;
+    }
+
+    public function validate_admin_session($admin_id, $session_key) {
+        $admin_id = (int)$admin_id;
+        $session_key = $this->db->escapeString(trim((string)$session_key));
+        if ($admin_id <= 0 || empty($session_key)) {
+            return false;
+        }
+
+        // First check in admin_sessions
+        $this->db->sql("SELECT `id` FROM `admin_sessions` WHERE `admin_id` = $admin_id AND `session_key` = '$session_key' LIMIT 1");
+        $res = $this->db->getResult();
+        if (!empty($res)) {
+            return true;
+        }
+
+        // Fallback to admin.web_login for backward compatibility
+        $this->db->sql("SELECT`id` FROM `admin` WHERE `id` = $admin_id AND `web_login` = '$session_key' LIMIT 1");
+        $resLegacy = $this->db->getResult();
+        if (!empty($resLegacy)) {
+            // Alsoregister it in admin_sessions so it's tracked
+            $this->db->sql("INSERT INTO `admin_sessions` (`admin_id`, `session_key`, `created_at`) VALUES ($admin_id, '$session_key', NOW())");
+            return true;
+        }
+
+        return false;
+    }
+
+    public function remove_admin_session($admin_id, $session_key) {
+        $admin_id = (int)$admin_id;
+        $session_key = $this->db->escapeString(trim((string)$session_key));
+        if ($admin_id <= 0 || empty($session_key)) {
+            return false;
+        }
+
+        $this->db->sql("DELETE FROM `admin_sessions` WHERE `admin_id` = $admin_id AND `session_key` = '$session_key'");
+        return true;
+    }
+
+}
 ?>

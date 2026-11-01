@@ -69,7 +69,7 @@ $db->sql(
      WHERE id = " . $sessionId . "
        AND username = '" . $sessionUser . "'
        AND role = '" . $sessionRole . "'
-       AND web_login = " . $sessionKey . "
+       AND (web_login = " . $sessionKey . " OR id IN (SELECT admin_id FROM admin_sessions WHERE session_key = '" . $sessionKey . "'))
      LIMIT 1"
 );
 

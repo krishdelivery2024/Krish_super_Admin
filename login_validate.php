@@ -80,10 +80,8 @@ session_start();
 							$expired = 36000;
 							//$sql="UPDATE admin SET web_login='".$secretkey."', remember_me=0 WHERE id=".$res[0]['id'];
 						}
-						$sql="UPDATE admin SET web_login='".$secretkey."' WHERE id=".$res[0]['id'];
-    					$_SESSION['timeout'] = $currentTime + $expired;
-    					$db->sql($sql);
-    					$db->getResult();
+						$_SESSION['timeout'] = $currentTime + $expired;
+						$fn->record_admin_session($res[0]['id'], $secretkey, 5);
     					$error['logged_in']=1;
     					$error['message'] = "<span class='label label-success'>Logged in Successfully</span>";
     				}else if(isset($settings['two_auth'])){

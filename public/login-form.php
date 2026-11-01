@@ -58,9 +58,7 @@
 					$_SESSION['secretkey']=$secretkey;
 					$_SESSION['user'] = $username;
 					$_SESSION['timeout'] = $currentTime + $expired;
-					$sql="UPDATE admin SET web_login='".$secretkey."' WHERE id=".$res[0]['id'];
-					$db->sql($sql);
-					$db->getResult();
+					$fn->record_admin_session($res[0]['id'], $secretkey, 5);
 				//	header("location: home.php");
 				}else{
 					$error['failed'] = "<span class='label label-danger'>Invalid Username or Password!</span>";

@@ -44,9 +44,7 @@ session_start();
         $currentTime = time() + 25200;
 
         if ($num == 1) {
-            $sql="UPDATE admin SET web_login='".$secretkey."' WHERE id=".$res[0]['id'];
-    		$db->sql($sql);
-    		$db->getResult();
+            $fn->record_admin_session($res[0]['id'], $secretkey, 5);
             $_SESSION['id'] = $res[0]['id'];
             $_SESSION['role'] = $res[0]['role'];
             $_SESSION['user'] = $res[0]['username'];
