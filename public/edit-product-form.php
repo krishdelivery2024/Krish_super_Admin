@@ -69,6 +69,17 @@
             $min_order_qty = $db->escapeString($fn->xss_clean($_POST['min_order_qty']));
             $indicator = $db->escapeString($fn->xss_clean($_POST['indicator']));
             $available_time = !empty($_POST['available_time']) ? implode(',', array_map(function($value) use ($fn, $db){ return $db->escapeString($fn->xss_clean($value)); }, $_POST['available_time'])) : '';
+            $suggested_products = '';
+            if (!empty($_POST['suggested_products']) && is_array($_POST['suggested_products'])) {
+                $clean_sug = array();
+                foreach ($_POST['suggested_products'] as $s_id) {
+                    $s_id = (int)$s_id;
+                    if ($s_id > 0) {
+                        $clean_sug[] = $s_id;
+                    }
+                }
+                $suggested_products = implode(',', array_unique($clean_sug));
+            }
             // $quantity = $_POST['quantity'];
             
             // get image info
@@ -227,10 +238,10 @@
                     }
       
                     $upload_image = 'upload/images/'.$image;
-                    $sql_query = "UPDATE products SET name = '$name' ,slug = '$slug' , category_id = '$category_id' ,subcategory_id = '$subcategory_id', brand_id = '$brand_id',price_type='$price_type', hsn = '$hsn',sgst = '$sgst',cgst = '$cgst',igst = '$igst', image = '$upload_image', description = '$description', available_time = '$available_time', min_stock = '$min_stock', min_order_qty = '$min_order_qty', status = '$product_status', indicator = '$indicator' WHERE id = $ID";
+                    $sql_query = "UPDATE products SET name = '$name' ,slug = '$slug' , category_id = '$category_id' ,subcategory_id = '$subcategory_id', brand_id = '$brand_id',price_type='$price_type', hsn = '$hsn',sgst = '$sgst',cgst = '$cgst',igst = '$igst', image = '$upload_image', description = '$description', available_time = '$available_time', suggested_products = '$suggested_products', min_stock = '$min_stock', min_order_qty = '$min_order_qty', status = '$product_status', indicator = '$indicator' WHERE id = $ID";
                     $db->sql($sql_query);
                 }else{
-                    $sql_query = "UPDATE products SET name = '$name' ,slug = '$slug' ,category_id = '$category_id' ,subcategory_id = '$subcategory_id' , brand_id = '$brand_id',price_type='$price_type', hsn = '$hsn',sgst = '$sgst',cgst = '$cgst',igst = '$igst', description = '$description', available_time = '$available_time', min_stock = '$min_stock', min_order_qty = '$min_order_qty', status = '$product_status', indicator = '$indicator' WHERE id = $ID";
+                    $sql_query = "UPDATE products SET name = '$name' ,slug = '$slug' ,category_id = '$category_id' ,subcategory_id = '$subcategory_id' , brand_id = '$brand_id',price_type='$price_type', hsn = '$hsn',sgst = '$sgst',cgst = '$cgst',igst = '$igst', description = '$description', available_time = '$available_time', suggested_products = '$suggested_products', min_stock = '$min_stock', min_order_qty = '$min_order_qty', status = '$product_status', indicator = '$indicator' WHERE id = $ID";
                     $db->sql($sql_query);
                 }
                 //print_r($sql_query);die;
@@ -404,6 +415,31 @@
         $res = $db->getResult();
         foreach($res as $row)
             $data = $row;
+
+        $product_seller_id = isset($data['seller_id']) ? (int)$data['seller_id'] : 0;
+        if ($product_seller_id == 0) {
+            $db->sql("SELECT seller_id, suggested_products FROM products WHERE id = " . $ID);
+            $p_check = $db->getResult();
+            if (!empty($p_check)) {
+                $product_seller_id = (int)$p_check[0]['seller_id'];
+                if (!isset($data['suggested_products'])) {
+                    $data['suggested_products'] = $p_check[0]['suggested_products'];
+                }
+            }
+        }
+        $current_suggested = array();
+        if (!empty($data['suggested_products'])) {
+            $current_suggested = array_filter(array_map('trim', explode(',', $data['suggested_products'])));
+        }
+
+        $seller_other_products = array();
+        if ($product_seller_id > 0) {
+            $db->sql("SELECT id, name FROM products WHERE seller_id = $product_seller_id AND id != $ID AND status = 1 ORDER BY name ASC");
+            $seller_other_products = $db->getResult();
+        } else {
+            $db->sql("SELECT id, name FROM products WHERE id != $ID AND status = 1 ORDER BY name ASC");
+            $seller_other_products = $db->getResult();
+        }
         
         //to check if the string is json or not
         function isJSON($string){
@@ -1148,6 +1184,19 @@
                             <label class="checkbox-inline"><input type="checkbox" name="available_time[]" value="Dinner" <?=(in_array('Dinner',$available_time_arr))?'checked':''; ?>> Dinner</label>
                         </div>
 
+                        <div class="form-group col-md-12">
+                            <label for="suggested_products">Suggested / Add-More Products (Cart Upsell):</label>
+                            <select name="suggested_products[]" id="suggested_products" class="form-control" multiple="multiple" style="width: 100%;">
+                                <?php if (!empty($seller_other_products)) {
+                                    foreach ($seller_other_products as $sp) {
+                                        $selected = in_array((string)$sp['id'], $current_suggested) ? 'selected' : '';
+                                ?>
+                                    <option value="<?= $sp['id'] ?>" <?= $selected ?>><?= htmlspecialchars($sp['name']) ?> (ID: <?= $sp['id'] ?>)</option>
+                                <?php } } ?>
+                            </select>
+                            <p class="help-block"><i class="fa fa-info-circle"></i> When a customer adds this product to their cart, these selected products will appear under "Add More Products" in the user app. If none selected, default store products will be shown.</p>
+                        </div>
+
                     </div>
                     </div>
                     <!-- /.box-body -->
@@ -1404,6 +1453,10 @@
 			width: '100%',
 			minimumResultsForSearch: 0,
 			placeholder: "type in brand name to search"
+		});
+		$('#suggested_products').select2({
+			width: '100%',
+			placeholder: "Select suggested products to show in user app cart..."
 		});
 	});
 </script>

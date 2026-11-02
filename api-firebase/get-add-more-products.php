@@ -51,20 +51,60 @@
                 $price_sort = 'pv.price ASC';
             }
 
-            $sql1="SELECT * FROM carts WHERE user_id = '$user_id' ";  
+            $sql1 = "SELECT * FROM carts WHERE user_id = '$user_id' ";  
             $db->sql($sql1);
             $res1 = $db->getResult();
             $product_ids = array_column($res1, 'product_id');  
 
+            $cart_product_ids = array_values(array_filter(array_map('intval', $product_ids)));
+            $suggested_ids = array();
+
+            // 1. Check if any product in the cart has custom suggested products configured
+            if (!empty($cart_product_ids)) {
+                $cart_ids_str = implode(',', $cart_product_ids);
+                $db->sql("SELECT id, suggested_products FROM products WHERE id IN ($cart_ids_str)");
+                $cart_prod_res = $db->getResult();
+                if (!empty($cart_prod_res)) {
+                    foreach ($cart_prod_res as $cp) {
+                        if (!empty($cp['suggested_products'])) {
+                            $exploded = explode(',', $cp['suggested_products']);
+                            foreach ($exploded as $sid) {
+                                $sid_int = (int)trim($sid);
+                                // Exclude products that are already in the cart
+                                if ($sid_int > 0 && !in_array($sid_int, $cart_product_ids)) {
+                                    $suggested_ids[] = $sid_int;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            $suggested_ids = array_values(array_unique($suggested_ids));
+
+            // 2. If suggested products exist for the cart items, show only those suggested products
+            if (!empty($suggested_ids)) {
+                $sug_ids_str = implode(',', $suggested_ids);
+                $where .= " AND p.id IN ($sug_ids_str)";
+                if (isset($res1[0]['seller_id']) && !empty($res1[0]['seller_id'])) {
+                    $seller_id = (int)$res1[0]['seller_id'];
+                    $where .= " AND p.seller_id = '$seller_id'";
+                }
+                // Order according to suggested order if default sort
+                if ($sort == 'ORDER BY row_order ASC, name ASC') {
+                    $sort = "ORDER BY FIELD(p.id, $sug_ids_str)";
+                }
+            } else {
+                // 3. Fallback: Default behavior if no suggested products are configured
                 if (!empty($product_ids)) {
                     $ids = implode(",", array_map('intval', $product_ids));
-                    $where .= " AND id NOT IN ($ids)";
+                    $where .= " AND p.id NOT IN ($ids)";
                 }
 
                 if (isset($res1[0]['seller_id']) && !empty($res1[0]['seller_id'])) {
                     $seller_id = $res1[0]['seller_id'];
-                    $where .= " AND seller_id = '$seller_id'";
+                    $where .= " AND p.seller_id = '$seller_id'";
                 }
+            }
 
 		    $sql = "SELECT count(id) as total from products p where is_active='1' ".$where." AND (p.seller_id = '' OR p.seller_id = '0' OR p.seller_id IN (SELECT s2.id FROM seller s2 INNER JOIN main_category m2 ON m2.id = s2.main_cat_id AND m2.status = '1'))".(!empty($meal_filter)?' AND '.$meal_filter:'');
 		    $db->sql($sql);
@@ -177,7 +217,9 @@
 	$db->disconnect();
 	
 	//to check if the string is json or not
-	function isJSON($string){
-		return is_string($string) && is_array(json_decode($string, true)) && (json_last_error() == JSON_ERROR_NONE) ? true : false;
+	if (!function_exists('isJSON')) {
+		function isJSON($string){
+			return is_string($string) && is_array(json_decode($string, true)) && (json_last_error() == JSON_ERROR_NONE) ? true : false;
+		}
 	}
 ?>

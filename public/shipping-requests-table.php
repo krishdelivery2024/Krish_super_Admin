@@ -8,7 +8,8 @@ include_once('includes/functions.php');
             <h3><i class="fa fa-truck"></i> Shipping &amp; Heavy Vehicle Requests</h3>
             <p class="text-muted">Requests placed by users from the Shipping tab for Auto, 4-wheelers, mini trucks, tempos, and heavy vehicles.</p>
         </div>
-        <div class="col-xs-4 text-right" style="padding-top:15px;">
+        <div class="col-xs-4 text-right" style="padding-top:15px; display:flex; justify-content:flex-end; gap:8px;">
+            <a class="btn btn-primary" href="create-order.php?service=shipping"><i class="fa fa-plus-circle"></i> Create Shipping Order</a>
             <a class="btn btn-default" href="shipping-vehicles.php"><i class="fa fa-cog"></i> Manage Vehicles</a>
         </div>
     </div>

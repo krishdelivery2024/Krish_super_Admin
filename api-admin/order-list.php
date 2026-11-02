@@ -23,7 +23,7 @@ if(isset($_POST['type'])){
             if($_POST['sub_type']=='received'){
                 $where .="o.active_status='received' AND (o.payment_method IN ('cod','wallet','LoyaltyPoints') OR o.payment_status='1')";
             }else if($_POST['sub_type']=='processed'){
-                $where .="o.active_status='processed'";
+                $where .="o.active_status IN ('processed', 'shipped')";
             }else if($_POST['sub_type']=='shipped'){
                 $where .="o.active_status='shipped'";
             }else if($_POST['sub_type']=='delivered'){

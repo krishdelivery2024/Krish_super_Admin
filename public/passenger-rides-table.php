@@ -31,9 +31,14 @@
     <div class="row">
         <div class="col-xs-12">
             <div class="box">
-                <div class="box-header">
-                    <h3 class="box-title">🚗 Passenger Rides</h3>
-                    <h4 class="box-subtitle">Live passenger ride bookings, dispatched drivers, fare distribution, and status.</h4>
+                <div class="box-header with-border" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                    <div>
+                        <h3 class="box-title" style="margin-bottom:4px;">🚗 Passenger Rides</h3>
+                        <h4 class="box-subtitle" style="margin:0; color:#777; font-size:13px;">Live passenger ride bookings, dispatched drivers, fare distribution, and status.</h4>
+                    </div>
+                    <div>
+                        <a href="create-order.php?service=passenger" class="btn btn-primary btn-sm" style="font-weight:600;"><i class="fa fa-plus-circle"></i> Book Passenger Ride</a>
+                    </div>
                 </div>
 
                 <div class="box-body" style="padding-bottom: 0;">

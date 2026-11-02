@@ -265,6 +265,10 @@ if (empty($_SESSION['csrf_token'])) {
 					<a class="waves-effect" href="incomplete-orders.php"><i class="menu-icon ti-shopping-cart"></i><span>Incomplete Order</span><span class="notice notice-blue"><?php if($res11[0]['inactive_orders_count'] == ''){echo '0';}else{ echo $res11[0]['inactive_orders_count']; }?></span></a>
 				</li>
 
+				<li <?php if($page=="Manage Category"){?> class="current" <?php } ?>>
+					<a class="waves-effect" href="manage-category.php"><i class="menu-icon ti-view-list-alt"></i><span>Manage Category</span></a>
+				</li>
+
 				<li <?php if($page=="Add Product" || $page=="Products" || $page=="Product Order" || $page=="Min. Stock Products" || $page=="Bulk Upload Products"){?> class="active" <?php } ?>>
 				<a class="waves-effect parent-item js__control" href="#"><i class="menu-icon ti-package"></i><span>Products</span><span class="menu-arrow fa fa-angle-down"></span></a>
 					<ul class="sub-menu js__content" <?php if($page=="Add Product" || $page=="Products" || $page=="Product Order" || $page=="Min. Stock Products" || $page=="Bulk Upload Products"){?> style="display: block;" <?php }?>>

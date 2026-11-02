@@ -9,11 +9,30 @@
     $res2 = $db->getResult(); 
     $Delivery_by_courier = $res2[0]['Delivery_by_courier'];
     
-    $sql_query = "SELECT id, name FROM category WHERE main_cat='$main_cat_id' ORDER BY id ASC";	
-    	// Execute query
-    	$db->sql($sql_query);
-    	// store result 
-    	$res=$db->getResult();
+    $logged_seller_id = (isset($_SESSION['role']) && $_SESSION['role'] == 'seller' && !empty($_SESSION['id'])) ? (int)$_SESSION['id'] : 0;
+    $res = array();
+    if ($logged_seller_id > 0) {
+        $sql_seller_cats = "SELECT c.id, c.name FROM category c 
+                            INNER JOIN seller_categories sc ON sc.category_id = c.id 
+                            WHERE sc.seller_id = $logged_seller_id AND c.status = 1 
+                            ORDER BY c.name ASC";
+        $db->sql($sql_seller_cats);
+        $res = $db->getResult();
+    }
+    if (empty($res)) {
+        $sql_query = "SELECT id, name FROM category WHERE main_cat='$main_cat_id' ORDER BY id ASC";	
+        $db->sql($sql_query);
+        $res = $db->getResult();
+    }
+    $target_seller_id = $logged_seller_id > 0 ? $logged_seller_id : (isset($seller_id) ? (int)$seller_id : 0);
+    $seller_existing_products = array();
+    if ($target_seller_id > 0) {
+        $db->sql("SELECT id, name FROM products WHERE seller_id = $target_seller_id AND status = 1 ORDER BY name ASC");
+        $seller_existing_products = $db->getResult();
+    } else {
+        $db->sql("SELECT id, name FROM products WHERE status = 1 ORDER BY name ASC");
+        $seller_existing_products = $db->getResult();
+    }
     	$sql_query = "SELECT id, name FROM brand ORDER BY id ASC";	
     	// Execute query
     	$db->sql($sql_query);
@@ -49,6 +68,17 @@
     	
     	$min_order_qty = $db->escapeString($fn->xss_clean($_POST['min_order_qty']));
     	$available_time = !empty($_POST['available_time']) ? implode(',', array_map(function($value) use ($fn, $db){ return $db->escapeString($fn->xss_clean($value)); }, $_POST['available_time'])) : '';
+    	$suggested_products = '';
+    	if (!empty($_POST['suggested_products']) && is_array($_POST['suggested_products'])) {
+    	    $clean_sug = array();
+    	    foreach ($_POST['suggested_products'] as $s_id) {
+    	        $s_id = (int)$s_id;
+    	        if ($s_id > 0) {
+    	            $clean_sug[] = $s_id;
+    	        }
+    	    }
+    	    $suggested_products = implode(',', array_unique($clean_sug));
+    	}
     	// get image info
     	$image = $db->escapeString($fn->xss_clean($_FILES['image']['name']));
     	$image_error = $db->escapeString($fn->xss_clean($_FILES['image']['error']));
@@ -213,7 +243,7 @@
     		    );
     		   // $product_id=$db->insert('products',$data);
                 //$sql='INSERT INTO products (name,slug,category_id,subcategory_id,brand_id,image,other_images,description,min_stock) VALUES("'.$name.'","'.$slug.'","'.$category_id.'","'.$subcategory_id.'","'.$brand_id.'","'.$upload_image.'","'.$other_images.'","'.$description.'","'.$min_stock.'")';
-                $sql="INSERT INTO products (name,slug,category_id,subcategory_id,brand_id,price_type,hsn,sgst,cgst,igst,image,other_images,description,available_time,min_stock,min_order_qty,status,seller_id,indicator) VALUES('".$name."','".$slug."','".$category_id."','".$subcategory_id."','".$brand_id."','".$price_type."','".$hsn."','".$sgst."','".$cgst."','".$igst."','".$upload_image."','".$other_images."','".$description."','".$available_time."','".$min_stock."','".$min_order_qty."','".$product_status."','".$seller_id."','".$indicator."')";
+                $sql="INSERT INTO products (name,slug,category_id,subcategory_id,brand_id,price_type,hsn,sgst,cgst,igst,image,other_images,description,available_time,suggested_products,min_stock,min_order_qty,status,seller_id,indicator) VALUES('".$name."','".$slug."','".$category_id."','".$subcategory_id."','".$brand_id."','".$price_type."','".$hsn."','".$sgst."','".$cgst."','".$igst."','".$upload_image."','".$other_images."','".$description."','".$available_time."','".$suggested_products."','".$min_stock."','".$min_order_qty."','".$product_status."','".$seller_id."','".$indicator."')";
                 // print_r($sql);die;
                 $db->sql($sql);
     			$product_id = $db->getResult();
@@ -730,6 +760,17 @@
                             <label class="checkbox-inline"><input type="checkbox" name="available_time[]" value="Dinner"> Dinner</label>
                         </div>
 
+                        <div class="form-group col-md-12">
+                            <label for="suggested_products">Suggested / Add-More Products (Cart Upsell):</label>
+                            <select name="suggested_products[]" id="suggested_products" class="form-control" multiple="multiple" style="width: 100%;">
+                                <?php if (!empty($seller_existing_products)) {
+                                    foreach ($seller_existing_products as $sp) { ?>
+                                        <option value="<?= $sp['id'] ?>"><?= htmlspecialchars($sp['name']) ?> (ID: <?= $sp['id'] ?>)</option>
+                                <?php } } ?>
+                            </select>
+                            <p class="help-block"><i class="fa fa-info-circle"></i> When a customer adds this product to their cart, these selected products will appear under "Add More Products" in the user app. If none selected, default store products will be shown.</p>
+                        </div>
+
                     </div>
                     <!-- /.box-body -->
                     <div class="box-footer">
@@ -986,6 +1027,10 @@
 				width: '100%',
 				minimumResultsForSearch: 0,
 				placeholder: "type in brand name to search"
+			});
+			$('#suggested_products').select2({
+				width: '100%',
+				placeholder: "Select suggested products to show in user app cart..."
 			});
 		});
 	</script>

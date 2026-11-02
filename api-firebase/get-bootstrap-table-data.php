@@ -1207,6 +1207,7 @@
 		
 		foreach($res as $row){
 		    $operate = ' <a href="edit-seller.php?id='.$row['id'].'"><i class="fa fa-edit"></i>Edit</a>';
+		    $operate .= ' <a href="manage-category.php?seller_id='.$row['id'].'">&nbsp;&nbsp;&nbsp;<i class="fa fa-tags text-primary"></i>Categories</a>';
 			if($row['status']==0)
 			$operate .= ' <a href="javascript:void(0);" onClick="alert(\'Please Active Before Login!\')">&nbsp;&nbsp;&nbsp;<i class="fa fa-sign-in"></i>Login</a>';
 			else

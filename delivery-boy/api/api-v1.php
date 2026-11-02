@@ -585,7 +585,7 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 		} else if ($_POST['status'] == 'past' || $_POST['status'] == 'history') {
 			$where .= " AND active_status != 'received' AND active_status != 'processed' AND active_status != 'shipped'";
 		} else if ($_POST['status'] == 'new') {
-				$where .= " AND o.active_status = 'processed' AND delivery_boy_id = '0' AND (o.delivery_method IS NULL OR LOWER(TRIM(o.delivery_method)) != 'storepickup') AND (o.dispatch_stage IN ('phase1', 'phase2') OR o.dispatch_stage IS NULL OR o.dispatch_stage = '') ";
+				$where .= " AND o.active_status = 'processed' AND o.order_ready = 1 AND delivery_boy_id = '0' AND (o.delivery_method IS NULL OR LOWER(TRIM(o.delivery_method)) != 'storepickup') AND (o.dispatch_stage IN ('phase1', 'phase2') OR o.dispatch_stage IS NULL OR o.dispatch_stage = '') ";
 			// Exclude orders this delivery boy has already rejected
 			if (!empty($caller_id)) {
 				$where .= " AND (rejected_by IS NULL OR rejected_by = '' OR NOT FIND_IN_SET('$caller_id', rejected_by)) ";
@@ -643,8 +643,8 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 	// Phase-1 for 60+ seconds is broadcast to the whole network while the boy
 	// is already polling. The guarded transition fires the push only once.
 	if (isset($_POST['status']) && $_POST['status'] == 'new') {
-        // Auto-dispatch any orders accepted by seller that haven't been claimed for Phase 1
-        $db->sql("SELECT id FROM orders WHERE (dispatch_stage IS NULL OR dispatch_stage = '') AND delivery_boy_id = '0' AND active_status = 'processed' AND (delivery_method IS NULL OR LOWER(TRIM(delivery_method)) != 'storepickup')");
+        // Auto-dispatch any orders accepted by seller and marked ready that haven't been claimed for Phase 1
+        $db->sql("SELECT id FROM orders WHERE (dispatch_stage IS NULL OR dispatch_stage = '') AND delivery_boy_id = '0' AND active_status = 'processed' AND order_ready = 1 AND (delivery_method IS NULL OR LOWER(TRIM(delivery_method)) != 'storepickup')");
         $unclaimed_orders = $db->getResult();
         if (!empty($unclaimed_orders)) {
                 foreach ($unclaimed_orders as $u_row) {
@@ -653,7 +653,7 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
         }
 
         $wait_sec = (int)custom_functions::DISPATCH_PHASE1_WAIT_SECONDS;
-        $db->sql("SELECT id FROM orders WHERE dispatch_stage = 'phase1' AND delivery_boy_id = '0' AND dispatch_phase1_at IS NOT NULL AND dispatch_phase1_at <= NOW() - INTERVAL $wait_sec SECOND AND active_status = 'processed'");
+        $db->sql("SELECT id FROM orders WHERE dispatch_stage = 'phase1' AND delivery_boy_id = '0' AND dispatch_phase1_at IS NOT NULL AND dispatch_phase1_at <= NOW() - INTERVAL $wait_sec SECOND AND active_status = 'processed' AND order_ready = 1");
         $due_orders = $db->getResult();
         if (!empty($due_orders)) {
                 foreach ($due_orders as $d_row) {
@@ -1168,6 +1168,30 @@ if (isset($_POST['accept_order_delivery_boy'])) {
 			if ($affected === 1) {
 				$response['error'] = false;
 				$response['message'] = "Order Accepted Susseccfully";
+
+				try {
+					$db->sql("SELECT o.id, o.user_id, o.seller_id, db.name AS dboy_name, db.mobile AS dboy_mobile FROM orders o LEFT JOIN delivery_boys db ON db.id = '$id' WHERE o.id = '$order_id'");
+					$res_order_seller = $db->getResult();
+					if (!empty($res_order_seller)) {
+						$s_id = (int)$res_order_seller[0]['seller_id'];
+						$u_id = (int)$res_order_seller[0]['user_id'];
+						$dboy_name = !empty($res_order_seller[0]['dboy_name']) ? ucwords($res_order_seller[0]['dboy_name']) : 'Delivery Partner';
+
+						if ($s_id > 0) {
+							$title_s = "Delivery Partner Assigned";
+							$msg_s = "Delivery partner " . $dboy_name . " has accepted Order #" . $order_id . " and is on the way for pickup.";
+							$fn->send_notification_to_seller($s_id, $title_s, $msg_s, 'order', $order_id, 'food');
+						}
+
+						if ($u_id > 0) {
+							$title_u = "Delivery Partner Assigned";
+							$msg_u = "Delivery partner " . $dboy_name . " has been assigned to your Order #" . $order_id . " and is heading to the store.";
+							$fn->send_order_update_notification($u_id, $title_u, $msg_u, 'order');
+						}
+					}
+				} catch (Exception $e) {
+					// Notification failure shouldn't affect order acceptance
+				}
 			} else {
 				$db->sql("SELECT delivery_boy_id, active_status FROM orders WHERE id = '$order_id'");
 				$res_taken = $db->getResult();

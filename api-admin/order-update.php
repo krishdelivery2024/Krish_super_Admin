@@ -55,6 +55,12 @@ if($access_key != $accesskey){
 if(isset($_POST['id'])) {
 	$id = $db->escapeString($function->xss_clean($_POST['id']));
 	$postStatus = $db->escapeString($function->xss_clean($_POST['status']));
+	if ($postStatus == 'picked') {
+		$postStatus = 'shipped';
+	}
+	if ($postStatus == 'ready_for_pickup') {
+		$postStatus = 'ready';
+	}
 //	print_r($postStatus);
 //	exit;
 	if(isset($_POST['delivery_boy_id']) && $_POST['delivery_boy_id'] != ''){
@@ -561,17 +567,37 @@ if ($total == 0) {
     	    } 
     	}
     	if($postStatus=='ready'){
+    	    $data = array('order_ready' => '1');
+    	    $db->update('orders',$data,'id='.$id);
+    	    $db->getResult();
+    	    $sql = "select name,email,mobile,country_code from `users` where id=".$user_id;
+    		$db->sql($sql);
+    		$res_user = $db->getResult();
     	    if($is_store_pickup){
-        	    $data = array('order_ready' => '1');
-        	    $db->update('orders',$data,'id='.$id);
-        	    $db->getResult();
-        	    $sql = "select name,email,mobile,country_code from `users` where id=".$user_id;
-        		$db->sql($sql);
-        		$res_user = $db->getResult();
         		$message_ready = "Hello, Dear ".ucwords($res_user[0]['name']).", Your order ID : #".$id." is now ready. Please visit the store to collect your order.";
         		$function->send_order_update_notification($user_id,"Your order is ready for pickup!",$message_ready,'order');
             	$response['error'] = false;
             	$response['message'] = "Order marked as ready for pickup!";
+            	print_r(json_encode($response));
+            	return false;
+    	    } else {
+    	        // Food delivery: order is prepared, notify customer and dispatch to delivery boys
+        		$message_ready = "Hello, Dear ".ucwords($res_user[0]['name']).", Your order ID : #".$id." is ready and being assigned to a delivery partner.";
+        		$function->send_order_update_notification($user_id,"Your order is ready for delivery!",$message_ready,'order');
+
+        		$dboy_id = isset($order_info['delivery_boy_id']) ? (int)$order_info['delivery_boy_id'] : 0;
+        		if ($dboy_id == 0) {
+        		    $message_delivery_boy = "Hello, A new order (ID : #".$id.") is ready for delivery. Please check your app to accept it.";
+        		    $function->dispatch_new_order(
+        		        'food',
+        		        $id,
+        		        'New Order Ready for Delivery',
+        		        $message_delivery_boy
+        		    );
+        		}
+
+            	$response['error'] = false;
+            	$response['message'] = "Order marked as ready for pickup! Delivery partners notified.";
             	print_r(json_encode($response));
             	return false;
     	    }
@@ -612,13 +638,18 @@ if ($total == 0) {
     		$to = $res_user[0]['email'];
     		$mobile = $res_user[0]['mobile'];
     		$country_code = $res_user[0]['country_code'];
-    		$subject = "Your order has been ".ucwords($postStatus);
-    		$message = "Hello, Dear ".ucwords($res_user[0]['name']).", Here is the new update on your order for the order ID : #".$id.". Your order has been ".ucwords($postStatus).". Please take a note of it.";
-    		$message .= "Thank you for using our services!You will receive future updates on your order via Email!";
-    		$function->send_order_update_notification($user_id,"Your order has been ".ucwords($postStatus),$message,'order');
+    		if ($postStatus == 'processed') {
+    			$subject = "Your order has been Accepted";
+    			$title_notif = "Order Accepted";
+    			$message = "Hello, Dear ".ucwords($res_user[0]['name']).", Your order #".$id." has been accepted and is being prepared by the store.";
+    		} else {
+    			$subject = "Your order has been ".ucwords($postStatus);
+    			$title_notif = "Your order has been ".ucwords($postStatus);
+    			$message = "Hello, Dear ".ucwords($res_user[0]['name']).", Here is the new update on your order for the order ID : #".$id.". Your order has been ".ucwords($postStatus).". Please take a note of it.";
+    		}
+    		$message .= " Thank you for using our services!";
+    		$function->send_order_update_notification($user_id,$title_notif,$message,'order');
     		send_email($to,$subject,$message);
-    		$message = "Hello, Dear ".ucwords($res_user[0]['name']).", Here is the new update on your order for the order ID : #".$id.". Your order has been ".ucwords($postStatus).". Please take a note of it.";
-    		$message .= "Thank you for using our services! Contact us for more information";
     		// sendSm  // Notify delivery boy about status update if assigned
 			
             if (!$is_store_pickup) {
@@ -632,45 +663,6 @@ if ($total == 0) {
                     $function->send_notification_to_delivery_boy($dboy_id,"Order Status Updated to ".ucwords($postStatus),$message_delivery_boy,'delivery_boys',$id);
                     $function->store_delivery_boy_notification($dboy_id,$id,"Order Status Updated to ".ucwords($postStatus),$message_delivery_boy,'order_status');
                 }
-            } else if ($dboy_id == 0 && $postStatus == 'processed') {
-            
-$message_delivery_boy = "Hello, A new order (ID : #".$id.") is ready for delivery. Please check your app to accept it.";
-
-$deferred = false;
-
-if ($is_book_for_later && $booked_delivery_dt instanceof DateTime) {
-    $notify_at = clone $booked_delivery_dt;
-    $notify_at->modify('-30 minutes');
-
-    if ($notify_at > new DateTime()) {
-        $sched = array(
-            'order_id' => $id,
-            'delivery_boy_id' => '0',
-            'title' => 'New Order Ready for Delivery',
-            'message' => $message_delivery_boy,
-            'type' => 'order_status',
-            'order_type' => 'food',
-            'scheduled_for' => $notify_at->format('Y-m-d H:i:s'),
-            'status' => 'pending'
-        );
-
-        $db->insert('scheduled_delivery_boy_notifications', $sched);
-        $db->getResult();
-        $deferred = true;
-    }
-}
-
-if (!$deferred) {
-    // Regular orders dispatch immediately using the two-phase flow.
-    // Book-later orders are scheduled 30 minutes before delivery.
-    $function->dispatch_new_order(
-        'food',
-        $id,
-        'New Order Ready for Delivery',
-        $message_delivery_boy
-    );
-}
-
             }
             }
 // sendSms($mobile,$message,$country_code);

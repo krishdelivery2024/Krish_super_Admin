@@ -137,6 +137,11 @@ $res_main_category = $db->getResult();
                         </option>
                     <?php endforeach; ?>
                 </select>
+                <small class="text-muted" style="display: block; margin-top: 5px;">
+                    <a href="manage-category.php?seller_id=<?= $seller['id'] ?>" target="_blank" class="text-primary" style="font-weight: 600;">
+                        <i class="fa fa-tags"></i> Manage Store Categories (Control which categories show in Seller Mobile App Inventory)
+                    </a>
+                </small>
             </div>
         </div>
 
