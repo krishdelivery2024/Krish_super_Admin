@@ -289,9 +289,13 @@ if (isset($_POST['type']) && $_POST['type'] != '' && $_POST['type'] == 'edit-pro
 	$id = $db->escapeString($_POST['id']);
 	$name = $db->escapeString($_POST['name']);
 	$email = $db->escapeString($_POST['email']);
-	$state = (isset($_POST['state_id']) && trim($_POST['state_id']) !== '') ? $db->escapeString(trim($_POST['state_id'])) : ((isset($_POST['state']) && trim($_POST['state']) !== '') ? $db->escapeString(trim($_POST['state'])) : '');
-	$city = (isset($_POST['city_id']) && trim($_POST['city_id']) !== '') ? $db->escapeString(trim($_POST['city_id'])) : ((isset($_POST['city']) && trim($_POST['city']) !== '') ? $db->escapeString(trim($_POST['city'])) : '');
-	$area = (isset($_POST['area_id']) && trim($_POST['area_id']) !== '') ? $db->escapeString(trim($_POST['area_id'])) : ((isset($_POST['area']) && trim($_POST['area']) !== '') ? $db->escapeString(trim($_POST['area'])) : '');
+	$state_raw = (isset($_POST['state_id']) && trim($_POST['state_id']) !== '') ? trim($_POST['state_id']) : ((isset($_POST['state']) && trim($_POST['state']) !== '') ? trim($_POST['state']) : '');
+	$city_raw = (isset($_POST['city_id']) && trim($_POST['city_id']) !== '') ? trim($_POST['city_id']) : ((isset($_POST['city']) && trim($_POST['city']) !== '') ? trim($_POST['city']) : '');
+	$area_raw = (isset($_POST['area_id']) && trim($_POST['area_id']) !== '') ? trim($_POST['area_id']) : ((isset($_POST['area']) && trim($_POST['area']) !== '') ? trim($_POST['area']) : '');
+
+	$state = is_numeric($state_raw) ? (int) $state_raw : 0;
+	$city = is_numeric($city_raw) ? (int) $city_raw : 0;
+	$area = is_numeric($area_raw) ? (int) $area_raw : 0;
 	$country_code = (isset($_POST['country_code']) && trim($_POST['country_code']) !== '') ? $db->escapeString(trim($_POST['country_code'])) : ((isset($_POST['country']) && trim($_POST['country']) !== '') ? $db->escapeString(trim($_POST['country'])) : '');
 	$street = $db->escapeString($_POST['street']);
 	// Older clients only send `street`, so the address falls back to it rather
@@ -316,8 +320,25 @@ if (isset($_POST['type']) && $_POST['type'] != '' && $_POST['type'] == 'edit-pro
 			$country_code_sql = ',`country_code`="+91"';
 		}
 
-		$sql = 'UPDATE `users` SET `name`="' . $name . '",`email`="' . $email . '",`dob`="' . $dob . '",`state`="' . $state . '",`city`="' . $city . '",`area`="' . $area . '",`street`="' . $street . '",`address`="' . $address . '",`pincode`="' . $pincode . '",`latitude`="' . $latitude . '",`longitude`="' . $longitude . '"' . $country_code_sql . ' WHERE `id`=' . $id;
-		$db->sql($sql);
+				$update_data = array(
+			'name' => $name,
+			'email' => $email,
+			'dob' => $dob,
+			'state' => $state,
+			'city' => $city,
+			'area' => $area,
+			'street' => $street,
+			'address' => $address,
+			'pincode' => $pincode,
+			'latitude' => $latitude,
+			'longitude' => $longitude
+		);
+		if (!empty($country_code)) {
+			$update_data['country_code'] = $country_code;
+		} elseif (empty($res[0]['country_code'])) {
+			$update_data['country_code'] = '+91';
+		}
+		$db->update('users', $update_data, 'id=' . $id);
 		$db->getResult();
 
 		$sql = "select `id` from `user_address` where `user_id`='" . $id . "'";
