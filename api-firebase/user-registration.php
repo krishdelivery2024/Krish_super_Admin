@@ -104,9 +104,9 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'register')) {
 	$city_raw = (isset($_POST['city_id']) && trim($_POST['city_id']) !== '') ? trim($_POST['city_id']) : ((isset($_POST['city']) && trim($_POST['city']) !== '') ? trim($_POST['city']) : '');
 	$area_raw = (isset($_POST['area_id']) && trim($_POST['area_id']) !== '') ? trim($_POST['area_id']) : ((isset($_POST['area']) && trim($_POST['area']) !== '') ? trim($_POST['area']) : '');
 
-	$state = is_numeric($state_raw) ? (int) $state_raw : 0;
-	$city = is_numeric($city_raw) ? (int) $city_raw : 0;
-	$area = is_numeric($area_raw) ? (int) $area_raw : 0;
+		$state = is_numeric($state_raw) ? (int) $state_raw : $db->escapeString($state_raw);
+	$city  = is_numeric($city_raw) ? (int) $city_raw : $db->escapeString($city_raw);
+	$area  = is_numeric($area_raw) ? (int) $area_raw : $db->escapeString($area_raw);
 	$street = (isset($_POST['street'])) ? $db->escapeString($_POST['street']) : "";
 	$address = (isset($_POST['address'])) ? $db->escapeString($_POST['address']) : "";
 	$pincode = (isset($_POST['pincode'])) ? $db->escapeString($_POST['pincode']) : "";
@@ -293,9 +293,9 @@ if (isset($_POST['type']) && $_POST['type'] != '' && $_POST['type'] == 'edit-pro
 	$city_raw = (isset($_POST['city_id']) && trim($_POST['city_id']) !== '') ? trim($_POST['city_id']) : ((isset($_POST['city']) && trim($_POST['city']) !== '') ? trim($_POST['city']) : '');
 	$area_raw = (isset($_POST['area_id']) && trim($_POST['area_id']) !== '') ? trim($_POST['area_id']) : ((isset($_POST['area']) && trim($_POST['area']) !== '') ? trim($_POST['area']) : '');
 
-	$state = is_numeric($state_raw) ? (int) $state_raw : 0;
-	$city = is_numeric($city_raw) ? (int) $city_raw : 0;
-	$area = is_numeric($area_raw) ? (int) $area_raw : 0;
+	$state = is_numeric($state_raw) ? (int)$state_raw : $db->escapeString($state_raw);
+	$city = is_numeric($city_raw) ? (int)$city_raw : $db->escapeString($city_raw);
+	$area = is_numeric($area_raw) ? (int)$area_raw : $db->escapeString($area_raw);
 	$country_code = (isset($_POST['country_code']) && trim($_POST['country_code']) !== '') ? $db->escapeString(trim($_POST['country_code'])) : ((isset($_POST['country']) && trim($_POST['country']) !== '') ? $db->escapeString(trim($_POST['country'])) : '');
 	$street = $db->escapeString($_POST['street']);
 	// Older clients only send `street`, so the address falls back to it rather
