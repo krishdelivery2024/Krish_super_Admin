@@ -100,9 +100,13 @@ if ((isset($_POST['type'])) && ($_POST['type'] == 'register')) {
 	$username = (isset($_POST['username']) && !empty($_POST['username'])) ? $db->escapeString($_POST['username']) : "";
 	$email = (isset($_POST['email']) && !empty($_POST['email'])) ? $db->escapeString($_POST['email']) : "";
 	$password = md5($_POST['password']);
-	$state = (isset($_POST['state_id']) && trim($_POST['state_id']) !== '') ? $db->escapeString(trim($_POST['state_id'])) : ((isset($_POST['state']) && trim($_POST['state']) !== '') ? $db->escapeString(trim($_POST['state'])) : "");
-	$city = (isset($_POST['city_id']) && trim($_POST['city_id']) !== '') ? $db->escapeString(trim($_POST['city_id'])) : ((isset($_POST['city']) && trim($_POST['city']) !== '') ? $db->escapeString(trim($_POST['city'])) : "");
-	$area = (isset($_POST['area_id']) && trim($_POST['area_id']) !== '') ? $db->escapeString(trim($_POST['area_id'])) : ((isset($_POST['area']) && trim($_POST['area']) !== '') ? $db->escapeString(trim($_POST['area'])) : "");
+	$state_raw = (isset($_POST['state_id']) && trim($_POST['state_id']) !== '') ? trim($_POST['state_id']) : ((isset($_POST['state']) && trim($_POST['state']) !== '') ? trim($_POST['state']) : '');
+	$city_raw = (isset($_POST['city_id']) && trim($_POST['city_id']) !== '') ? trim($_POST['city_id']) : ((isset($_POST['city']) && trim($_POST['city']) !== '') ? trim($_POST['city']) : '');
+	$area_raw = (isset($_POST['area_id']) && trim($_POST['area_id']) !== '') ? trim($_POST['area_id']) : ((isset($_POST['area']) && trim($_POST['area']) !== '') ? trim($_POST['area']) : '');
+
+	$state = is_numeric($state_raw) ? (int) $state_raw : 0;
+	$city = is_numeric($city_raw) ? (int) $city_raw : 0;
+	$area = is_numeric($area_raw) ? (int) $area_raw : 0;
 	$street = (isset($_POST['street'])) ? $db->escapeString($_POST['street']) : "";
 	$address = (isset($_POST['address'])) ? $db->escapeString($_POST['address']) : "";
 	$pincode = (isset($_POST['pincode'])) ? $db->escapeString($_POST['pincode']) : "";
