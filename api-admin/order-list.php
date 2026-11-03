@@ -49,12 +49,12 @@ if(isset($_POST['type'])){
         }
 
         if($where=="1"){
-            $sql = "SELECT o.*,(SELECT name FROM users u WHERE u.id=o.user_id) as user_name, (SELECT name FROM delivery_boys d WHERE d.id=o.delivery_boy_id) as delivery_boy_name, (SELECT mobile FROM delivery_boys d WHERE d.id=o.delivery_boy_id) as delivery_boy_mobile 
+            $sql = "SELECT o.*,(SELECT name FROM users u WHERE u.id=o.user_id) as user_name, (SELECT name FROM delivery_boys d WHERE d.id=o.delivery_boy_id) as delivery_boy_name, (SELECT mobile FROM delivery_boys d WHERE d.id=o.delivery_boy_id) as delivery_boy_mobile, (SELECT vehicle_number FROM delivery_boys d WHERE d.id=o.delivery_boy_id) as delivery_boy_vehicle_number, (SELECT vehicle_type FROM delivery_boys d WHERE d.id=o.delivery_boy_id) as delivery_boy_vehicle_type 
                     FROM orders o 
                     WHERE o.payment_method IN ('cod','wallet','LoyaltyPoints') OR o.payment_status='1' 
                     ORDER BY date_added DESC";
         }else{
-            $sql = "SELECT o.*,(SELECT name FROM users u WHERE u.id=o.user_id) as user_name, (SELECT name FROM delivery_boys d WHERE d.id=o.delivery_boy_id) as delivery_boy_name, (SELECT mobile FROM delivery_boys d WHERE d.id=o.delivery_boy_id) as delivery_boy_mobile 
+            $sql = "SELECT o.*,(SELECT name FROM users u WHERE u.id=o.user_id) as user_name, (SELECT name FROM delivery_boys d WHERE d.id=o.delivery_boy_id) as delivery_boy_name, (SELECT mobile FROM delivery_boys d WHERE d.id=o.delivery_boy_id) as delivery_boy_mobile, (SELECT vehicle_number FROM delivery_boys d WHERE d.id=o.delivery_boy_id) as delivery_boy_vehicle_number, (SELECT vehicle_type FROM delivery_boys d WHERE d.id=o.delivery_boy_id) as delivery_boy_vehicle_type 
                     FROM orders o 
                     WHERE $where 
                     ORDER BY date_added DESC";
@@ -125,7 +125,7 @@ if(isset($_POST['type'])){
     }else{
         $where ='';
     }
-	$sql = "select o.*,(select name from users u where u.id=o.user_id) as user_name, (select name from delivery_boys d where d.id=o.delivery_boy_id) as delivery_boy_name, (select mobile from delivery_boys d where d.id=o.delivery_boy_id) as delivery_boy_mobile from orders o WHERE $where o.id=".$_POST['id'];
+	$sql = "select o.*,(select name from users u where u.id=o.user_id) as user_name, (select name from delivery_boys d where d.id=o.delivery_boy_id) as delivery_boy_name, (select mobile from delivery_boys d where d.id=o.delivery_boy_id) as delivery_boy_mobile, (select vehicle_number from delivery_boys d where d.id=o.delivery_boy_id) as delivery_boy_vehicle_number, (select vehicle_type from delivery_boys d where d.id=o.delivery_boy_id) as delivery_boy_vehicle_type from orders o WHERE $where o.id=".$_POST['id'];
     $db->sql($sql);
     $res = $db->getResult();
     $i=0; $j=0;

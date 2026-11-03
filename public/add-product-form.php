@@ -315,7 +315,7 @@
                     $stock=$db->escapeString($fn->xss_clean($_POST['loose_stock']));
                     $stock_unit_id=$db->escapeString($fn->xss_clean($_POST['loose_stock_unit_id']));
                     $barcode_data=$db->escapeString($fn->xss_clean($_POST['loose_barcode_text']));
-                    $sql="INSERT INTO product_variant (product_id,type,measurement,measurement_unit_id,weight,price,vendor_price,discounted_price,is_offer,offer_price,offer_limit_per_user,product_price,item_sgst,item_cgst,item_igst,serve_for,stock,stock_unit_id,barcode_data) VALUES('$product_id','$type','$measurement','$measurement_unit_id','$weight','$price','$vendorprice','$discounted_price','$v_is_offer','$variant_offer_price','$variant_offer_limit','$product_price','$item_sgst','$item_cgst','$item_igst','$serve_for','$stock','$stock_unit_id',$barcode_data)";
+                  $sql="INSERT INTO product_variant (product_id,type,measurement,measurement_unit_id,weight,price,vendor_price,discounted_price,is_offer,offer_price,offer_limit_per_user,product_price,item_sgst,item_cgst,item_igst,serve_for,stock,stock_unit_id,barcode_data) VALUES('$product_id','$type','$measurement','$measurement_unit_id','$weight','$price','$vendorprice','$discounted_price','$v_is_offer','$variant_offer_price','$variant_offer_limit','$product_price','$item_sgst','$item_cgst','$item_igst','$serve_for','$stock','$stock_unit_id','$barcode_data')";
                      $db->sql($sql);
                      $product_variant = $db->getResult();
                

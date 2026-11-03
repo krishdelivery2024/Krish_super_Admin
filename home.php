@@ -86,14 +86,19 @@ $today_parcels_where = "created_at >= CURDATE() AND created_at < CURDATE() + INT
 
 /* Food orders KPI - orders table (today only, zone filtered when a zone is selected) */
 if($selected_zone > 0){
-	$food_kpi = $function->rows_count('orders', '*', "zone_id='".$selected_zone."' AND ".$today_orders_where);
+	$food_today_kpi = $function->rows_count('orders', '*', "zone_id='".$selected_zone."' AND ".$today_orders_where);
+	$food_total_kpi = $function->rows_count('orders', '*', "zone_id='".$selected_zone."'");
 } else if(!empty($my_zone_scope)){
-	$food_kpi = $function->rows_count('orders', '*', "zone_id".$scope_sql." AND ".$today_orders_where);
+	$food_today_kpi = $function->rows_count('orders', '*', "zone_id".$scope_sql." AND ".$today_orders_where);
+	$food_total_kpi = $function->rows_count('orders', '*', "zone_id".$scope_sql);
 } else if($_SESSION['role'] == 'seller'){
-	$food_kpi = $function->orders_count();
+	$food_today_kpi = $function->orders_count();
+	$food_total_kpi = $function->rows_count('orders', '*', "seller_id = '$seller_id'");
 } else {
-	$food_kpi = $function->rows_count('orders', '*', $today_orders_where);
+	$food_today_kpi = $function->rows_count('orders', '*', $today_orders_where);
+	$food_total_kpi = $function->rows_count('orders', '*');
 }
+$food_kpi = $food_today_kpi;
 
 /* Products KPI - filtered through seller.zone_id */
 if($selected_zone > 0){
@@ -120,44 +125,49 @@ if($selected_zone > 0){
 /* Parcel Orders KPI - zone filtered */
 $parcel_service_cond = "(service_type = 'parcel' OR service_type IS NULL OR service_type = '')";
 if($selected_zone > 0){
-	$parcel_kpi = $function->rows_count('parcel_requests', '*', "zone_id='".$selected_zone."' AND ".$parcel_service_cond);
+	$parcel_total_kpi = $function->rows_count('parcel_requests', '*', "zone_id='".$selected_zone."' AND ".$parcel_service_cond);
 	$parcel_today_kpi = $function->rows_count('parcel_requests', '*', "zone_id='".$selected_zone."' AND ".$parcel_service_cond." AND ".$today_parcels_where);
 } else if(!empty($my_zone_scope)){
-	$parcel_kpi = $function->rows_count('parcel_requests', '*', "zone_id".$scope_sql." AND ".$parcel_service_cond);
+	$parcel_total_kpi = $function->rows_count('parcel_requests', '*', "zone_id".$scope_sql." AND ".$parcel_service_cond);
 	$parcel_today_kpi = $function->rows_count('parcel_requests', '*', "zone_id".$scope_sql." AND ".$parcel_service_cond." AND ".$today_parcels_where);
 } else {
-	$parcel_kpi = $function->rows_count('parcel_requests', '*', $parcel_service_cond);
+	$parcel_total_kpi = $function->rows_count('parcel_requests', '*', $parcel_service_cond);
 	$parcel_today_kpi = $function->rows_count('parcel_requests', '*', $parcel_service_cond." AND ".$today_parcels_where);
 }
+$parcel_kpi = $parcel_today_kpi;
 
 /* Shipping Requests KPI - zone filtered */
 $shipping_service_cond = "service_type = 'shipping'";
 if($selected_zone > 0){
-	$shipping_kpi = $function->rows_count('parcel_requests', '*', "zone_id='".$selected_zone."' AND ".$shipping_service_cond);
+	$shipping_total_kpi = $function->rows_count('parcel_requests', '*', "zone_id='".$selected_zone."' AND ".$shipping_service_cond);
 	$shipping_today_kpi = $function->rows_count('parcel_requests', '*', "zone_id='".$selected_zone."' AND ".$shipping_service_cond." AND ".$today_parcels_where);
 } else if(!empty($my_zone_scope)){
-	$shipping_kpi = $function->rows_count('parcel_requests', '*', "zone_id".$scope_sql." AND ".$shipping_service_cond);
+	$shipping_total_kpi = $function->rows_count('parcel_requests', '*', "zone_id".$scope_sql." AND ".$shipping_service_cond);
 	$shipping_today_kpi = $function->rows_count('parcel_requests', '*', "zone_id".$scope_sql." AND ".$shipping_service_cond." AND ".$today_parcels_where);
 } else {
-	$shipping_kpi = $function->rows_count('parcel_requests', '*', $shipping_service_cond);
+	$shipping_total_kpi = $function->rows_count('parcel_requests', '*', $shipping_service_cond);
 	$shipping_today_kpi = $function->rows_count('parcel_requests', '*', $shipping_service_cond." AND ".$today_parcels_where);
 }
+$shipping_kpi = $shipping_today_kpi;
 
 /* Passenger Rides KPI - zone filtered */
 $passenger_service_cond = "service_type = 'passenger'";
 if($selected_zone > 0){
-	$passenger_kpi = $function->rows_count('parcel_requests', '*', "zone_id='".$selected_zone."' AND ".$passenger_service_cond);
+	$passenger_total_kpi = $function->rows_count('parcel_requests', '*', "zone_id='".$selected_zone."' AND ".$passenger_service_cond);
 	$passenger_today_kpi = $function->rows_count('parcel_requests', '*', "zone_id='".$selected_zone."' AND ".$passenger_service_cond." AND ".$today_parcels_where);
 } else if(!empty($my_zone_scope)){
-	$passenger_kpi = $function->rows_count('parcel_requests', '*', "zone_id".$scope_sql." AND ".$passenger_service_cond);
+	$passenger_total_kpi = $function->rows_count('parcel_requests', '*', "zone_id".$scope_sql." AND ".$passenger_service_cond);
 	$passenger_today_kpi = $function->rows_count('parcel_requests', '*', "zone_id".$scope_sql." AND ".$passenger_service_cond." AND ".$today_parcels_where);
 } else {
-	$passenger_kpi = $function->rows_count('parcel_requests', '*', $passenger_service_cond);
+	$passenger_total_kpi = $function->rows_count('parcel_requests', '*', $passenger_service_cond);
 	$passenger_today_kpi = $function->rows_count('parcel_requests', '*', $passenger_service_cond." AND ".$today_parcels_where);
 }
+$passenger_kpi = $passenger_today_kpi;
 
-/* Total Orders = Food orders + Parcel orders + Shipping + Passenger (today only) */
-$orders_kpi = $food_kpi + $parcel_today_kpi + $shipping_today_kpi + $passenger_today_kpi;
+/* Total Orders = Food orders + Parcel orders + Shipping + Passenger (today & total) */
+$orders_today_kpi = $food_today_kpi + $parcel_today_kpi + $shipping_today_kpi + $passenger_today_kpi;
+$orders_total_kpi = $food_total_kpi + $parcel_total_kpi + $shipping_total_kpi + $passenger_total_kpi;
+$orders_kpi = $orders_today_kpi;
 
 /* Delivery Boys KPI - total / online / offline (zone filtered)
    Source of truth: delivery_boys.active_status, set by the delivery boy app
@@ -187,7 +197,7 @@ $boys_offline_kpi = isset($res_db_kpi[0]['offline_boys_kpi']) ? (int)$res_db_kpi
 			<div class="col-xs-12">
 				<div class="box box-default">
 					<div class="box-header with-border">
-						<h3 class="box-title">Zone Filter</h3>
+						<h3 class="box-title">Zone Filter <span class="label label-primary" style="font-size:12px;margin-left:10px;font-weight:normal;"><i class="fa fa-calendar"></i> Server Date: <?=date('d M Y')?></span></h3>
 						<form method="get" action="home.php" id="zone_filter_form" class="pull-right" style="margin-bottom:0;">
 							<select name="zone_id" id="zone_id" class="form-control" style="width: 260px;" onchange="document.getElementById('zone_filter_form').submit();">
 								<option value="">All Zones</option>
@@ -207,8 +217,8 @@ $boys_offline_kpi = isset($res_db_kpi[0]['offline_boys_kpi']) ? (int)$res_db_kpi
 				<a href="orders.php"><div class="box-content">
 					<div class="statistics-box with-icon">
 						<i class="ico ti-notepad text-inverse"></i>
-						<h2 class="counter text-inverse"><?=$orders_kpi;?></h2>
-						<p class="text">Orders</p>
+						<h2 class="counter text-inverse"><?=$orders_today_kpi;?></h2>
+						<p class="text">Today's Orders<small class="text-muted" style="display:block;font-size:11px;margin-top:2px;">Total: <?=$orders_total_kpi;?></small></p>
 					</div>
 					<!-- .statistics-box .with-icon -->
 				</div></a>
@@ -219,8 +229,8 @@ $boys_offline_kpi = isset($res_db_kpi[0]['offline_boys_kpi']) ? (int)$res_db_kpi
 				<a href="orders.php"><div class="box-content">
 					<div class="statistics-box with-icon">
 						<i class="ico ti-shopping-cart text-inverse"></i>
-						<h2 class="counter text-inverse"><?=$food_kpi;?></h2>
-						<p class="text">Food Orders</p>
+						<h2 class="counter text-inverse"><?=$food_today_kpi;?></h2>
+						<p class="text">Today's Food Orders<small class="text-muted" style="display:block;font-size:11px;margin-top:2px;">Total: <?=$food_total_kpi;?></small></p>
 					</div>
 					<!-- .statistics-box .with-icon -->
 				</div></a>
@@ -255,8 +265,8 @@ $boys_offline_kpi = isset($res_db_kpi[0]['offline_boys_kpi']) ? (int)$res_db_kpi
 				<a href="parcel-requests.php"><div class="box-content">
 					<div class="statistics-box with-icon">
 						<i class="ico ti-package text-warning"></i>
-						<h2 class="counter text-warning"><?=$parcel_kpi;?></h2>
-						<p class="text">Parcel Orders<?php if($parcel_today_kpi > 0){ ?><small class="text-muted" style="display:block;font-size:11px;">Today: <?=$parcel_today_kpi;?></small><?php } ?></p>
+						<h2 class="counter text-warning"><?=$parcel_today_kpi;?></h2>
+						<p class="text">Today's Parcel Orders<small class="text-muted" style="display:block;font-size:11px;margin-top:2px;">Total: <?=$parcel_total_kpi;?></small></p>
 					</div>
 					<!-- .statistics-box .with-icon -->
 				</div></a>
@@ -266,8 +276,8 @@ $boys_offline_kpi = isset($res_db_kpi[0]['offline_boys_kpi']) ? (int)$res_db_kpi
 				<a href="shipping-requests.php"><div class="box-content">
 					<div class="statistics-box with-icon">
 						<i class="ico fa fa-truck text-info"></i>
-						<h2 class="counter text-info"><?=$shipping_kpi;?></h2>
-						<p class="text">Shipping Requests<?php if($shipping_today_kpi > 0){ ?><small class="text-muted" style="display:block;font-size:11px;">Today: <?=$shipping_today_kpi;?></small><?php } ?></p>
+						<h2 class="counter text-info"><?=$shipping_today_kpi;?></h2>
+						<p class="text">Today's Shipping Orders<small class="text-muted" style="display:block;font-size:11px;margin-top:2px;">Total: <?=$shipping_total_kpi;?></small></p>
 					</div>
 					<!-- .statistics-box .with-icon -->
 				</div></a>
@@ -277,8 +287,8 @@ $boys_offline_kpi = isset($res_db_kpi[0]['offline_boys_kpi']) ? (int)$res_db_kpi
 				<a href="passenger-rides.php"><div class="box-content">
 					<div class="statistics-box with-icon">
 						<i class="ico fa fa-car text-danger"></i>
-						<h2 class="counter text-danger"><?=$passenger_kpi;?></h2>
-						<p class="text">Passenger Rides<?php if($passenger_today_kpi > 0){ ?><small class="text-muted" style="display:block;font-size:11px;">Today: <?=$passenger_today_kpi;?></small><?php } ?></p>
+						<h2 class="counter text-danger"><?=$passenger_today_kpi;?></h2>
+						<p class="text">Today's Passenger Rides<small class="text-muted" style="display:block;font-size:11px;margin-top:2px;">Total: <?=$passenger_total_kpi;?></small></p>
 					</div>
 					<!-- .statistics-box .with-icon -->
 				</div></a>

@@ -4152,6 +4152,7 @@ $(document).on('change','#loose',function(){
                 $('#update_zone_id').val(row.zone_id);
             else
                 $('#update_zone_id').val('');
+            $('#update_vehicle_number').val(row.vehicle_number || row.vehicle_number_value || '');
             $('#update_aadhaar').val(row.aadhaar);
             $('#update_driving_license').val(row.driving_license);
         }

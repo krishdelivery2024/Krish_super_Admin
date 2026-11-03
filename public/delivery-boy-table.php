@@ -109,6 +109,10 @@ if ($is_sub_admin) {
                         </label>
                       </div>
                     </div>
+                    <div class="form-group" id="vehicle_number_container">
+                      <label for="vehicle_number">Vehicle Number <span style="color:red;">*</span></label>
+                      <input type="text" class="form-control" name="vehicle_number" id="vehicle_number" placeholder="e.g. TN 76 AB 1234" required>
+                    </div>
                     <div class="form-group">
                       <label for="">Zone</label>
                       <select class="form-control" name="zone_id" id="zone_id">
@@ -179,6 +183,33 @@ if ($is_sub_admin) {
             </div><!-- /.box -->
         </div>
         <?php } ?>
+        <!-- Sticky table header styles for Delivery Boys -->
+        <style>
+        #wrapper {
+            transform: none !important;
+            -webkit-transform: none !important;
+            overflow: visible !important;
+        }
+        .fixed-navbar {
+            z-index: 105 !important;
+        }
+        .fix-sticky {
+            z-index: 99 !important;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.12);
+        }
+        .fix-sticky table thead th {
+            background-color: #f8f9fa !important;
+            border-bottom: 2px solid #ccc !important;
+            color: #333 !important;
+            vertical-align: middle !important;
+        }
+        #delivery-boys thead th {
+            background-color: #f8f9fa !important;
+        }
+        .box-body.table-responsive {
+            overflow-x: visible !important;
+        }
+        </style>
         <!-- Left col -->
         <div class="col-md-12">
             <?php if ($can_read_delivery_boys) { ?>
@@ -207,7 +238,9 @@ if ($is_sub_admin) {
                         data-show-refresh="true" data-show-columns="true"
                         data-side-pagination="server" data-pagination="true"
                         data-search="true" data-trim-on-search="false"
-                        data-sort-name="id" data-sort-order="desc">
+                        data-sort-name="id" data-sort-order="desc"
+                        data-sticky-header="true"
+                        data-sticky-header-offset-y="50">
                         <thead>
                         <tr>
                             <th data-field="id" data-sortable="true">ID</th>
@@ -220,6 +253,7 @@ if ($is_sub_admin) {
                             <th data-field="balance" data-sortable="true">Balance</th>
                             <th data-field="service_type" data-sortable="true">Service Type</th>
                             <th data-field="vehicle_type" data-sortable="true">Vehicle Type</th>
+                            <th data-field="vehicle_number" data-sortable="true">Vehicle No</th>
                             <th data-field="aadhaar" data-sortable="true">Aadhaar</th>
                             <th data-field="driving_license" data-sortable="true">DL No</th>
                             <th data-field="profile">Photo</th>
@@ -256,6 +290,19 @@ if ($is_sub_admin) {
     };
     $(document).on('change', '#online_filter, #table_zone_filter', function () {
         $('#delivery-boys').bootstrapTable('refresh');
+    });
+
+    $(document).ready(function () {
+        var $table = $('#delivery-boys');
+        if ($table.length && typeof $table.bootstrapTable === 'function') {
+            var opts = $table.bootstrapTable('getOptions');
+            if (opts && !opts.stickyHeader) {
+                $table.bootstrapTable('refreshOptions', {
+                    stickyHeader: true,
+                    stickyHeaderOffsetY: 50
+                });
+            }
+        }
     });
     </script>
 

@@ -1757,7 +1757,7 @@ $where = '';
 $allowed_sort_columns = array(
     'id', 'name', 'mobile', 'store_id', 'address',
     'bonus', 'balance', 'active_status', 'status',
-    'zone_id', 'zone_name', 'service_type'
+    'zone_id', 'zone_name', 'service_type', 'vehicle_type', 'vehicle_number'
 );
 
 $requested_sort = isset($_GET['sort']) ? (string)$_GET['sort'] : 'id';
@@ -1935,6 +1935,8 @@ if ($role === 'sub admin') {
 			);
 			$tempRow['vehicle_type'] = isset($vt_map[$vt]) ? $vt_map[$vt] : "<span class='label label-default'>" . ucfirst($vt) . "</span>";
 			$tempRow['vehicle_type_value'] = $vt;
+			$tempRow['vehicle_number'] = !empty($row['vehicle_number']) ? htmlspecialchars($row['vehicle_number'], ENT_QUOTES, 'UTF-8') : '-';
+			$tempRow['vehicle_number_value'] = !empty($row['vehicle_number']) ? $row['vehicle_number'] : '';
 			if($row['status']==0)
 			    $tempRow['status']="<label class='label label-danger'>Deactive</label>";
             else

@@ -697,6 +697,11 @@ $zone_id = $db->escapeString((string)$zone_id);
     $raw_vt = !empty($_POST['vehicle_type']) ? strtolower(trim($_POST['vehicle_type'])) : 'bike';
     $vehicle_type = in_array($raw_vt, $allowed_vts) ? $raw_vt : 'bike';
     $vehicle_type = $db->escapeString($vehicle_type);
+    $vehicle_number = $db->escapeString($fn->xss_clean(!empty($_POST['vehicle_number']) ? strtoupper(trim($_POST['vehicle_number'])) : ''));
+    if (empty($vehicle_number)) {
+        echo '<label class="alert alert-danger">Vehicle number is required!</label>';
+        return false;
+    }
     $aadhaar = $db->escapeString($fn->xss_clean(!empty($_POST['aadhaar']) ? $_POST['aadhaar'] : ''));
     $driving_license = $db->escapeString($fn->xss_clean(!empty($_POST['driving_license']) ? $_POST['driving_license'] : ''));
     if (empty($aadhaar) || !preg_match('/^\d{12}$/', $aadhaar)) {
@@ -728,7 +733,7 @@ $zone_id = $db->escapeString((string)$zone_id);
             echo '<label class="alert alert-danger">Mobile Number Already Exists!</label>';
             return false;
         }
-    $sql = "INSERT INTO delivery_boys (name,mobile,otp,password,store_id,address,bonus,commission,service_type,vehicle_type,aadhaar,driving_license,profile,aadhaar_image,driving_license_image,zone_id,fcm_id) VALUES ('$name', '$mobile', '', '$password', '$store_id', '$address','$bonus','$commission','$service_type','$vehicle_type','$aadhaar','$driving_license','$profile','$aadhaar_image','$driving_license_image','$zone_id','')";
+    $sql = "INSERT INTO delivery_boys (name,mobile,otp,password,store_id,address,bonus,commission,service_type,vehicle_type,vehicle_number,aadhaar,driving_license,profile,aadhaar_image,driving_license_image,zone_id,fcm_id) VALUES ('$name', '$mobile', '', '$password', '$store_id', '$address','$bonus','$commission','$service_type','$vehicle_type','$vehicle_number','$aadhaar','$driving_license','$profile','$aadhaar_image','$driving_license_image','$zone_id','')";
     if($db->sql($sql)){
         echo '<label class="alert alert-success">Delivery Boy Added Successfully!</label>';
     }else{
@@ -861,6 +866,11 @@ $update_zone_id = $db->escapeString((string)$update_zone_id);
     $raw_up_vt = !empty($_POST['update_vehicle_type']) ? strtolower(trim($_POST['update_vehicle_type'])) : 'bike';
     $update_vehicle_type = in_array($raw_up_vt, $allowed_vts) ? $raw_up_vt : 'bike';
     $update_vehicle_type = $db->escapeString($update_vehicle_type);
+    $update_vehicle_number = $db->escapeString($fn->xss_clean(!empty($_POST['update_vehicle_number']) ? strtoupper(trim($_POST['update_vehicle_number'])) : ''));
+    if (empty($update_vehicle_number)) {
+        echo '<label class="alert alert-danger">Vehicle number is required!</label>';
+        return false;
+    }
     $aadhaar = $db->escapeString($fn->xss_clean(!empty($_POST['update_aadhaar']) ? $_POST['update_aadhaar'] : ''));
     $driving_license = $db->escapeString($fn->xss_clean(!empty($_POST['update_driving_license']) ? $_POST['update_driving_license'] : ''));
     if (empty($aadhaar) || !preg_match('/^\d{12}$/', $aadhaar)) {
@@ -892,9 +902,9 @@ $update_zone_id = $db->escapeString((string)$update_zone_id);
     $status = $db->escapeString($fn->xss_clean($_POST['status']));
     $password = !empty($password)?md5($password):'';
     if(!empty($password)){
-        $sql = "Update delivery_boys set `name`='".$name."',password='".$password."',`address`='".$address."',`bonus`='".$bonus."',`commission`='".$commission."',`zone_id`='".$update_zone_id."',`service_type`='".$service_type."',`vehicle_type`='".$update_vehicle_type."',`aadhaar`='".$aadhaar."',`driving_license`='".$driving_license."',`status`='".$status."'".$profile_update.$aadhaar_image_update.$dl_image_update." where `id`=".$id;
+        $sql = "Update delivery_boys set `name`='".$name."',password='".$password."',`address`='".$address."',`bonus`='".$bonus."',`commission`='".$commission."',`zone_id`='".$update_zone_id."',`service_type`='".$service_type."',`vehicle_type`='".$update_vehicle_type."',`vehicle_number`='".$update_vehicle_number."',`vehicle_number`='".$update_vehicle_number."',`aadhaar`='".$aadhaar."',`driving_license`='".$driving_license."',`status`='".$status."'".$profile_update.$aadhaar_image_update.$dl_image_update." where `id`=".$id;
     }else{
-        $sql = "Update delivery_boys set `name`='".$name."',`address`='".$address."',`bonus`='".$bonus."',`commission`='".$commission."',`zone_id`='".$update_zone_id."',`service_type`='".$service_type."',`vehicle_type`='".$update_vehicle_type."',`aadhaar`='".$aadhaar."',`driving_license`='".$driving_license."',`status`='".$status."'".$profile_update.$aadhaar_image_update.$dl_image_update." where `id`=".$id;
+        $sql = "Update delivery_boys set `name`='".$name."',`address`='".$address."',`bonus`='".$bonus."',`commission`='".$commission."',`zone_id`='".$update_zone_id."',`service_type`='".$service_type."',`vehicle_type`='".$update_vehicle_type."',`vehicle_number`='".$update_vehicle_number."',`vehicle_number`='".$update_vehicle_number."',`aadhaar`='".$aadhaar."',`driving_license`='".$driving_license."',`status`='".$status."'".$profile_update.$aadhaar_image_update.$dl_image_update." where `id`=".$id;
     }
     if($db->sql($sql)){
         echo "<label class='alert alert-success'>Information Updated Successfully.</label>";

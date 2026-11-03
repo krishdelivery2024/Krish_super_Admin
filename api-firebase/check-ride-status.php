@@ -36,6 +36,8 @@ $sql = "SELECT pr.*,
         db.name AS driver_name, 
         db.mobile AS driver_mobile, 
         db.profile AS driver_image,
+        db.vehicle_number AS driver_vehicle_number,
+        db.vehicle_type AS driver_vehicle_type,
         db.latitude AS driver_lat,
         db.longitude AS driver_lng
         FROM parcel_requests pr 
@@ -91,6 +93,8 @@ $response['driver'] = array(
     'name' => $ride['driver_name'] ?? 'Driver',
     'mobile' => $ride['driver_mobile'] ?? '',
     'image' => $ride['driver_image'] ?? '',
+    'vehicle_number' => $ride['driver_vehicle_number'] ?? '',
+    'vehicle_type' => $ride['driver_vehicle_type'] ?? '',
     'lat' => $ride['driver_lat'] ?? '',
     'lng' => $ride['driver_lng'] ?? ''
 );
