@@ -41,7 +41,7 @@ $store_address   = isset($_POST['store_address']) ? $db->escapeString($_POST['st
 $latitude        = isset($_POST['latitude']) ? $db->escapeString($_POST['latitude']) : '';
 $longitude       = isset($_POST['longitude']) ? $db->escapeString($_POST['longitude']) : '';
 
-$dob             = $db->escapeString($_POST['dob']);
+$dob = (isset($_POST['dob']) && trim($_POST['dob']) !== '') ? $db->escapeString($_POST['dob']) : 'NULL';
 $account_details = $db->escapeString($_POST['account_details']);
 $gst_no          = $db->escapeString($_POST['gst_no']);
 $pan_no          = $db->escapeString($_POST['pan_no']);
@@ -130,7 +130,7 @@ $sql = "UPDATE seller SET
     latitude = '$latitude',
     longitude = '$longitude',
     
-    dob = '$dob',
+    dob = $dob,
     account_details = '$account_details',
     gst_no = '$gst_no',
     pan_no = '$pan_no',
