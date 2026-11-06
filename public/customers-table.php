@@ -11,9 +11,25 @@
     span.exportcustomer:hover {
         background: #303F9F;
     }
+    #customerOrdersModal {
+        z-index: 1060 !important;
+        pointer-events: auto !important;
+    }
     #customerOrdersModal .modal-dialog {
         width: 90%;
         max-width: 1250px;
+        z-index: 1061 !important;
+        position: relative;
+        pointer-events: auto !important;
+    }
+    #customerOrdersModal .modal-content {
+        background-color: #fff !important;
+        position: relative;
+        z-index: 1062 !important;
+        pointer-events: auto !important;
+    }
+    .modal-backdrop {
+        z-index: 1040 !important;
     }
     #customerOrdersModal th {
         vertical-align: middle;
@@ -153,6 +169,13 @@
 </div>
 
 <script>
+    // Immediately move modal directly under <body> to escape #wrapper's CSS transform & stacking context
+    if (document.getElementById('customerOrdersModal')) {
+        document.body.appendChild(document.getElementById('customerOrdersModal'));
+    }
+</script>
+
+<script>
     var currentModalCustomerId = 0;
 
     function modalCustomerOrdersQueryParams(p) {
@@ -168,9 +191,33 @@
     }
 
     $(document).ready(function() {
+        // Ensure both modals are children of <body> so they never render under backdrops
+        $('#customerOrdersModal').appendTo('body');
+        $('#editOrderStatusModal').appendTo('body');
+
+        // Dynamically increment z-index when multiple modals or backdrops are triggered
+        $(document).on('show.bs.modal', '.modal', function () {
+            var zIndex = 1060 + (10 * $('.modal:visible').length);
+            $(this).css('z-index', zIndex);
+            setTimeout(function() {
+                $('.modal-backdrop').not('.modal-stack').css('z-index', zIndex - 1).addClass('modal-stack');
+            }, 0);
+        });
+
+        $(document).on('hidden.bs.modal', '.modal', function () {
+            if ($('.modal:visible').length > 0) {
+                $('body').addClass('modal-open');
+            }
+        });
+
         // Open Customer Orders Modal on click of "View" or Orders Count badge
         $(document).on('click', '.btn-view-orders', function(e) {
             e.preventDefault();
+            // Ensure modal is outside #wrapper before opening
+            if ($('#customerOrdersModal').parent().prop('tagName') !== 'BODY') {
+                $('#customerOrdersModal').appendTo('body');
+            }
+
             currentModalCustomerId = $(this).data('id');
             var customerName = $(this).data('name');
             var profileUrl = 'edit-customer.php?id=' + currentModalCustomerId + '#customer-orders';
@@ -186,6 +233,11 @@
             });
 
             $('#customerOrdersModal').modal('show');
+        });
+
+        // Recalculate and align table column widths once modal is visible
+        $('#customerOrdersModal').on('shown.bs.modal', function () {
+            $('#modal_customer_orders_table').bootstrapTable('resetView');
         });
 
         // Filter status in modal
