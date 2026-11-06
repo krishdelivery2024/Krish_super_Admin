@@ -61,12 +61,25 @@ if (isset($_POST['get_settings']) || (isset($_POST['type']) && $_POST['type'] ==
 		$response['settings']['current_version'] = empty($response['settings']['delivery_boy_current_version']) ? (empty($response['settings']['current_version']) ? "0" : $response['settings']['current_version']) : $response['settings']['delivery_boy_current_version'];
 		$response['settings']['minimum_version_required'] = empty($response['settings']['delivery_boy_min_version']) ? (empty($response['settings']['minimum_version_required']) ? "0" : $response['settings']['minimum_version_required']) : $response['settings']['delivery_boy_min_version'];
 		$response['settings']['is_version_system_on'] = isset($response['settings']['is_delivery_boy_version_system_on']) ? $response['settings']['is_delivery_boy_version_system_on'] : (isset($response['settings']['is-version-system-on']) ? $response['settings']['is-version-system-on'] : "0");
+		$response['settings']['privacy_policy_url'] = "https://krishdelivery.com/delivery-partner-privacy-policy.php";
 		print_r(json_encode($response));
 	} else {
 		$response['error'] = true;
 		$response['message'] = "No settings found!";
 		print_r(json_encode($response));
 	}
+	return false;
+	exit();
+}
+
+if (isset($_POST['get_privacy_policy']) || (isset($_POST['type']) && $_POST['type'] == 'get_privacy_policy')) {
+	$response['error'] = false;
+	$response['privacy_policy_url'] = "https://krishdelivery.com/delivery-partner-privacy-policy.php";
+	$sql = "SELECT value FROM `settings` WHERE `variable` = 'delivery_boy_privacy_policy' LIMIT 1";
+	$db->sql($sql);
+	$p_res = $db->getResult();
+	$response['privacy_policy'] = (!empty($p_res) && !empty($p_res[0]['value'])) ? $p_res[0]['value'] : "https://krishdelivery.com/delivery-partner-privacy-policy.php";
+	print_r(json_encode($response));
 	return false;
 	exit();
 }

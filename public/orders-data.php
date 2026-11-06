@@ -306,6 +306,16 @@ if (isset($_POST['update_order_status'])) {
                                         <option value="cancelled" <?=($currentStatus == 'cancelled' || $res[0]['active_status'] == 'cancelled') ? 'selected' : '';?>>Cancel</option>
                                         <option value="returned" <?=($currentStatus == 'returned' || $res[0]['active_status'] == 'returned') ? 'selected' : '';?>>Returned</option>
                                     </select>
+                                    <div id="order_cancelled_by_group" style="margin-top:8px; <?=($currentStatus == 'cancelled' || $res[0]['active_status'] == 'cancelled') ? '' : 'display:none;';?>">
+                                        <label style="font-weight:600;font-size:12px;margin-bottom:3px;"><i class="fa fa-info-circle"></i> Cancelled By:</label>
+                                        <select name="cancelled_by" id="cancelled_by" class="form-control input-sm">
+                                            <?php $cur_role = (isset($_SESSION['role']) && $_SESSION['role'] == 'seller') ? 'Seller' : 'Admin'; ?>
+                                            <option value="<?=$cur_role;?>"><?=$cur_role;?> Cancelled (Default)</option>
+                                            <option value="Customer">Customer Cancelled</option>
+                                            <option value="Seller">Seller Cancelled</option>
+                                            <option value="Admin">Admin Cancelled</option>
+                                        </select>
+                                    </div>
                                 </td>
                             </tr>
                             <?php } ?>
@@ -584,6 +594,14 @@ $(document).on('click', '.btn-manual-refund-food', function(e){
             alert('Server error while processing refund.');
         }
     });
+});
+
+$(document).on('change', '#status', function(){
+    if($(this).val() === 'cancelled'){
+        $('#order_cancelled_by_group').slideDown(150);
+    } else {
+        $('#order_cancelled_by_group').slideUp(150);
+    }
 });
 </script>
 <?php $db->disconnect(); ?>

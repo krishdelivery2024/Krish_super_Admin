@@ -86,6 +86,14 @@ $(document).ready(function(){
                 });
                 return items.join(' ; ');
             }
+            if ($cell.find('.status-badge').length) {
+                var stText = $cell.find('.status-badge').text().trim();
+                var subLabel = $cell.find('.label').text().trim();
+                if (subLabel) {
+                    return stText + ' (' + subLabel + ')';
+                }
+                return stText;
+            }
             var txt = html ? $('<div>').html(html).text().trim() : '';
             return txt.replace(/\u20B9|&#8377;/g, 'Rs.').replace(/\u2014|\u2013/g, '-').replace(/&mdash;/g, '-').replace(/&nbsp;|\u00a0/g, ' ');
         };

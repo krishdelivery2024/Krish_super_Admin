@@ -6,7 +6,7 @@
 	</div>
 	<!-- /.main-content -->
 </div><!--/#wrapper -->
-<?php if(isset($page) && $page=="Orders"){ ?>
+<?php if(isset($page) && ($page=="Orders" || $page=="Edit Customer" || $page=="Customers")){ ?>
 <!-- Modal for Admin / Seller to quickly change order status -->
 <div class="modal fade" id="editOrderStatusModal" tabindex="-1" role="dialog" aria-labelledby="editOrderStatusModalLabel">
     <div class="modal-dialog" role="document">
@@ -38,6 +38,17 @@
                         </select>
                     </div>
 
+                    <div class="form-group" id="modal_cancelled_by_group" style="display:none;">
+                        <label for="modal_cancelled_by">Cancelled By <span class="text-danger">*</span></label>
+                        <select name="cancelled_by" id="modal_cancelled_by" class="form-control">
+                            <?php $curr_role = (isset($_SESSION['role']) && $_SESSION['role'] == 'seller') ? 'Seller' : 'Admin'; ?>
+                            <option value="<?=$curr_role;?>"><?=$curr_role;?> Cancelled (Default)</option>
+                            <option value="Customer">Customer Cancelled</option>
+                            <option value="Seller">Seller Cancelled</option>
+                            <option value="Admin">Admin Cancelled</option>
+                        </select>
+                    </div>
+
                     <div class="form-group">
                         <label for="modal_delivery_boy_id">Delivery Boy</label>
                         <select name="delivery_boy_id" id="modal_delivery_boy_id" class="form-control">
@@ -63,6 +74,15 @@
         </div>
     </div>
 </div>
+<script>
+$(document).on('change', '#modal_status', function() {
+    if ($(this).val() === 'cancelled') {
+        $('#modal_cancelled_by_group').slideDown(150);
+    } else {
+        $('#modal_cancelled_by_group').slideUp(150);
+    }
+});
+</script>
 <?php } ?>
 <?php if($page=="Promo Code"){ ?>
 	<div class="modal fade" id='editPromoCodeModal' tabindex="-1" role="dialog" aria-labelledby="myLargeModalLabel">
@@ -3515,7 +3535,8 @@ $(document).on('click','.update_order_status',function(e){
         var status = $('#status').val();
         var id = $('#order_id').val();
         var deliver_by = $('#deliver_by').val();
-        var dataString ='update_order_status=true&id='+id+'&status='+status+'&delivery_boy_id='+deliver_by+'&ajaxCall=1';
+        var cancelled_by = (status === 'cancelled' && $('#cancelled_by').length) ? $('#cancelled_by').val() : '';
+        var dataString ='update_order_status=true&id='+id+'&status='+status+'&delivery_boy_id='+deliver_by+'&cancelled_by='+encodeURIComponent(cancelled_by)+'&ajaxCall=1';
 		//console.log(dataString);
     $.ajax({        
         url: "api-firebase/order-process.php",

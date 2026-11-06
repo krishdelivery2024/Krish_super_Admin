@@ -89,10 +89,15 @@
 			'date_added'      => 'o.date_added',
 		);
 
-		$where = " where (o.payment_method='cod' OR o.payment_method='wallet' OR o.payment_method='LoyaltyPoints' OR o.payment_status=1)";
-// 		if(!empty($_GET['start_date']) && !empty($_GET['end_date'])){
-// 			$where .= " AND DATE(o.date_added)>=DATE('".$db->escapeString($_GET['start_date'])."') AND DATE(o.date_added)<=DATE('".$db->escapeString($_GET['end_date'])."')";
-// 		}
+		if(isset($_GET['user_id']) && !empty($_GET['user_id'])){
+			$user_id = (int)$_GET['user_id'];
+			$where = " where o.`user_id`='".$user_id."'";
+		} else {
+			$where = " where (o.payment_method='cod' OR o.payment_method='wallet' OR o.payment_method='LoyaltyPoints' OR o.payment_status=1)";
+		}
+		if(!empty($_GET['start_date']) && !empty($_GET['end_date'])){
+			$where .= " AND DATE(o.date_added)>=DATE('".$db->escapeString($_GET['start_date'])."') AND DATE(o.date_added)<=DATE('".$db->escapeString($_GET['end_date'])."')";
+		}
 
 		// ---- Safely resolve sort column (whitelist only, prevents SQL injection + unknown column errors) ----
 		if(isset($_GET['sort']) && array_key_exists($_GET['sort'], $sort_map)){
@@ -143,18 +148,19 @@
 		$res = $db->getResult();
 		$total = isset($res)?$res[0]['total']:0;
 
-        $sql="select o.*, u.name, s.name as vendor_name, s.mobile as vendor_mobile, z.name as zone_name 
+        $sql="select o.*, u.name, s.name as vendor_name, s.mobile as vendor_mobile, z.name as zone_name, b.name as delivery_boy_name 
               FROM orders o 
               JOIN users u ON u.id=o.user_id 
               LEFT JOIN seller s ON s.id=o.seller_id 
-              LEFT JOIN zone z ON z.id=o.zone_id".$where." ORDER BY ".$sort." ".$order." LIMIT ".$offset.", ".$limit;
+              LEFT JOIN zone z ON z.id=o.zone_id 
+              LEFT JOIN delivery_boys b ON b.id=o.delivery_boy_id ".$where." ORDER BY ".$sort." ".$order." LIMIT ".$offset.", ".$limit;
 		$db->sql($sql);
 		$res = $db->getResult();
 		for($i=0;$i<count($res);$i++) {
 			$sql="select oi.*, COALESCE(NULLIF(oi.product_name, ''), p.name, '-') as name, u.name as uname, COALESCE(NULLIF(oi.measurement, ''), v.measurement, '') as measurement, COALESCE(NULLIF(oi.unit, ''), (SELECT short_code FROM unit un where un.id=v.measurement_unit_id), '') as mesurement_unit_name,(SELECT status FROM orders o where o.id=oi.order_id)as order_status from `order_items` oi 
 			    LEFT join product_variant v on oi.product_variant_id=v.id 
 			    LEFT join products p on p.id=v.product_id 
-			    JOIN users u ON u.id=oi.user_id 
+			    LEFT JOIN users u ON u.id=oi.user_id 
 			    where oi.order_id=".$res[$i]['id'];
     		$db->sql($sql);
     		$res[$i]['items'] = $db->getResult();
@@ -164,83 +170,110 @@
 		$rows = array();
 		$tempRow = array();
 		foreach($res as $row){
-		    if(!empty($row['items'])){
-    			$items = $row['items'];
-    			$items1='';
-    			$temp = '';
-    			$total_amt=0;
-    			foreach($items as $item){
-    				$temp .= "<b>ID :</b>".$item['id']."<b> Product Variant Id :</b> ".$item['product_variant_id']."<b> Name : </b>".$item['name']." <b>Unit : </b>".$item['measurement']." ".$item['mesurement_unit_name']." <b>Price : </b>".$item['price']." <b>QTY : </b>".$item['quantity']." <b>Subtotal : </b>".$item['quantity']*$item['price']."<br>------<br>";
-    				$total_amt += $item['sub_total'];
-    			}
-    
-    			$items1 = $temp;
-    			$temp = '';
-    			$status = json_decode($row['items'][0]['order_status']);
-    			if(!empty($status)){
-        			foreach($status as $st){
-        				$temp .= $st[0]." : ".$st[1]."<br>------<br>";
-        			}
-    			}
-    			if($row['active_status']=='received'){
-                    $active_status = '<label class="label label-primary">'.$row['active_status'].'</label>';
-                }
-                if($row['active_status']=='processed'){
-                    $active_status = '<label class="label label-info">'.$row['active_status'].'</label>';
-                }
-                if($row['active_status']=='shipped'){
-                    $active_status = '<label class="label label-warning">'.$row['active_status'].'</label>';
-                }
-                if($row['active_status']=='delivered'){
-                    $active_status = '<label class="label label-success">'.$row['active_status'].'</label>';
-                }
-                if($row['active_status']=='returned' || $row['active_status'] == 'cancelled' ){
-                    $active_status = '<label class="label label-danger">'.$row['active_status'].'</label>';
-                }
-    			$status = $temp;
-    			$operate = "<a class='btn btn-sm btn-primary edit-fees' data-id='".$row['id']."' data-toggle='modal' data-target='#editFeesModal'>Edit</a>";
-    			
-    			$operate .= "<a onclick='return conf(\"delete\");' class='btn btn-sm btn-danger' href='../public/db_operations.php?id=".$row['id']."&delete_order=1' target='_blank'>Delete</a>";
-    			$discounted_amount = $row['total'] * $row['items'][0]['discount'] / 100;
-        	    $final_total = $row['total'] - $discounted_amount;
-                $discount_in_rupees = $row['total']-$final_total;
-                $discount_in_rupees = floor($discount_in_rupees);
-    			$tempRow['id'] = $row['id'];
-    			$tempRow['zone_name'] = (!empty($row['zone_name'])) ? $row['zone_name'] : '-';
-    			$tempRow['user_id'] = $row['user_id'];
-    			$tempRow['name'] = $row['items'][0]['uname'];
-    			$tempRow['mobile'] = $row['mobile'];
-    			$tempRow['delivery_charge'] = $row['delivery_charge'];
-    			$tempRow['items']=$items1;
-    			$tempRow['total']=$row['total'];
-    			$tempRow['tax']=$row['tax_amount'].'('.$row['tax_percentage'].'%)';
-    			$tempRow['promo_discount']=$row['promo_discount'];
-    			$tempRow['wallet_balance']=$row['wallet_balance'];
-    			$tempRow['discount'] = $discount_in_rupees.'('.$row['items'][0]['discount'].'%)';
-    			$tempRow['qty'] = $row['items'][0]['quantity'];
-    			$tempRow['final_total'] = ($row['final_total']);
-    			$tempRow['promo_code'] = $row['promo_code'];
-    			$tempRow['deliver_by'] = $row['items'][0]['deliver_by'];
-    			$tempRow['payment_method'] = $row['payment_method'];
-    			$tempRow['address'] = $row['address'];
-    			$tempRow['delivery_time'] = $row['delivery_time'];
-    			$tempRow['status'] = $status;
-    			$tempRow['active_status'] = $active_status;
-    			$tempRow['wallet_balance'] = $row['wallet_balance'];
-    			$tempRow['date_added'] = date('d-m-Y',strtotime($row['date_added']));
-    			
-    			if(isset($_SESSION['role']) && $_SESSION['role'] != 'seller'){
-    			    $tempRow['sname'] = $row['vendor_name'];
-    			    $tempRow['smobile'] = $row['vendor_mobile'];
-    			}
-    			$operate = '<a class="btn btn-xs btn-primary" href="order-detail.php?id='.$row['id'].'" title="View Order Details"><i class="fa fa-eye"></i> View</a> ';
-    			$operate .= '<button type="button" class="btn btn-xs btn-info btn-change-status" data-id="'.$row['id'].'" data-status="'.htmlspecialchars($row['active_status']).'" data-boy="'.(int)$row['delivery_boy_id'].'" title="Change Order Status"><i class="fa fa-pencil"></i> Status</button>';
-    			if(isset($_SESSION['role']) && $_SESSION['role'] == 'seller'){
-    			    $operate .= ' <a class="btn btn-xs btn-danger" href="delete-order.php?id='.$row['id'].'" onclick="return confirm(\'Are you sure you want to delete this order?\');"><i class="fa fa-trash"></i></a>';
-    			}
-    			$tempRow['operate'] = $operate;
-    			$rows[] = $tempRow;
-    		}
+			$items1 = '';
+			$discount_in_rupees = 0;
+			$status = '';
+			if(!empty($row['items'])){
+				$items = $row['items'];
+				$temp = '';
+				$total_amt = 0;
+				foreach($items as $item){
+					$temp .= "<div style='margin-bottom:4px; padding:3px 6px; background:#f9f9f9; border:1px solid #eee; border-radius:3px;'>";
+					$temp .= "<span class='badge' style='background:#337ab7;'>".$item['quantity']."x</span> <b>".htmlspecialchars($item['name'])."</b>";
+					if(!empty($item['measurement']) || !empty($item['mesurement_unit_name'])){
+						$temp .= " <small class='text-muted'>(".htmlspecialchars(trim($item['measurement']." ".$item['mesurement_unit_name'])).")</small>";
+					}
+					$temp .= " <span class='text-muted pull-right'>₹".($item['quantity']*$item['price'])."</span>";
+					$temp .= "</div>";
+					$total_amt += $item['sub_total'];
+				}
+				$items1 = $temp;
+				$temp = '';
+				$status_arr = json_decode($row['items'][0]['order_status']);
+				if(!empty($status_arr)){
+					foreach($status_arr as $st){
+						$temp .= $st[0]." : ".$st[1]."<br>";
+					}
+				}
+				$status = $temp;
+				$disc_pct = isset($row['items'][0]['discount']) ? (float)$row['items'][0]['discount'] : 0;
+				$discounted_amount = $row['total'] * $disc_pct / 100;
+				$final_total = $row['total'] - $discounted_amount;
+				$discount_in_rupees = floor($row['total'] - $final_total);
+				$tempRow['qty'] = count($items);
+				$tempRow['discount'] = $discount_in_rupees.'('.$disc_pct.'%)';
+			} else {
+				$items1 = "<span class='text-muted'>No items</span>";
+				$tempRow['qty'] = 0;
+				$tempRow['discount'] = '0(0%)';
+			}
+
+			$active_status = '<label class="label label-primary">'.$row['active_status'].'</label>';
+			if($row['active_status']=='received'){
+				$active_status = '<label class="label label-primary">'.$row['active_status'].'</label>';
+			}
+			if($row['active_status']=='processed'){
+				$active_status = '<label class="label label-info">'.$row['active_status'].'</label>';
+			}
+			if($row['active_status']=='shipped'){
+				$active_status = '<label class="label label-warning">'.$row['active_status'].'</label>';
+			}
+			if($row['active_status']=='delivered'){
+				$active_status = '<label class="label label-success">'.$row['active_status'].'</label>';
+			}
+			if($row['active_status']=='returned' || $row['active_status'] == 'cancelled' ){
+				$active_status = '<label class="label label-danger">'.$row['active_status'].'</label>';
+				if($row['active_status'] == 'cancelled'){
+					$who_c = !empty($row['cancelled_by']) ? trim((string)$row['cancelled_by']) : '';
+					if(empty($who_c) && !empty($row['status'])){
+						$st_hist = @json_decode($row['status'], true);
+						if(is_array($st_hist)){
+							foreach($st_hist as $h){
+								if(isset($h[0]) && in_array(strtolower(trim($h[0])), array('processed', 'shipped', 'delivered'))){
+									$who_c = 'Seller';
+									break;
+								}
+							}
+						}
+					}
+					if(empty($who_c)){ $who_c = 'Customer'; }
+					$lbl_cls = (strtolower($who_c) == 'seller') ? 'label-danger' : ((strtolower($who_c) == 'admin') ? 'label-primary' : 'label-warning');
+					$active_status .= '<br><span class="label '.$lbl_cls.'" style="font-size:10px;margin-top:3px;display:inline-block;padding:2px 5px;">'.htmlspecialchars($who_c).' Cancelled</span>';
+				}
+			}
+
+			$tempRow['id'] = $row['id'];
+			$tempRow['zone_name'] = (!empty($row['zone_name'])) ? $row['zone_name'] : '-';
+			$tempRow['user_id'] = $row['user_id'];
+			$tempRow['name'] = !empty($row['items'][0]['uname']) ? $row['items'][0]['uname'] : (!empty($row['name']) ? $row['name'] : '-');
+			$tempRow['mobile'] = $row['mobile'];
+			$tempRow['delivery_charge'] = $row['delivery_charge'];
+			$tempRow['items'] = $items1;
+			$tempRow['total'] = $row['total'];
+			$tempRow['tax'] = $row['tax_amount'].'('.$row['tax_percentage'].'%)';
+			$tempRow['promo_discount'] = $row['promo_discount'];
+			$tempRow['wallet_balance'] = $row['wallet_balance'];
+			$tempRow['final_total'] = ($row['final_total']);
+			$tempRow['promo_code'] = !empty($row['promo_code']) ? $row['promo_code'] : '-';
+			$tempRow['deliver_by'] = !empty($row['delivery_boy_name']) ? $row['delivery_boy_name'] : (!empty($row['items'][0]['deliver_by']) ? $row['items'][0]['deliver_by'] : (!empty($row['delivery_boy_id']) ? $row['delivery_boy_id'] : '-'));
+			$tempRow['payment_method'] = strtoupper($row['payment_method']);
+			$tempRow['address'] = $row['address'];
+			$tempRow['delivery_time'] = $row['delivery_time'];
+			$tempRow['status'] = $status;
+			$tempRow['active_status'] = $active_status;
+			$tempRow['date_added'] = date('d-m-Y H:i', strtotime($row['date_added']));
+			
+			if(isset($_SESSION['role']) && $_SESSION['role'] != 'seller'){
+				$tempRow['sname'] = $row['vendor_name'];
+				$tempRow['smobile'] = $row['vendor_mobile'];
+			}
+			$operate = '<a class="btn btn-xs btn-primary" href="order-detail.php?id='.$row['id'].'" target="_blank" title="View Order Details"><i class="fa fa-eye"></i> View</a> ';
+			$operate .= '<button type="button" class="btn btn-xs btn-info btn-change-status" data-id="'.$row['id'].'" data-status="'.htmlspecialchars($row['active_status']).'" data-boy="'.(int)$row['delivery_boy_id'].'" title="Change Order Status"><i class="fa fa-pencil"></i> Status</button>';
+			if(isset($_SESSION['role']) && $_SESSION['role'] == 'seller'){
+				$operate .= ' <a class="btn btn-xs btn-danger" href="delete-order.php?id='.$row['id'].'" onclick="return confirm(\'Are you sure you want to delete this order?\');"><i class="fa fa-trash"></i></a>';
+			}
+			$tempRow['operate'] = $operate;
+			$rows[] = $tempRow;
 		}
 
 		// ============================================================
@@ -248,6 +281,9 @@
 		// shows food + parcel combined, matching the dashboard total).
 		// ============================================================
 		$p_where = " AND (p.service_type = 'parcel' OR p.service_type IS NULL OR p.service_type = '')";
+		if(isset($_GET['user_id']) && !empty($_GET['user_id'])){
+			$p_where .= " AND p.`user_id`='".(int)$_GET['user_id']."'";
+		}
 		if(isset($_SESSION['role']) && $_SESSION['role'] == 'seller'){
 			$p_where .= " AND 1=0";
 		}
@@ -1086,25 +1122,30 @@
 		$sort = 'id'; $order = 'DESC';
 		$where = '';
 		if(isset($_GET['offset']))
-			$offset = $_GET['offset'];
+			$offset = (int)$_GET['offset'];
 		if(isset($_GET['limit']))
-			$limit = $_GET['limit'];
+			$limit = (int)$_GET['limit'];
 		
-		if(isset($_GET['sort']))
+		$allowed_sorts = ['id', 'name', 'email', 'mobile', 'balance', 'orders_count', 'referral_code', 'friends_code', 'street', 'area', 'city', 'status', 'created_at'];
+		if(isset($_GET['sort']) && in_array($_GET['sort'], $allowed_sorts)){
 			$sort = $_GET['sort'];
-		if(isset($_GET['order']))
-			$order = $_GET['order'];
+		}
+		if(isset($_GET['order']) && strtoupper($_GET['order']) === 'ASC'){
+			$order = 'ASC';
+		} else {
+			$order = 'DESC';
+		}
 		
 		if(isset($_GET['search'])){
-			$search = $_GET['search'];
+			$search = $db->escapeString($_GET['search']);
 			$where = " Where `id` like '%".$search."%' OR `name` like '%".$search."%' OR `email` like '%".$search."%' OR `mobile` like '%".$search."%' OR `city` like '%".$search."%' OR `area` like '%".$search."%' OR `street` like '%".$search."%' OR `status` like '%".$search."%' OR `created_at` like '%".$search."%'";
 		}
 		if(isset($_GET['filter_order_status']) && $_GET['filter_order_status'] !=''){
-			$filter_order = $_GET['filter_order'];
+			$filter_order = $db->escapeString($_GET['filter_order_status']);
 			if(isset($_GET['search']) AND $_GET['search']!='')
-				$where .=' and active_status='.$filter_order;
+				$where .=" and active_status='".$filter_order."'";
 			else
-				$where =' where active_status='.$filter_order;
+				$where =" where active_status='".$filter_order."'";
 		}
 		
 		$sql = "SELECT COUNT(*) as total FROM `users` ".$where;
@@ -1114,7 +1155,8 @@
 		foreach($res as $row)
 			$total = $row['total'];
 		
-		$sql = "SELECT *,
+		$sql = "SELECT u.*,
+			(SELECT COUNT(o.id) FROM orders o WHERE o.user_id = u.id) as orders_count,
 			CASE WHEN u.area REGEXP '^[0-9]+$' THEN (SELECT name FROM area a WHERE a.id=u.area) ELSE u.area END as area_name,
 			CASE WHEN u.city REGEXP '^[0-9]+$' THEN (SELECT name FROM city c WHERE c.id=u.city) ELSE u.city END as city_name
 			FROM `users` u ".$where." ORDER BY `".$sort."` ".$order." LIMIT ".$offset.", ".$limit;
@@ -1128,12 +1170,16 @@
 		$tempRow = array();
 		
 		foreach($res as $row){
-		    $operate = ' <a href="edit-customer.php?id='.$row['id'].'"><i class="fa fa-edit"></i>Edit</a>';
+			$orders_count = isset($row['orders_count']) ? (int)$row['orders_count'] : 0;
+			$safe_name = htmlspecialchars($row['name'] ?? '', ENT_QUOTES);
+			$operate = '<a class="btn btn-xs btn-info btn-view-orders" href="edit-customer.php?id='.$row['id'].'#customer-orders" data-id="'.$row['id'].'" data-name="'.$safe_name.'" title="View Customer Orders"><i class="fa fa-eye"></i> View</a> ';
+			$operate .= '<a class="btn btn-xs btn-primary" href="edit-customer.php?id='.$row['id'].'" title="Edit Customer"><i class="fa fa-edit"></i> Edit</a>';
 			$tempRow['id'] = $row['id'];
 			$tempRow['name'] = $row['name'];
 			$tempRow['email'] = $row['email'];
 			$tempRow['mobile'] = $row['mobile'];
 			$tempRow['balance'] = $row['balance'];
+			$tempRow['orders_count'] = '<a href="edit-customer.php?id='.$row['id'].'#customer-orders" class="badge btn-view-orders" data-id="'.$row['id'].'" data-name="'.$safe_name.'" style="background:#3F51B5; color:#fff; font-size:12px; padding:4px 8px; text-decoration:none; cursor:pointer;" title="View Customer Orders">'.$orders_count.'</a>';
 			$tempRow['referral_code'] = $row['referral_code'];
 			$tempRow['friends_code'] = !empty($row['friends_code'])?$row['friends_code']:'-';
 			$tempRow['city_id'] = $row['city'];
@@ -3574,6 +3620,17 @@ if ($role === 'sub admin') {
             }
         }
 
+        // Ensure orders.cancelled_by column exists
+        static $sales_orders_col_checked = false;
+        if (!$sales_orders_col_checked) {
+            $db->sql("SHOW COLUMNS FROM `orders` LIKE 'cancelled_by'");
+            $has_cb = $db->getResult();
+            if (empty($has_cb)) {
+                $db->sql("ALTER TABLE `orders` ADD COLUMN `cancelled_by` VARCHAR(50) DEFAULT NULL");
+            }
+            $sales_orders_col_checked = true;
+        }
+
         // ================= Order status filter =================
         $order_status_raw = isset($_GET['order_status']) ? strtolower(trim($_GET['order_status'])) : '';
         if (!empty($order_status_raw)) {
@@ -3581,6 +3638,12 @@ if ($role === 'sub admin') {
                 $extra_filters .= " AND o.active_status IN ('delivered', 'completed') ";
             } elseif ($order_status_raw === 'cancelled' || $order_status_raw === 'canceled') {
                 $extra_filters .= " AND o.active_status IN ('cancelled', 'canceled') ";
+            } elseif ($order_status_raw === 'customer_cancelled' || $order_status_raw === 'customer') {
+                $extra_filters .= " AND o.active_status IN ('cancelled', 'canceled') AND (o.cancelled_by = 'Customer' OR (o.cancelled_by IS NULL AND o.status NOT LIKE '%processed%')) ";
+            } elseif ($order_status_raw === 'seller_cancelled' || $order_status_raw === 'seller') {
+                $extra_filters .= " AND o.active_status IN ('cancelled', 'canceled') AND (o.cancelled_by = 'Seller' OR (o.cancelled_by IS NULL AND o.status LIKE '%processed%')) ";
+            } elseif ($order_status_raw === 'admin_cancelled' || $order_status_raw === 'admin') {
+                $extra_filters .= " AND o.active_status IN ('cancelled', 'canceled') AND o.cancelled_by = 'Admin' ";
             } elseif ($order_status_raw === 'received' || $order_status_raw === 'pending') {
                 $extra_filters .= " AND o.active_status IN ('received', 'pending') ";
             } elseif ($order_status_raw === 'processed' || $order_status_raw === 'processing') {
@@ -3599,6 +3662,8 @@ if ($role === 'sub admin') {
         $select_block = "
             SELECT
                 o.id,
+                o.status           AS order_status_history,
+                o.cancelled_by,
                 se.name            AS seller_name,
                 se.mobile          AS seller_mobile,
                 COALESCE(o.seller_commission, se.commission) AS seller_commission,
@@ -3823,6 +3888,39 @@ if ($role === 'sub admin') {
             $tempRow['active_status'] = isset($status_labels[$status_key])
                 ? $status_labels[$status_key]
                 : ucfirst($status_key);
+
+            // Determine who cancelled the order (e.g. Customer, Seller, Admin)
+            $cancelled_by = !empty($row['cancelled_by']) ? trim((string)$row['cancelled_by']) : '';
+            if (empty($cancelled_by) && in_array($status_key, array('cancelled', 'canceled'))) {
+                if (!empty($row['order_status_history'])) {
+                    $hist = @json_decode($row['order_status_history'], true);
+                    if (is_array($hist)) {
+                        foreach ($hist as $h) {
+                            if (isset($h[0]) && in_array(strtolower(trim($h[0])), array('cancelled', 'canceled'))) {
+                                if (!empty($h[2])) {
+                                    $cancelled_by = trim($h[2]);
+                                    break;
+                                }
+                            }
+                        }
+                        if (empty($cancelled_by)) {
+                            // If order reached processed/shipped before being cancelled, customers were blocked from cancelling by policy
+                            $was_processed = false;
+                            foreach ($hist as $h) {
+                                if (isset($h[0]) && in_array(strtolower(trim($h[0])), array('processed', 'processing', 'shipped', 'delivered'))) {
+                                    $was_processed = true;
+                                    break;
+                                }
+                            }
+                            $cancelled_by = $was_processed ? 'Seller' : 'Customer';
+                        }
+                    }
+                }
+                if (empty($cancelled_by)) {
+                    $cancelled_by = 'Customer';
+                }
+            }
+            $tempRow['cancelled_by'] = $cancelled_by;
 
             // ================= Compute Refund Status per Product Item =================
             $oid = (string)$row['id'];

@@ -1,4 +1,7 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 header('Access-Control-Allow-Origin: *');
 include_once('../api-firebase/send-email.php');
 include_once('send-sms.php');
@@ -156,11 +159,31 @@ if(isset($_POST['update_order_item_status']) && isset($_POST['order_item_id'])) 
         			$db->sql($sql);
                 }
     	    }
-        	$status[] = array($postStatus,date("d-m-Y h:i:sa") );
+            // Resolve who is cancelling the item
+            $cancelled_by = '';
+            if (isset($_POST['cancelled_by']) && !empty($_POST['cancelled_by'])) {
+                $cancelled_by = trim($_POST['cancelled_by']);
+            } elseif (isset($_SESSION['role'])) {
+                $s_role = strtolower(trim($_SESSION['role']));
+                if ($s_role == 'seller') {
+                    $cancelled_by = 'Seller';
+                } elseif ($s_role == 'admin' || $s_role == 'super admin') {
+                    $cancelled_by = 'Admin';
+                } elseif ($s_role == 'delivery_boy') {
+                    $cancelled_by = 'Delivery Boy';
+                }
+            }
+            if (empty($cancelled_by)) {
+                $cancelled_by = ($request_type == 'apprequest') ? 'Customer' : 'Customer';
+            }
+            $cancelled_by = ucfirst(strtolower($cancelled_by));
+
+        	$status[] = array($postStatus, date("d-m-Y h:i:sa"), $cancelled_by);
             $currentStatus = $postStatus;
             $data = array(
                 'status' => $db->escapeString(json_encode($status)),
-                'active_status' => $currentStatus
+                'active_status' => $currentStatus,
+                'cancelled_by' => $cancelled_by
             );
             $db->update('order_items',$data,'id='.$order_item_id);
             
@@ -201,6 +224,9 @@ if(isset($_POST['update_order_item_status']) && isset($_POST['order_item_id'])) 
             	    'status' => $db->escapeString(json_encode($status)),
             		'active_status' => $currentStatus
         	        );
+                if ($currentStatus == 'cancelled' && !empty($cancelled_by)) {
+                    $data_order['cancelled_by'] = $cancelled_by;
+                }
                 $db->update('orders',$data_order,'id='.$order_id);
         	}else{
         	    $user_id = $res_order[0]['user_id'];

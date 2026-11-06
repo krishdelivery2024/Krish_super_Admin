@@ -121,7 +121,10 @@
                                 <option value="received">Received</option>
                                 <option value="processed">Processed</option>
                                 <option value="shipped">Shipped</option>
-                                <option value="cancelled">Cancelled</option>
+                                <option value="cancelled">Cancelled (All)</option>
+                                <option value="customer_cancelled">Customer Cancelled</option>
+                                <option value="seller_cancelled">Seller Cancelled</option>
+                                <option value="admin_cancelled">Admin Cancelled</option>
                                 <option value="returned">Returned</option>
                             </select>
                         </div>
@@ -258,8 +261,8 @@
         return html;
     }
 
-    // active_status -> colored badge
-    function statusBadgeFormatter(value) {
+    // active_status -> colored badge + actor if cancelled
+    function statusBadgeFormatter(value, row) {
         if (!value) return '-';
         var key = String(value).toLowerCase();
         var cls = 'status-default';
@@ -267,7 +270,35 @@
         else if (key === 'processing' || key === 'processed' || key === 'shipped') cls = 'status-processing';
         else if (key === 'completed' || key === 'delivered') cls = 'status-completed';
         else if (key === 'cancelled' || key === 'canceled' || key === 'returned') cls = 'status-cancelled';
-        return '<span class="status-badge ' + cls + '">' + value + '</span>';
+
+        var html = '<span class="status-badge ' + cls + '">' + value + '</span>';
+
+        if (key === 'cancelled' || key === 'canceled') {
+            var who = (row && row.cancelled_by) ? String(row.cancelled_by).trim() : '';
+            if (who) {
+                var whoText = who;
+                if (whoText.toLowerCase().indexOf('cancel') === -1) {
+                    whoText += ' Cancelled';
+                }
+                var icon = 'fa-times-circle';
+                var pillCls = 'label-danger';
+                var lowerWho = whoText.toLowerCase();
+                if (lowerWho.indexOf('customer') !== -1) {
+                    icon = 'fa-user';
+                    pillCls = 'label-warning';
+                } else if (lowerWho.indexOf('seller') !== -1) {
+                    icon = 'fa-shopping-bag';
+                    pillCls = 'label-danger';
+                } else if (lowerWho.indexOf('admin') !== -1) {
+                    icon = 'fa-user-secret';
+                    pillCls = 'label-primary';
+                }
+                html += '<div style="margin-top:4px;">' +
+                        '<span class="label ' + pillCls + '" style="font-size:10.5px;padding:2px 7px;font-weight:600;display:inline-block;white-space:nowrap;">' +
+                        '<i class="fa ' + icon + '"></i> ' + $('<div>').text(whoText).html() + '</span></div>';
+            }
+        }
+        return html;
     }
 
     // refund_status -> bullet list of badges per product item

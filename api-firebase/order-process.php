@@ -1,4 +1,7 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 // Suppress PHP warnings/notices - they must not corrupt the JSON response
 error_reporting(E_ERROR | E_PARSE);
 header('Access-Control-Allow-Origin: *');
@@ -877,11 +880,31 @@ if(isset($_POST['update_order_item_status']) && isset($_POST['order_item_id'])) 
         			$db->sql($sql);
                 }
     	    }
-        	$status[] = array($postStatus,date("d-m-Y h:i:sa") );
+            // Resolve who is cancelling the item
+            $cancelled_by = '';
+            if (isset($_POST['cancelled_by']) && !empty($_POST['cancelled_by'])) {
+                $cancelled_by = trim($_POST['cancelled_by']);
+            } elseif (isset($_SESSION['role'])) {
+                $s_role = strtolower(trim($_SESSION['role']));
+                if ($s_role == 'seller') {
+                    $cancelled_by = 'Seller';
+                } elseif ($s_role == 'admin' || $s_role == 'super admin') {
+                    $cancelled_by = 'Admin';
+                } elseif ($s_role == 'delivery_boy') {
+                    $cancelled_by = 'Delivery Boy';
+                }
+            }
+            if (empty($cancelled_by)) {
+                $cancelled_by = ($request_type == 'apprequest') ? 'Customer' : 'Customer';
+            }
+            $cancelled_by = ucfirst(strtolower($cancelled_by));
+
+        	$status[] = array($postStatus, date("d-m-Y h:i:sa"), $cancelled_by);
             $currentStatus = $postStatus;
             $data = array(
                 'status' => $db->escapeString(json_encode($status)),
-                'active_status' => $currentStatus
+                'active_status' => $currentStatus,
+                'cancelled_by' => $cancelled_by
             );
             
             $db->update('order_items',$data,'id='.$order_item_id);
@@ -927,6 +950,9 @@ if(isset($_POST['update_order_item_status']) && isset($_POST['order_item_id'])) 
             	    'status' => $db->escapeString(json_encode($status)),
             		'active_status' => $currentStatus
         	        );
+                if ($currentStatus == 'cancelled' && !empty($cancelled_by)) {
+                    $data_order['cancelled_by'] = $cancelled_by;
+                }
                 $db->update('orders',$data_order,'id='.$order_id);
                 $db->getResult();
                 
@@ -1134,11 +1160,31 @@ if(isset($_POST['update_order_item_status1']) && isset($_POST['order_item_id']))
         			$db->sql($sql);
                 }
     	    }
-        	$status[] = array($postStatus,date("d-m-Y h:i:sa") );
+            // Resolve who is cancelling the item
+            $cancelled_by = '';
+            if (isset($_POST['cancelled_by']) && !empty($_POST['cancelled_by'])) {
+                $cancelled_by = trim($_POST['cancelled_by']);
+            } elseif (isset($_SESSION['role'])) {
+                $s_role = strtolower(trim($_SESSION['role']));
+                if ($s_role == 'seller') {
+                    $cancelled_by = 'Seller';
+                } elseif ($s_role == 'admin' || $s_role == 'super admin') {
+                    $cancelled_by = 'Admin';
+                } elseif ($s_role == 'delivery_boy') {
+                    $cancelled_by = 'Delivery Boy';
+                }
+            }
+            if (empty($cancelled_by)) {
+                $cancelled_by = ($request_type == 'apprequest') ? 'Customer' : 'Customer';
+            }
+            $cancelled_by = ucfirst(strtolower($cancelled_by));
+
+        	$status[] = array($postStatus, date("d-m-Y h:i:sa"), $cancelled_by);
             $currentStatus = $postStatus;
             $data = array(
                 'status' => $db->escapeString(json_encode($status)),
-                'active_status' => $currentStatus
+                'active_status' => $currentStatus,
+                'cancelled_by' => $cancelled_by
             );
             $db->update('order_items',$data,'id='.$order_item_id);
             $db->getResult();
@@ -1180,6 +1226,9 @@ if(isset($_POST['update_order_item_status1']) && isset($_POST['order_item_id']))
             	    'status' => $db->escapeString(json_encode($status)),
             		'active_status' => $currentStatus
         	        );
+                if ($currentStatus == 'cancelled' && !empty($cancelled_by)) {
+                    $data_order['cancelled_by'] = $cancelled_by;
+                }
                 $db->update('orders',$data_order,'id='.$order_id);
                 $db->getResult();
         	}else{
@@ -1672,27 +1721,49 @@ if(isset($_POST['update_order_status']) && isset($_POST['id'])) {
         		print_r(json_encode($response));
         		return false;
         	}
+
+            // Resolve who is cancelling the order
+            $cancelled_by = '';
+            if (isset($_POST['cancelled_by']) && !empty($_POST['cancelled_by'])) {
+                $cancelled_by = trim($_POST['cancelled_by']);
+            } elseif (isset($_SESSION['role'])) {
+                $s_role = strtolower(trim($_SESSION['role']));
+                if ($s_role == 'seller') {
+                    $cancelled_by = 'Seller';
+                } elseif ($s_role == 'admin' || $s_role == 'super admin') {
+                    $cancelled_by = 'Admin';
+                } elseif ($s_role == 'delivery_boy') {
+                    $cancelled_by = 'Delivery Boy';
+                }
+            }
+            if (empty($cancelled_by)) {
+                $cancelled_by = ($request_type == 'apprequest') ? 'Customer' : 'Customer';
+            }
+            $cancelled_by = ucfirst(strtolower($cancelled_by));
+
     	    if (!in_array('cancelled', $temp)) {
-    	        $status[] = array('cancelled',date("d-m-Y h:i:sa") );
-    	            $data = array(
+    	        $status[] = array('cancelled', date("d-m-Y h:i:sa"), $cancelled_by);
+    	        $data = array(
     	            'status' => $db->escapeString(json_encode($status)),
+                    'cancelled_by' => $cancelled_by,
     	        );
-    	    }
+    	    } else {
+                $data = array('cancelled_by' => $cancelled_by);
+            }
     	    $db->update('orders',$data,'id='.$id);
     	    $db->getResult();
     
     	    foreach($result as $item){
     	        if($item['active_status'] != 'cancelled'){
     	            $item_data = array(
-    	            'status' => $db->escapeString(json_encode($status)),
-        	        'active_status' => 'cancelled'
+    	                'status' => $db->escapeString(json_encode($status)),
+        	            'active_status' => 'cancelled',
+                        'cancelled_by' => $cancelled_by,
     	            );
-    	        $db->update('order_items',$item_data,'id='.$item['id']);
-    	        $db->getResult();
+    	            $db->update('order_items',$item_data,'id='.$item['id']);
+    	            $db->getResult();
     	        }
     	    }
-    	    
-    	    
     	}
     	
     	if($postStatus=='processed'){
@@ -1790,6 +1861,9 @@ if(isset($_POST['update_order_status']) && isset($_POST['id'])) {
         $final_status = array(
         	'active_status' => $currentStatus
     	);
+        if ($currentStatus == 'cancelled' && !empty($cancelled_by)) {
+            $final_status['cancelled_by'] = $cancelled_by;
+        }
     	//$db->update('order_items',$final_status,'order_id='.$id);
      	if($db->update('orders',$final_status,'id='.$id)){// Table name, column names and respective values
      	$db->getResult();

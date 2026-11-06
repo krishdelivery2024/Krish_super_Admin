@@ -214,6 +214,11 @@ $(document).ready(function(){
         $('#modal_order_id').val(orderId);
         $('#modal_order_id_display').text('#' + orderId);
         $('#modal_status').val(currentStatus);
+        if (currentStatus === 'cancelled') {
+            $('#modal_cancelled_by_group').show();
+        } else {
+            $('#modal_cancelled_by_group').hide();
+        }
         $('#modal_delivery_boy_id').val(currentBoy ? currentBoy : '');
         $('#modal_result_message').hide().removeClass('alert-success alert-danger').html('');
         $('#btn_modal_save_status').prop('disabled', false).html('<i class="fa fa-check"></i> Update Status');

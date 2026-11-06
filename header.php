@@ -340,8 +340,8 @@ if (empty($_SESSION['csrf_token'])) {
 						<li <?php if($page=="Create Order"){?>class="current"<?php } ?>>
 							<a <?php if($page=="Create Order"){?>class="active" <?php } ?> href="create-order.php"><i class="menu-icon ti-shopping-cart-full"></i><span>Create Order</span></a>
 						</li>
-						<li <?php if($page=="Customers"){?>class="current"<?php } ?>>
-							<a  <?php if($page=="Customers"){?>class="active" <?php } ?> href="customers.php">Customers</a>
+						<li <?php if($page=="Customers" || $page=="Edit Customer"){?>class="current"<?php } ?>>
+							<a  <?php if($page=="Customers" || $page=="Edit Customer"){?>class="active" <?php } ?> href="customers.php">Customers</a>
 						</li>					
 						<li <?php if($page=="Manage Customer Wallet"){?>class="current"<?php } ?>>
 							<a <?php if($page=="Manage Customer Wallet"){?>class="active"<?php } ?> href="manage-customer-wallet.php">Manage Customer Wallet</a>
