@@ -13,6 +13,7 @@ include_once('../includes/functions.php');
 include_once('../includes/variables.php');
 include_once('verify-token.php');
 include_once('../includes/fcm-helper.php');
+include_once('order-helper.php');
  
 include_once('../api-dunzo/dunzo-api.php');
 $dunzo= new dunzo();
@@ -121,6 +122,23 @@ if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['pr
 	// echo "test";
     
     log_order_debug("Start processing place_order request for user: " . $_POST['user_id']);
+
+    // If webhook already placed this order, return existing order_id
+    if (!empty($_POST['razorpay_order_id'])) {
+        init_razorpay_orders_table($db);
+        $check_rp_id = $db->escapeString($_POST['razorpay_order_id']);
+        $db->sql("SELECT local_order_id FROM razorpay_orders WHERE razorpay_order_id = '$check_rp_id' AND local_order_id > 0 LIMIT 1");
+        $chk_res = $db->getResult();
+        if (!empty($chk_res) && (int)$chk_res[0]['local_order_id'] > 0) {
+            $existing_order_id = (int)$chk_res[0]['local_order_id'];
+            log_order_debug("Order already placed via webhook. Returning existing order_id: " . $existing_order_id);
+            $response['error'] = "false";
+            $response['message'] = "Order placed successfully.";
+            $response['order_id'] = $existing_order_id;
+            print_r(json_encode($response));
+            return true;
+        }
+    }
 
     // $user_name = $db->escapeString($_POST['user_name']);
 	$user_id = $db->escapeString($function->xss_clean($_POST['user_id']));
@@ -435,6 +453,11 @@ $db->sql("SELECT * FROM delivery_method WHERE id=1");
 	$db->insert('orders',$data);
 	$order_id = $db->getResult()[0];
     log_order_debug("Order inserted successfully. Order ID: " . $order_id);
+    if (!empty($_POST['razorpay_order_id'])) {
+        init_razorpay_orders_table($db);
+        $check_rp_id = $db->escapeString($_POST['razorpay_order_id']);
+        $db->sql("UPDATE razorpay_orders SET local_order_id = '$order_id', status = 'order_placed' WHERE razorpay_order_id = '$check_rp_id'");
+    }
 	//print_r($order_id);die;
 	
 	$sub_total = 0;
@@ -2074,6 +2097,21 @@ if(isset($_POST['add_transaction']) && $_POST['add_transaction'] == true){
 	$status = $db->escapeString($function->xss_clean($_POST['status']));
 	$message = $db->escapeString($function->xss_clean($_POST['message']));
 	$transaction_date = (isset($_POST['addedon']) && !empty($_POST['addedon']))?$db->escapeString($function->xss_clean($_POST['addedon'])):date('Y-m-d H:i:s');
+
+	// Idempotency: avoid duplicate transaction entry if already recorded by webhook
+	$db->sql("SELECT id FROM transactions WHERE txn_id = '$txn_id' LIMIT 1");
+	$chk_txn = $db->getResult();
+	if (!empty($chk_txn)) {
+		if (!empty($order_id)) {
+			$db->sql("UPDATE orders SET payment_status = 1 WHERE id = '$order_id'");
+			$db->sql("UPDATE transactions SET order_id = '$order_id' WHERE id = '" . $chk_txn[0]['id'] . "' AND (order_id = '0' OR order_id = '')");
+		}
+		$response['error'] = false;
+		$response['transaction_id'] = $chk_txn[0]['id'];
+		$response['message'] = "Transaction already recorded!";
+		echo json_encode($response);
+		return true;
+	}
 	
 	$data = array(
 		'user_id' =>$user_id,
@@ -2119,6 +2157,21 @@ if(isset($_POST['update_payment'])){
 	$status = $db->escapeString($function->xss_clean($_POST['status']));
 	$message = $db->escapeString($function->xss_clean($_POST['message']));
 	$transaction_date = (isset($_POST['addedon']) && !empty($_POST['addedon']))?$db->escapeString($function->xss_clean($_POST['addedon'])):date('Y-m-d H:i:s');
+
+	// Idempotency: avoid duplicate transaction entry if already recorded by webhook
+	$db->sql("SELECT id FROM transactions WHERE txn_id = '$txn_id' LIMIT 1");
+	$chk_txn = $db->getResult();
+	if (!empty($chk_txn)) {
+		if (!empty($order_id)) {
+			$db->sql("UPDATE orders SET payment_status = 1 WHERE id = '$order_id'");
+			$db->sql("UPDATE transactions SET order_id = '$order_id' WHERE id = '" . $chk_txn[0]['id'] . "' AND (order_id = '0' OR order_id = '')");
+		}
+		$response['error'] = false;
+		$response['transaction_id'] = $chk_txn[0]['id'];
+		$response['message'] = "Transaction already recorded!";
+		echo json_encode($response);
+		return true;
+	}
 	$data = array(
 		'user_id' =>$user_id,
 		'order_id' =>$order_id,

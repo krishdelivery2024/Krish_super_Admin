@@ -46,6 +46,7 @@
 	$fn = new custom_functions;
 	include_once('../includes/crud.php');
 	include_once('../includes/variables.php');
+	include_once('order-helper.php');
 	$db = new Database();
 	$db->connect();
 	$config = $fn->get_configurations();
@@ -492,6 +493,68 @@
 		}
 		$bulkData['rows'] = $rows;
 		print_r(json_encode($bulkData));
+	}
+	
+	// data of 'unlinked_razorpay_payments' table goes here
+	if (isset($_GET['table']) && $_GET['table'] == 'unlinked_razorpay_payments') {
+		init_razorpay_orders_table($db);
+		$offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
+		$limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
+		$order = (isset($_GET['order']) && strtoupper($_GET['order']) === 'ASC') ? 'ASC' : 'DESC';
+		$sort = 't.id';
+
+		$where = " WHERE t.type = 'razorpay' AND (t.order_id = '0' OR t.order_id = '' OR t.order_id IS NULL)";
+
+		if (!empty($_GET['search'])) {
+			$search = $db->escapeString($_GET['search']);
+			$where .= " AND (t.txn_id LIKE '%$search%' OR u.name LIKE '%$search%' OR u.mobile LIKE '%$search%')";
+		}
+
+		$sql_count = "SELECT COUNT(t.id) as total FROM transactions t LEFT JOIN users u ON u.id = t.user_id " . $where;
+		$db->sql($sql_count);
+		$c_res = $db->getResult();
+		$total = !empty($c_res) ? (int)$c_res[0]['total'] : 0;
+
+		$sql = "SELECT t.*, u.name as user_name, u.mobile as user_mobile, u.email as user_email,
+				ro.razorpay_order_id, ro.status as rp_status, ro.notes as rp_notes,
+				(SELECT COUNT(*) FROM carts c WHERE c.user_id = t.user_id) as cart_item_count
+				FROM transactions t
+				LEFT JOIN users u ON u.id = t.user_id
+				LEFT JOIN razorpay_orders ro ON (ro.payment_id = t.txn_id OR ro.razorpay_order_id = t.txn_id)
+				" . $where . " ORDER BY " . $sort . " " . $order . " LIMIT " . $offset . ", " . $limit;
+		$db->sql($sql);
+		$rows = $db->getResult();
+
+		$data_rows = array();
+		if (!empty($rows)) {
+			foreach ($rows as $r) {
+				$temp = array();
+				$temp['id'] = $r['id'];
+				$temp['txn_id'] = $r['txn_id'];
+				$temp['user_id'] = $r['user_id'];
+				$temp['user_name'] = !empty($r['user_name']) ? $r['user_name'] : 'Guest / Unmatched';
+				$temp['user_mobile'] = !empty($r['user_mobile']) ? $r['user_mobile'] : '-';
+				$temp['amount'] = $r['amount'];
+				$temp['status'] = '<span class="label label-warning">' . $r['status'] . '</span>';
+				$temp['message'] = $r['message'];
+				$temp['transaction_date'] = date('d-m-Y H:i', strtotime($r['transaction_date']));
+				$cart_count = (int)$r['cart_item_count'];
+				$temp['cart_item_count'] = $cart_count > 0 ? '<span class="label label-info">' . $cart_count . ' items in cart</span>' : '<span class="text-muted">Empty</span>';
+
+				$actions = '';
+				if ($cart_count > 0 && (int)$r['user_id'] > 0) {
+					$actions .= '<button class="btn btn-xs btn-success btn-create-order-cart" data-txn-id="' . $r['txn_id'] . '" data-user-id="' . $r['user_id'] . '" title="Create order from user cart"><i class="fa fa-shopping-cart"></i> Create Order</button> ';
+				}
+				$actions .= '<button class="btn btn-xs btn-primary btn-link-order-manual" data-txn-id="' . $r['txn_id'] . '" title="Link to existing Order ID"><i class="fa fa-link"></i> Link Order</button> ';
+				$temp['operate'] = $actions;
+				$data_rows[] = $temp;
+			}
+		}
+
+		$bulkData['total'] = $total;
+		$bulkData['rows'] = $data_rows;
+		echo json_encode($bulkData);
+		return true;
 	}
 	
 	
