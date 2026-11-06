@@ -42,7 +42,7 @@ try {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Privacy Policy - Krish Partner (Delivery Partner App)</title>
-    <meta name="description" content="Privacy Policy for Krish Partner Delivery App. Discloses data collection, background location tracking, device permissions, and partner rights for Google Play compliance.">
+    <meta name="description" content="Privacy Policy for Krish Partner Delivery Boy App. Truthfully discloses data collection, foreground service location tracking, device permissions, and partner rights for Google Play compliance.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -98,7 +98,7 @@ try {
             margin-bottom: 16px;
         }
         .header h1 {
-            font-size: 32px;
+            font-size: 30px;
             font-weight: 700;
             margin-bottom: 10px;
             letter-spacing: -0.5px;
@@ -222,6 +222,16 @@ try {
             font-size: 14px;
             margin-bottom: 0;
         }
+        .info-pill {
+            display: inline-block;
+            background: #e5e7eb;
+            color: #374151;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin-right: 6px;
+        }
         .contact-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -335,157 +345,177 @@ try {
 
                 <!-- PROMINENT DISCLOSURE (CRITICAL FOR GOOGLE PLAY APPROVAL) -->
                 <section class="notice-box">
-                    <h3><i class="fa fa-map-marker-alt"></i> PROMINENT DISCLOSURE: LOCATION DATA USAGE (BACKGROUND & FOREGROUND)</h3>
+                    <h3><i class="fa fa-map-marker-alt"></i> PROMINENT DISCLOSURE: LIVE LOCATION DATA & FOREGROUND SERVICE USAGE</h3>
                     <p>
-                        <strong>Krish Partner collects and processes location data to enable order assignment, real-time live order tracking for customers and store merchants, calculating delivery travel distance and estimated arrival time (ETA), and computing delivery partner earnings, even when the app is closed or not in use (background location).</strong>
+                        <strong>Krish Partner collects and processes precise GPS location data (latitude and longitude) to enable nearby delivery and ride order dispatching, calculate travel distance, display real-time live transit updates to customers and store merchants, and verify delivery pickup and drop-off points.</strong>
                     </p>
                     <p style="margin-top: 8px;">
-                        Location tracking operates only while you are logged in and marked as <strong>"Online" / "On Duty"</strong> or actively handling an assigned order. You can pause or stop location tracking at any time by toggling your status to <strong>"Offline" / "Off Duty"</strong> or logging out of the app. Your location data is strictly used for order fulfillment and is never sold to third parties or used for behavioral advertising.
+                        This location tracking operates strictly through an Android <strong>Foreground Service (with a persistent notification titled <em>"You are Online - Sharing your live location so you can receive orders"</em>)</strong> while you are logged in and marked as <strong>"Online"</strong> on duty. 
+                    </p>
+                    <p style="margin-top: 8px;">
+                        You have complete control: whenever you toggle your status to <strong>"Offline"</strong> or log out, all location tracking stops immediately. The app does not track your location when you are off duty, and your location data is never sold or used for advertising.
                     </p>
                 </section>
 
                 <section class="policy-section">
                     <h2><i class="fa fa-info-circle"></i> 1. Introduction</h2>
                     <p>
-                        Welcome to <strong>Krish Partner</strong> ("we," "our," "us," or "the App"), the official delivery partner application operated by <strong>Krish Delivery</strong> (accessible at <a href="https://krishdelivery.com" target="_blank" style="color:var(--primary-dark);">https://krishdelivery.com</a>). This Privacy Policy governs the collection, use, protection, and disclosure of information obtained from independent delivery personnel, couriers, and drivers ("Delivery Partners" or "you") who install and operate our mobile application (Package Name: <code>com.krishdelivery.krishdeliveryboy</code>).
+                        Welcome to <strong>Krish Partner</strong> ("we," "our," "us," or "the App"), the official delivery partner mobile application operated by <strong>Krish Delivery</strong> (accessible at <a href="https://krishdelivery.com" target="_blank" style="color:var(--primary-dark);">https://krishdelivery.com</a>). This Privacy Policy explains truthfully and transparently what information we collect through the mobile app (Package Name: <code>com.krishdelivery.krishdeliveryboy</code>), how it is used, and how your privacy is protected.
                     </p>
                     <p>
-                        By downloading, installing, registering with, or using Krish Partner, you acknowledge that you have read and agreed to the practices outlined in this Privacy Policy. If you do not agree with this policy, please do not use the application.
+                        By logging into and using the Krish Partner mobile application, you acknowledge and agree to the practices described in this Privacy Policy.
                     </p>
                 </section>
 
                 <section class="policy-section">
-                    <h2><i class="fa fa-user-check"></i> 2. Information We Collect</h2>
-                    <p>To register you as a legitimate Delivery Partner and assign order deliveries, we collect the following types of information:</p>
+                    <h2><i class="fa fa-user-check"></i> 2. Information We Collect Through the Mobile App</h2>
+                    <p>To enable delivery operations, order assignments, and account management, the Krish Partner mobile app collects the following specific data:</p>
 
-                    <h3>2.1 Personal & Profile Information</h3>
+                    <h3>2.1 Account & Authentication Details</h3>
                     <ul>
-                        <li><strong>Identity Data:</strong> Full name, mobile phone number, email address, profile photograph, and account credentials (password).</li>
-                        <li><strong>Onboarding & KYC Documents:</strong> Driving license copy and license number, vehicle registration number, vehicle category (bike, scooter, etc.), and identity documents (such as Aadhaar, PAN card, or Government ID) required for background screening, driver verification, and regulatory compliance.</li>
+                        <li><strong>Mobile Phone Number:</strong> Entered by you during login to authenticate your registered delivery partner account via One-Time Password (OTP).</li>
+                        <li><strong>One-Time Password (OTP):</strong> Used for secure verification and session authorization.</li>
+                        <li><strong>Firebase Cloud Messaging Token (FCM ID):</strong> Collected automatically to route instant real-time order alerts, status updates, and sound notifications to your device.</li>
                     </ul>
 
-                    <h3>2.2 Location Data (Foreground & Background)</h3>
+                    <h3>2.2 Partner Profile Information</h3>
                     <ul>
-                        <li><strong>Precise GPS Location:</strong> Real-time latitude and longitude coordinates, speed, bearing, and device movement collected during active order fulfillment.</li>
-                        <li><strong>Background Location Tracking:</strong> Continuous location tracking when the app is minimized or running in the background while your duty status is "Online" to dispatch nearby delivery requests and calculate accurate travel distance for partner payout.</li>
+                        <li><strong>Name & Residential Address:</strong> Editable within the in-app Profile screen to keep your partner profile current.</li>
+                        <li><strong>Profile Photo:</strong> You may optionally choose an image from your device's photo picker / gallery to display as your partner profile picture.</li>
+                        <li><strong>Assigned Vehicle Details (Display Only):</strong> Your assigned vehicle type (e.g., Bike) and vehicle registration number are displayed in read-only mode from the server as registered by the system administrator.</li>
                     </ul>
 
-                    <h3>2.3 Financial & Payout Information</h3>
+                    <div class="highlight-card">
+                        <h4><i class="fa fa-info-circle"></i> Note on Driver Onboarding & KYC Documentation:</h4>
+                        <p>
+                            Driver verification, driving license verification, and vehicle onboarding documents are verified directly with the Krish administrative team during account provisioning. The Krish Partner mobile application <strong>does not</strong> collect or ask you to upload Aadhaar cards, PAN cards, or bank account credentials inside the mobile app.
+                        </p>
+                    </div>
+
+                    <h3>2.3 Real-Time Location Data</h3>
                     <ul>
-                        <li><strong>Payout Details:</strong> Bank account number, Bank Name, IFSC code, or UPI ID provided by you solely for the electronic transfer of your delivery earnings, bonuses, tips, and incentives. We do not store sensitive payment card credentials (such as debit card CVV or ATM PINs).</li>
+                        <li><strong>GPS Coordinates (Latitude & Longitude):</strong> Collected while your duty status is set to "Online" via an active Android Foreground Service. Used to dispatch nearby food, parcel, or passenger ride requests, provide turn-by-turn navigation, and show your live arrival progress to the customer and store merchant.</li>
+                        <li><strong>Order Query Coordinates:</strong> Sent when requesting new orders or parcel jobs within your operational radius.</li>
                     </ul>
 
-                    <h3>2.4 Device & Technical Information</h3>
+                    <h3>2.4 Order & Delivery Execution Data</h3>
                     <ul>
-                        <li>Device brand, model, operating system version, unique device identifiers (Android ID, IMEI), IP address, network connection status, battery level, app crash reports, and system performance telemetry.</li>
+                        <li><strong>Duty Status:</strong> Your toggle selection between "Online" (available for orders) and "Offline" (unavailable).</li>
+                        <li><strong>Order Actions:</strong> Timestamps and status changes when you accept an order, confirm arrival at the pickup point, pick up items, and mark orders delivered.</li>
+                        <li><strong>Delivery Verification OTP:</strong> For parcel deliveries and passenger ride starts, the delivery partner enters the customer's verification OTP to validate the handover.</li>
+                        <li><strong>Cash Collection Confirmation:</strong> For cash-on-delivery orders or driver rides, recording the partner's confirmation of received payment.</li>
                     </ul>
 
-                    <h3>2.5 Delivery Execution Data</h3>
+                    <h3>2.5 Communication Data</h3>
                     <ul>
-                        <li>Order pickup and delivery completion timestamps, route details, customer delivery confirmation signatures, and digital proof-of-delivery photos taken via the camera.</li>
-                    </ul>
-                </section>
-
-                <section class="policy-section">
-                    <h2><i class="fa fa-mobile-alt"></i> 3. Device Permissions & Why We Need Them</h2>
-                    <p>The Krish Partner app requests specific device permissions strictly to perform delivery logistics:</p>
-                    <ul>
-                        <li><strong>ACCESS_FINE_LOCATION & ACCESS_COARSE_LOCATION:</strong> To identify your current location, route navigation, and track live order transit.</li>
-                        <li><strong>ACCESS_BACKGROUND_LOCATION / FOREGROUND_SERVICE_LOCATION:</strong> To enable real-time order dispatch and allow customers to track their delivery while your phone screen is off or you are using another navigation app.</li>
-                        <li><strong>CAMERA:</strong> To take photo proof of delivery when handing over packages and to photograph KYC identity documents during onboarding.</li>
-                        <li><strong>CALL_PHONE:</strong> To initiate calls to the customer or store merchant directly from the app regarding delivery instructions, gate access, or address clarification.</li>
-                        <li><strong>POST_NOTIFICATIONS:</strong> To deliver instant push notifications regarding incoming order requests, order cancellations, and payout updates.</li>
-                        <li><strong>WAKE_LOCK:</strong> To keep critical delivery synchronization alive during active transit without dropping GPS connection.</li>
-                    </ul>
-                </section>
-
-                <section class="policy-section">
-                    <h2><i class="fa fa-cogs"></i> 4. How We Use Your Information</h2>
-                    <p>We process your data for the following essential business purposes:</p>
-                    <ul>
-                        <li><strong>Account Onboarding & Identity Verification:</strong> Validating your eligibility, driver's license validity, and vehicle documentation.</li>
-                        <li><strong>Smart Order Dispatch:</strong> Matching delivery requests with the nearest available partner to reduce transit time and optimize fuel/travel efficiency.</li>
-                        <li><strong>Live Customer & Merchant Tracking:</strong> Displaying your first name, phone number, and live map location to the customer and store merchant while an order is in transit.</li>
-                        <li><strong>Payouts & Compensation:</strong> Calculating per-kilometer travel allowances, delivery fees, bonus incentives, and disbursing direct earnings to your bank account or UPI ID.</li>
-                        <li><strong>Safety & Dispute Resolution:</strong> Resolving missing item claims, customer delivery disputes, and preventing fraud or unauthorized account sharing.</li>
-                        <li><strong>Legal & Regulatory Compliance:</strong> Satisfying commercial transport, tax, and accounting reporting requirements.</li>
+                        <li><strong>Phone Dialer Integration:</strong> When you tap the call button in the app to contact a customer or merchant for delivery directions, the app opens your phone's default dialer with the phone number pre-filled. Krish does not record or store your phone calls.</li>
                     </ul>
                 </section>
 
                 <section class="policy-section">
-                    <h2><i class="fa fa-share-alt"></i> 5. Data Sharing & Third-Party Services</h2>
-                    <p>We value your privacy and <strong>do not sell, rent, or trade your personal information</strong>. Data is only shared in the following authorized contexts:</p>
+                    <h2><i class="fa fa-mobile-alt"></i> 3. Device Permissions & Why They Are Requested</h2>
+                    <p>The Krish Partner Android app requests only the permissions necessary for delivery logistics:</p>
                     <ul>
-                        <li><strong>With Customers and Merchants:</strong> During an active delivery only, the customer and merchant are provided your first name, phone number, vehicle details, and live GPS map location. This sharing automatically ceases immediately upon order completion.</li>
-                        <li><strong>Google Maps & Location Services (Google LLC):</strong> To provide map rendering, route optimization, and address geocoding. Governed by the <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google Privacy Policy</a>.</li>
-                        <li><strong>Firebase Cloud Messaging (Google LLC):</strong> To dispatch real-time order notifications and alert sounds.</li>
-                        <li><strong>Banking & Payment Partners:</strong> Authorized financial institutions and payment gateways to execute partner earnings transfers.</li>
-                        <li><strong>Law Enforcement & Regulatory Authorities:</strong> When required by statutory law, court orders, or official law enforcement investigations.</li>
+                        <li><strong><span class="info-pill">ACCESS_FINE_LOCATION & ACCESS_COARSE_LOCATION</span> Precise & Approximate Location:</strong> Required to locate you for order assignment, navigation, and live transit updates.</li>
+                        <li><strong><span class="info-pill">FOREGROUND_SERVICE & FOREGROUND_SERVICE_LOCATION</span> Foreground Service Location:</strong> Required by Android to keep location synchronization active while you are "Online" on duty, accompanied by an ongoing notification.</li>
+                        <li><strong><span class="info-pill">POST_NOTIFICATIONS</span> Push Notifications:</strong> Required on Android 13+ to alert you of incoming order requests, sound alerts, and delivery status updates.</li>
+                        <li><strong><span class="info-pill">INTERNET</span> Full Network Access:</strong> Required to communicate with Krish Delivery backend servers and load Google Maps tiles.</li>
+                        <li><strong><span class="info-pill">CALL_PHONE</span> Phone Calls:</strong> Enables quick calling to customers or merchants directly from the order screen when delivery coordination is needed.</li>
+                        <li><strong><span class="info-pill">WAKE_LOCK</span> Device Awake:</strong> Prevents the processor from sleeping during active location streaming while on duty.</li>
+                    </ul>
+
+                    <p><strong>Permissions We DO NOT Request or Use:</strong></p>
+                    <ul>
+                        <li>We <strong>do not</strong> request <code>ACCESS_BACKGROUND_LOCATION</code> (the app tracks duty location strictly via visible foreground service).</li>
+                        <li>We <strong>do not</strong> request <code>CAMERA</code> permission (profile photos are picked from your photo gallery/picker).</li>
+                        <li>We <strong>do not</strong> access contacts, SMS, microphone, calendar, or external storage files.</li>
+                    </ul>
+                </section>
+
+                <section class="policy-section">
+                    <h2><i class="fa fa-cogs"></i> 4. How We Use the Collected Information</h2>
+                    <p>Information collected via the mobile app is used strictly for the following purposes:</p>
+                    <ul>
+                        <li><strong>Order Dispatch & Routing:</strong> Matching incoming customer orders with the nearest online delivery partner to minimize travel time.</li>
+                        <li><strong>Live Transit Tracking:</strong> Displaying your first name and live map position to the waiting customer and merchant during an active delivery.</li>
+                        <li><strong>Order Verification:</strong> Ensuring accurate parcel handover and ride completion using one-time verification codes (OTP).</li>
+                        <li><strong>Settlement & Earnings Calculation:</strong> Tracking completed delivery runs, ride history, and cash collections for driver payout settlements.</li>
+                        <li><strong>Account Administration & Security:</strong> Preventing unauthorized access and verifying delivery partner identity.</li>
+                    </ul>
+                </section>
+
+                <section class="policy-section">
+                    <h2><i class="fa fa-share-alt"></i> 5. Data Sharing & Third-Party Service Providers</h2>
+                    <p>We do not sell, rent, or monetize your personal data. We share information only in the following necessary contexts:</p>
+                    <ul>
+                        <li><strong>With Customers and Merchants:</strong> During an active order transit only, the customer and store merchant can see your first name, phone number, vehicle type, and live location on the map. This sharing automatically stops once the order is marked delivered or cancelled.</li>
+                        <li><strong>Google Maps SDK (Google LLC):</strong> Used to render maps and calculate delivery routes. Subject to <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google Privacy Policy</a>.</li>
+                        <li><strong>Firebase Cloud Messaging (Google LLC):</strong> Used to deliver push notifications and incoming order alerts.</li>
+                        <li><strong>Legal & Regulatory Authorities:</strong> If required by valid legal process, statutory requirements, or law enforcement investigations.</li>
                     </ul>
                 </section>
 
                 <section class="policy-section">
                     <h2><i class="fa fa-lock"></i> 6. Data Security & Storage</h2>
                     <p>
-                        We apply robust physical, electronic, and procedural safeguards to protect your personal data. All data transmissions between the Krish Partner app and our backend servers are encrypted using modern Transport Layer Security (TLS/HTTPS). Partner KYC documents and financial details are kept in secured database environments with restricted administrative access.
+                        We implement appropriate technical and administrative safeguards to protect your data. All communication between the Krish Partner app and our servers is encrypted using Transport Layer Security (TLS/HTTPS). Partner accounts are secured with OTP verification, and access to location records is restricted to authorized operations personnel.
                     </p>
                 </section>
 
                 <section class="policy-section">
                     <h2><i class="fa fa-hourglass-half"></i> 7. Data Retention</h2>
                     <p>
-                        We retain your profile, onboarding records, and payout history as long as your Delivery Partner account is active. Location trail data is periodically purged after order settlement and audit windows close. Financial transaction records are retained for the statutory period required under Indian financial and taxation laws.
+                        We retain your delivery partner profile information as long as your account remains registered with Krish Delivery. Live GPS coordinates are retained only as long as needed for order fulfillment, dispute resolution, and settlement audits, after which historical raw coordinates are purged. Completed order delivery logs are retained for statutory accounting records.
                     </p>
                 </section>
 
                 <!-- ACCOUNT & DATA DELETION (CRITICAL FOR GOOGLE PLAY POLICY) -->
                 <section class="policy-section">
-                    <h2><i class="fa fa-user-times"></i> 8. Partner Rights & Account Deletion Policy</h2>
+                    <h2><i class="fa fa-user-times"></i> 8. Account Deactivation & Data Deletion Policy</h2>
                     <p>
-                        In accordance with Google Play's User Data policies, delivery partners retain complete control over their personal information and may request full account deactivation and data deletion at any time.
+                        Delivery partners have the right to request the deletion of their account and associated personal data at any time.
                     </p>
                     
                     <div class="highlight-card">
                         <h4><i class="fa fa-trash-alt"></i> How to Request Account & Data Deletion:</h4>
                         <p>
-                            To permanently delete your Krish Partner account and all associated personal data, submit an email request from your registered email address to <strong><a href="mailto:<?=$support_email;?>?subject=Delete%20Delivery%20Partner%20Account" style="color:#065f46;text-decoration:underline;"><?=$support_email;?></a></strong> with the subject line <em>"Delete Delivery Partner Account"</em>. Please provide your registered mobile number and full name.
+                            To permanently delete your Krish Partner account, send an email from your registered email or contact our support team at <strong><a href="mailto:<?=$support_email;?>?subject=Delete%20Delivery%20Partner%20Account" style="color:#065f46;text-decoration:underline;"><?=$support_email;?></a></strong> with the subject <em>"Delete Delivery Partner Account"</em>. Please mention your registered mobile number and full name.
                         </p>
                     </div>
 
-                    <p><strong>Upon receiving and verifying your request:</strong></p>
+                    <p><strong>Upon confirmation of your deletion request:</strong></p>
                     <ul>
-                        <li>Your partner account will be immediately deactivated and logged out across all devices.</li>
-                        <li>Your personal profile details, contact information, uploaded KYC document images, and location history will be permanently deleted from our active databases within <strong>30 days</strong>.</li>
-                        <li>Any outstanding delivery payouts will be finalized and cleared to your registered bank account.</li>
-                        <li>Historical tax invoice and payout ledgers required under Indian financial compliance laws will be retained in encrypted cold storage for the statutory retention period.</li>
+                        <li>Your delivery partner account will be deactivated and logged out.</li>
+                        <li>Your personal profile data, profile image, and location records will be permanently removed from active databases within <strong>30 days</strong>.</li>
+                        <li>Completed financial payout transaction ledgers will be retained strictly in accordance with statutory accounting and tax regulations.</li>
                     </ul>
                 </section>
 
                 <section class="policy-section">
-                    <h2><i class="fa fa-child"></i> 9. Children's Privacy</h2>
+                    <h2><i class="fa fa-child"></i> 9. Eligibility & Age Restriction</h2>
                     <p>
-                        The Krish Partner application is strictly restricted to authorized delivery personnel who are <strong>at least 18 years of age</strong> and legally eligible to hold a commercial or motor vehicle driving license. We do not knowingly solicit or collect information from minors.
+                        The Krish Partner application is exclusively intended for independent adult delivery personnel who are <strong>at least 18 years of age</strong> and legally licensed to operate a motor vehicle. We do not register or collect information from minors.
                     </p>
                 </section>
 
                 <section class="policy-section">
                     <h2><i class="fa fa-sync-alt"></i> 10. Changes to This Privacy Policy</h2>
                     <p>
-                        We may update this Privacy Policy from time to time to reflect modifications in our operational practices, new feature launches, or evolving legal frameworks. In the event of material modifications, we will notify delivery partners via an in-app notice, push notification, or an updated revision date at the top of this policy page.
+                        We may update this Privacy Policy periodically to reflect app updates or regulatory adjustments. Any updates will be published directly on this page with an updated "Last Updated" date.
                     </p>
                 </section>
 
                 <section class="policy-section">
                     <h2><i class="fa fa-envelope-open-text"></i> 11. Contact Information</h2>
                     <p>
-                        If you have any questions, grievances, or requests concerning this Privacy Policy or your personal data, please contact our Data Protection and Partner Support team:
+                        For any questions, concerns, or data requests regarding this Privacy Policy, please contact us:
                     </p>
 
                     <div class="contact-grid">
                         <div class="contact-item">
                             <i class="fa fa-building"></i>
                             <div>
-                                <div class="label">Organization</div>
+                                <div class="label">Platform</div>
                                 <div class="val">Krish Delivery</div>
                             </div>
                         </div>
@@ -524,4 +554,3 @@ try {
 
 </body>
 </html>
-
