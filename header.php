@@ -85,6 +85,7 @@ if (empty($_SESSION['csrf_token'])) {
 
 		$cur_date = date('Y-m-d');
 	$cur_date = $cur_date . " 00:00:00";
+	$seller_condition = (isset($_SESSION['role']) && $_SESSION['role'] == 'seller') ? "AND o.seller_id = '$seller_id'" : "";
 
 	$sql222 = "
 		SELECT
@@ -103,7 +104,7 @@ if (empty($_SESSION['csrf_token'])) {
 				END
 			) AS inactive_orders_count
 		FROM `orders` o
-		WHERE o.date_added >= '$cur_date' AND o.seller_id = '$seller_id' 
+		WHERE o.date_added >= '$cur_date' $seller_condition 
 	";
 
 	$db->sql($sql222);
@@ -256,15 +257,14 @@ if (empty($_SESSION['csrf_token'])) {
 
 				<?php if(!$is_sub_admin || !empty($permissions['orders']['read'])): ?>
 				<li <?php if($page=="Orders"){?> class="current" <?php } ?>>		
-					<a class="waves-effect" href="orders.php"><i class="menu-icon ti-shopping-cart"></i><span>Order</span><span class="notice notice-blue"><?php if($res11[0]['active_orders_count'] == ''){echo '0';}else{ echo $res11[0]['active_orders_count']; }?></span></a>
+					<a class="waves-effect" href="orders.php"><i class="menu-icon ti-shopping-cart"></i><span>Order</span><span class="notice notice-blue"><?php if(empty($res11[0]['active_orders_count'])){echo '0';}else{ echo $res11[0]['active_orders_count']; }?></span></a>
+				</li>
+				<li <?php if($page=="Incomplete Orders" || $page=="Incomplete Orders & Payment Recovery"){?> class="current" <?php } ?>>
+					<a class="waves-effect" href="incomplete-orders.php"><i class="menu-icon ti-alert"></i><span>Incomplete Order</span><span class="notice notice-blue"><?php if(empty($res11[0]['inactive_orders_count'])){echo '0';}else{ echo $res11[0]['inactive_orders_count']; }?></span></a>
 				</li>
 			<?php endif; ?>
 				<!-- Seller links -->
 	<?php if($_SESSION['role'] =='seller'){ ?>
-				<li <?php if($page=="Incomplete Orders"){?> class="current" <?php } ?>>
-					<a class="waves-effect" href="incomplete-orders.php"><i class="menu-icon ti-shopping-cart"></i><span>Incomplete Order</span><span class="notice notice-blue"><?php if($res11[0]['inactive_orders_count'] == ''){echo '0';}else{ echo $res11[0]['inactive_orders_count']; }?></span></a>
-				</li>
-
 				<li <?php if($page=="Manage Category"){?> class="current" <?php } ?>>
 					<a class="waves-effect" href="manage-category.php"><i class="menu-icon ti-view-list-alt"></i><span>Manage Category</span></a>
 				</li>

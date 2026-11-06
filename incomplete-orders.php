@@ -1,7 +1,7 @@
 <?php $page="Incomplete Orders & Payment Recovery";
 include"header.php";?>
 <?php
-if($permissions['orders']['read']==1) { 
+if(!empty($permissions['orders']['read']) || (isset($_SESSION['role']) && ($_SESSION['role'] == 'admin' || $_SESSION['role'] == 'super admin' || $_SESSION['role'] == 'seller'))) { 
 ?>
 <style>
 .uppercase {
