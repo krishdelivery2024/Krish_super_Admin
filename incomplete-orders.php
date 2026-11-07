@@ -196,7 +196,16 @@ $(document).ready(function(){
             },
             error: function(xhr, status, err){
                 $btn.prop('disabled', false).html('<i class="fa fa-search"></i> Fetch & Sync Payment');
-                $('#sync_result_box').removeClass('alert-success').addClass('alert alert-danger').html('<strong>Network error:</strong> ' + err).show();
+                var msg = err;
+                if(xhr && xhr.responseText){
+                    try {
+                        var json = JSON.parse(xhr.responseText);
+                        if(json && json.message) msg = json.message;
+                    } catch(e) {
+                        msg = xhr.responseText.replace(/<[^>]*>?/gm, '').substring(0, 200) || err;
+                    }
+                }
+                $('#sync_result_box').removeClass('alert-success').addClass('alert alert-danger').html('<strong>Error:</strong> ' + msg).show();
             }
         });
     });

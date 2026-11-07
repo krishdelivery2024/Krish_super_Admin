@@ -322,7 +322,7 @@ if (!function_exists('process_razorpay_captured_payment')) {
     /**
      * Handles captured payment from Razorpay Webhook or manual resolution.
      */
-    function process_razorpay_captured_payment($payment_id, $rp_order_id, $amount, $contact = '', $email = '', $notes = array(), $db, $function) {
+    function process_razorpay_captured_payment($payment_id, $rp_order_id, $amount, $contact = '', $email = '', $notes = array(), $db = null, $function = null) {
         init_razorpay_orders_table($db);
 
         log_razorpay_webhook("Processing captured payment: $payment_id, rp_order: $rp_order_id, amount: $amount");

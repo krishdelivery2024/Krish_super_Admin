@@ -1639,14 +1639,16 @@ if(isset($_POST['update_payment_status']) && $_POST['update_payment_status']==1)
 
 // Sync/fetch payment from Razorpay API
 if(isset($_POST['sync_razorpay_payment'])){
-    header('Content-Type: application/json');
+    if (ob_get_length()) ob_clean();
+    header('Content-Type: application/json; charset=utf-8');
     $payment_id = isset($_POST['payment_id']) ? trim($_POST['payment_id']) : '';
     if(empty($payment_id)){
         echo json_encode(array('error' => true, 'message' => 'Payment ID is required.'));
         exit;
     }
 
-    require_once('../api-firebase/razorpay/Razorpay.php');
+    require_once(__DIR__ . '/../api-firebase/razorpay/Razorpay.php');
+    require_once(__DIR__ . '/../api-firebase/order-helper.php');
     $pay_settings = $fn->get_settings('payment_methods', true);
     $key = isset($pay_settings['razorpay_key']) ? $pay_settings['razorpay_key'] : '';
     $secret = isset($pay_settings['razorpay_secret_key']) ? $pay_settings['razorpay_secret_key'] : '';
@@ -1690,6 +1692,7 @@ if(isset($_POST['sync_razorpay_payment'])){
             $fn
         );
 
+        if (ob_get_length()) ob_clean();
         echo json_encode(array(
             'error' => false,
             'message' => 'Payment synced successfully!',
@@ -1700,15 +1703,19 @@ if(isset($_POST['sync_razorpay_payment'])){
             'status' => $p_status,
             'result' => $process_res
         ));
-    } catch (\Exception $e) {
-        echo json_encode(array('error' => true, 'message' => 'Razorpay API error: ' . $e->getMessage()));
+    } catch (\Throwable $e) {
+        if (ob_get_length()) ob_clean();
+        echo json_encode(array('error' => true, 'message' => 'Razorpay / System error: ' . $e->getMessage()));
     }
     exit;
 }
 
 // Create order from cart for an unlinked payment
 if(isset($_POST['create_order_from_cart'])){
-    header('Content-Type: application/json');
+    if (ob_get_length()) ob_clean();
+    header('Content-Type: application/json; charset=utf-8');
+    require_once(__DIR__ . '/../api-firebase/order-helper.php');
+
     $txn_id = isset($_POST['txn_id']) ? trim($_POST['txn_id']) : '';
     $user_id = isset($_POST['user_id']) ? (int)$_POST['user_id'] : 0;
 
@@ -1717,57 +1724,62 @@ if(isset($_POST['create_order_from_cart'])){
         exit;
     }
 
-    // Fetch user cart
-    $db->sql("SELECT * FROM carts WHERE user_id = '$user_id'");
-    $cart_items = $db->getResult();
-    if(empty($cart_items)){
-        echo json_encode(array('error' => true, 'message' => 'No items found in cart for this user.'));
-        exit;
-    }
+    try {
+        // Fetch user cart
+        $db->sql("SELECT * FROM carts WHERE user_id = '$user_id'");
+        $cart_items = $db->getResult();
+        if(empty($cart_items)){
+            echo json_encode(array('error' => true, 'message' => 'No items found in cart for this user.'));
+            exit;
+        }
 
-    $seller_id = (int)$cart_items[0]['seller_id'];
-    $variant_ids = array();
-    $quantities = array();
-    foreach($cart_items as $ci){
-        $variant_ids[] = (int)$ci['product_variant_id'];
-        $quantities[] = (int)$ci['quantity'];
-    }
+        $seller_id = (int)$cart_items[0]['seller_id'];
+        $variant_ids = array();
+        $quantities = array();
+        foreach($cart_items as $ci){
+            $variant_ids[] = (int)$ci['product_variant_id'];
+            $quantities[] = (int)$ci['quantity'];
+        }
 
-    // Fetch default address
-    $db->sql("SELECT * FROM user_address WHERE user_id = '$user_id' ORDER BY is_default DESC LIMIT 1");
-    $addr_res = $db->getResult();
-    $address = !empty($addr_res) ? $addr_res[0]['address'] : '';
-    $lat = !empty($addr_res) ? $addr_res[0]['latitude'] : '';
-    $lng = !empty($addr_res) ? $addr_res[0]['longitude'] : '';
+        // Fetch default address
+        $db->sql("SELECT * FROM user_address WHERE user_id = '$user_id' ORDER BY is_default DESC LIMIT 1");
+        $addr_res = $db->getResult();
+        $address = !empty($addr_res) ? $addr_res[0]['address'] : '';
+        $lat = !empty($addr_res) ? $addr_res[0]['latitude'] : '';
+        $lng = !empty($addr_res) ? $addr_res[0]['longitude'] : '';
 
-    // Fetch transaction amount
-    $db->sql("SELECT amount FROM transactions WHERE txn_id = '$txn_id' LIMIT 1");
-    $txn_res = $db->getResult();
-    $amount = !empty($txn_res) ? (float)$txn_res[0]['amount'] : 0.0;
+        // Fetch transaction amount
+        $db->sql("SELECT amount FROM transactions WHERE txn_id = '$txn_id' LIMIT 1");
+        $txn_res = $db->getResult();
+        $amount = !empty($txn_res) ? (float)$txn_res[0]['amount'] : 0.0;
 
-    $order_params = array(
-        'user_id' => $user_id,
-        'seller_id' => $seller_id,
-        'product_variant_id' => $variant_ids,
-        'quantity' => $quantities,
-        'total' => $amount,
-        'final_total' => $amount,
-        'payment_method' => 'Online Payment',
-        'address' => $address,
-        'latitude' => $lat,
-        'longitude' => $lng,
-        'delivery_method' => 'In Person Delivery',
-        'delivery_charge' => 0
-    );
+        $order_params = array(
+            'user_id' => $user_id,
+            'seller_id' => $seller_id,
+            'product_variant_id' => $variant_ids,
+            'quantity' => $quantities,
+            'total' => $amount,
+            'final_total' => $amount,
+            'payment_method' => 'Online Payment',
+            'address' => $address,
+            'latitude' => $lat,
+            'longitude' => $lng,
+            'delivery_method' => 'In Person Delivery',
+            'delivery_charge' => 0
+        );
 
-    $res = execute_order_placement($order_params, $db, $fn);
-    if(!$res['error'] && $res['order_id'] > 0){
-        $new_order_id = $res['order_id'];
-        $db->sql("UPDATE transactions SET order_id = '$new_order_id' WHERE txn_id = '$txn_id'");
-        $db->sql("UPDATE razorpay_orders SET local_order_id = '$new_order_id', status = 'order_placed' WHERE payment_id = '$txn_id'");
-        echo json_encode(array('error' => false, 'message' => 'Order created successfully!', 'order_id' => $new_order_id));
-    } else {
-        echo json_encode(array('error' => true, 'message' => 'Failed to create order: ' . $res['message']));
+        $res = execute_order_placement($order_params, $db, $fn);
+        if(!$res['error'] && $res['order_id'] > 0){
+            $new_order_id = $res['order_id'];
+            $db->sql("UPDATE transactions SET order_id = '$new_order_id' WHERE txn_id = '$txn_id'");
+            $db->sql("UPDATE razorpay_orders SET local_order_id = '$new_order_id', status = 'order_placed' WHERE payment_id = '$txn_id'");
+            echo json_encode(array('error' => false, 'message' => 'Order created successfully!', 'order_id' => $new_order_id));
+        } else {
+            echo json_encode(array('error' => true, 'message' => 'Failed to create order: ' . $res['message']));
+        }
+    } catch (\Throwable $e) {
+        if (ob_get_length()) ob_clean();
+        echo json_encode(array('error' => true, 'message' => 'System error: ' . $e->getMessage()));
     }
     exit;
 }

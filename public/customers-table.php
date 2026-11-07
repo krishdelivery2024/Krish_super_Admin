@@ -69,6 +69,7 @@
                             <th data-field="name" data-sortable="true">Name</th>
                             <th data-field="email" data-sortable="true">Email</th>
                             <th data-field="mobile" data-sortable="true">M.No</th>
+                            <th data-field="fcm_id" data-sortable="true">FCM ID</th>
                             <th data-field="balance" data-sortable="true">Balance</th>
                             <th data-field="orders_count" data-sortable="true">Orders</th>
                             <th data-field="referral_code" data-sortable="true">Referral code</th>
@@ -303,6 +304,24 @@
                     $('#modal_result_message').removeClass('alert-success').addClass('alert-danger').html('Server error occurred while updating order status!').show();
                 }
             });
+        });
+
+        // Copy FCM ID to clipboard
+        $(document).on('click', '.copy-fcm-btn', function(){
+            var fcm = $(this).data('fcm');
+            if(!fcm) return;
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(fcm).then(function(){
+                    alert('FCM ID copied to clipboard!');
+                });
+            } else {
+                var temp = $('<input>');
+                $('body').append(temp);
+                temp.val(fcm).select();
+                document.execCommand('copy');
+                temp.remove();
+                alert('FCM ID copied to clipboard!');
+            }
         });
     });
 </script>

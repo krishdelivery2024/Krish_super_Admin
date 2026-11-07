@@ -211,6 +211,14 @@
                 <div class="customer-header-meta">
                     <span><i class="fa fa-phone"></i> <?php echo htmlspecialchars($res[0]['mobile'] ?? '-'); ?></span>
                     <span><i class="fa fa-envelope"></i> <?php echo htmlspecialchars($res[0]['email'] ?? '-'); ?></span>
+                    <span><i class="fa fa-bell"></i> FCM: <?php 
+                        $cust_fcm = trim($res[0]['fcm_id'] ?? '');
+                        if(!empty($cust_fcm)){
+                            echo '<span class="label label-success" style="font-size:11px;"><i class="fa fa-check"></i> Added</span> <code title="'.htmlspecialchars($cust_fcm).'" style="font-size:10px; cursor:pointer;" onclick="navigator.clipboard.writeText(\''.htmlspecialchars($cust_fcm, ENT_QUOTES).'\'); alert(\'FCM ID copied!\');">'.htmlspecialchars(substr($cust_fcm, 0, 16)).'... <i class="fa fa-copy"></i></code>';
+                        } else {
+                            echo '<span class="label label-danger" style="font-size:11px;"><i class="fa fa-times"></i> Not Added</span>';
+                        }
+                    ?></span>
                     <span><i class="fa fa-map-marker"></i> <?php echo htmlspecialchars($user_city ? ($user_city . ($user_area ? ', ' . $user_area : '')) : '-'); ?></span>
                     <span><i class="fa fa-calendar"></i> Registered: <?php echo !empty($res[0]['created_at']) ? date('d-M-Y', strtotime($res[0]['created_at'])) : '-'; ?></span>
                 </div>

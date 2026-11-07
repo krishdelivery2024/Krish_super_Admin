@@ -1189,7 +1189,7 @@
 		if(isset($_GET['limit']))
 			$limit = (int)$_GET['limit'];
 		
-		$allowed_sorts = ['id', 'name', 'email', 'mobile', 'balance', 'orders_count', 'referral_code', 'friends_code', 'street', 'area', 'city', 'status', 'created_at'];
+		$allowed_sorts = ['id', 'name', 'email', 'mobile', 'balance', 'orders_count', 'referral_code', 'friends_code', 'fcm_id', 'street', 'area', 'city', 'status', 'created_at'];
 		if(isset($_GET['sort']) && in_array($_GET['sort'], $allowed_sorts)){
 			$sort = $_GET['sort'];
 		}
@@ -1201,7 +1201,7 @@
 		
 		if(isset($_GET['search'])){
 			$search = $db->escapeString($_GET['search']);
-			$where = " Where `id` like '%".$search."%' OR `name` like '%".$search."%' OR `email` like '%".$search."%' OR `mobile` like '%".$search."%' OR `city` like '%".$search."%' OR `area` like '%".$search."%' OR `street` like '%".$search."%' OR `status` like '%".$search."%' OR `created_at` like '%".$search."%'";
+			$where = " Where `id` like '%".$search."%' OR `name` like '%".$search."%' OR `email` like '%".$search."%' OR `mobile` like '%".$search."%' OR `fcm_id` like '%".$search."%' OR `city` like '%".$search."%' OR `area` like '%".$search."%' OR `street` like '%".$search."%' OR `status` like '%".$search."%' OR `created_at` like '%".$search."%'";
 		}
 		if(isset($_GET['filter_order_status']) && $_GET['filter_order_status'] !=''){
 			$filter_order = $db->escapeString($_GET['filter_order_status']);
@@ -1241,6 +1241,14 @@
 			$tempRow['name'] = $row['name'];
 			$tempRow['email'] = $row['email'];
 			$tempRow['mobile'] = $row['mobile'];
+			$fcm_raw = trim($row['fcm_id'] ?? '');
+			if(!empty($fcm_raw)){
+				$short_fcm = htmlspecialchars(substr($fcm_raw, 0, 14) . '...', ENT_QUOTES);
+				$full_fcm_esc = htmlspecialchars($fcm_raw, ENT_QUOTES);
+				$tempRow['fcm_id'] = '<span class="label label-success" style="font-size:11px;" title="FCM ID is registered"><i class="fa fa-check-circle"></i> Added</span><br><code class="copy-fcm-btn" data-fcm="'.$full_fcm_esc.'" title="Click to copy: '.$full_fcm_esc.'" style="cursor:pointer; font-size:11px; display:inline-block; margin-top:3px;">'.$short_fcm.' <i class="fa fa-copy text-primary"></i></code>';
+			} else {
+				$tempRow['fcm_id'] = '<span class="label label-danger" style="font-size:11px;"><i class="fa fa-times-circle"></i> Not Added</span>';
+			}
 			$tempRow['balance'] = $row['balance'];
 			$tempRow['orders_count'] = '<a href="edit-customer.php?id='.$row['id'].'#customer-orders" class="badge btn-view-orders" data-id="'.$row['id'].'" data-name="'.$safe_name.'" style="background:#3F51B5; color:#fff; font-size:12px; padding:4px 8px; text-decoration:none; cursor:pointer;" title="View Customer Orders">'.$orders_count.'</a>';
 			$tempRow['referral_code'] = $row['referral_code'];
