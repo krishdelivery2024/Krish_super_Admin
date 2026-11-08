@@ -368,6 +368,53 @@ if(isset($_POST['system_configurations'])){
     if(preg_match("/[a-z]/i", $db->escapeString($fn->xss_clean($_POST['tax'])))){
         $_POST['tax'] = 0;
     }
+    // Handle admin UPI QR code image upload & preserve existing
+    $prev_settings_sql = "SELECT value FROM settings WHERE variable='system_timezone' LIMIT 1";
+    $db->sql($prev_settings_sql);
+    $prev_res = $db->getResult();
+    $prev_cfg = (!empty($prev_res) && !empty($prev_res[0]['value'])) ? json_decode($prev_res[0]['value'], true) : array();
+
+    if (isset($_FILES['admin_upi_qr_code']) && !empty($_FILES['admin_upi_qr_code']['name']) && $_FILES['admin_upi_qr_code']['error'] == 0) {
+        $allowedExts = array("gif", "jpeg", "jpg", "png", "webp");
+        $tmp = explode('.', $_FILES['admin_upi_qr_code']['name']);
+        $ext = strtolower(end($tmp));
+        if (in_array($ext, $allowedExts)) {
+            $target_path = '../dist/img/';
+            $filename = "upi_qr_code." . $ext;
+            $full_path = $target_path . $filename;
+            if (file_exists($full_path)) {
+                @unlink($full_path);
+            }
+            if (move_uploaded_file($_FILES["admin_upi_qr_code"]["tmp_name"], $full_path)) {
+                $_POST['admin_upi_qr_code'] = $filename;
+                $db->sql("SELECT id FROM settings WHERE variable='admin_upi_qr_code'");
+                if (!empty($db->getResult())) {
+                    $db->sql("UPDATE settings SET value='$filename' WHERE variable='admin_upi_qr_code'");
+                } else {
+                    $db->sql("INSERT INTO settings (variable, value) VALUES ('admin_upi_qr_code', '$filename')");
+                }
+            }
+        }
+    } else if (!empty($prev_cfg['admin_upi_qr_code'])) {
+        $_POST['admin_upi_qr_code'] = $prev_cfg['admin_upi_qr_code'];
+    }
+
+    if (isset($_POST['admin_upi_id'])) {
+        $db->sql("SELECT value FROM settings WHERE variable='payment_methods' LIMIT 1");
+        $pm_res = $db->getResult();
+        if (!empty($pm_res) && !empty($pm_res[0]['value'])) {
+            $pm_data = json_decode($pm_res[0]['value'], true);
+            if (is_array($pm_data)) {
+                $pm_data['upi_id'] = $_POST['admin_upi_id'];
+                if (isset($_POST['admin_upi_name'])) {
+                    $pm_data['upi_secret_key'] = $_POST['admin_upi_name'];
+                }
+                $pm_json = $db->escapeString(json_encode($pm_data));
+                $db->sql("UPDATE settings SET value='$pm_json' WHERE variable='payment_methods'");
+            }
+        }
+    }
+
     $settings_value = json_encode($fn->xss_clean_array($_POST));
     $sql = "UPDATE settings SET value='". $settings_value ."' WHERE variable='system_timezone'";
     $db->sql($sql);
@@ -903,9 +950,9 @@ $update_zone_id = $db->escapeString((string)$update_zone_id);
     $status = $db->escapeString($fn->xss_clean($_POST['status']));
     $password = !empty($password)?md5($password):'';
     if(!empty($password)){
-        $sql = "Update delivery_boys set `name`='".$name."',password='".$password."',`address`='".$address."',`bonus`='".$bonus."',`commission`='".$commission."',`zone_id`='".$update_zone_id."',`service_type`='".$service_type."',`vehicle_type`='".$update_vehicle_type."',`vehicle_number`='".$update_vehicle_number."',`vehicle_number`='".$update_vehicle_number."',`aadhaar`='".$aadhaar."',`driving_license`='".$driving_license."',`status`='".$status."'".$profile_update.$aadhaar_image_update.$dl_image_update." where `id`=".$id;
+        $sql = "Update delivery_boys set `name`='".$name."',password='".$password."',`address`='".$address."',`bonus`='".$bonus."',`commission`='".$commission."',`zone_id`='".$update_zone_id."',`service_type`='".$service_type."',`vehicle_type`='".$update_vehicle_type."',`vehicle_number`='".$update_vehicle_number."',`aadhaar`='".$aadhaar."',`driving_license`='".$driving_license."',`status`='".$status."'".$profile_update.$aadhaar_image_update.$dl_image_update." where `id`=".$id;
     }else{
-        $sql = "Update delivery_boys set `name`='".$name."',`address`='".$address."',`bonus`='".$bonus."',`commission`='".$commission."',`zone_id`='".$update_zone_id."',`service_type`='".$service_type."',`vehicle_type`='".$update_vehicle_type."',`vehicle_number`='".$update_vehicle_number."',`vehicle_number`='".$update_vehicle_number."',`aadhaar`='".$aadhaar."',`driving_license`='".$driving_license."',`status`='".$status."'".$profile_update.$aadhaar_image_update.$dl_image_update." where `id`=".$id;
+        $sql = "Update delivery_boys set `name`='".$name."',`address`='".$address."',`bonus`='".$bonus."',`commission`='".$commission."',`zone_id`='".$update_zone_id."',`service_type`='".$service_type."',`vehicle_type`='".$update_vehicle_type."',`vehicle_number`='".$update_vehicle_number."',`aadhaar`='".$aadhaar."',`driving_license`='".$driving_license."',`status`='".$status."'".$profile_update.$aadhaar_image_update.$dl_image_update." where `id`=".$id;
     }
     if($db->sql($sql)){
         echo "<label class='alert alert-success'>Information Updated Successfully.</label>";

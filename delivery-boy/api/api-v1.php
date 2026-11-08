@@ -62,6 +62,31 @@ if (isset($_POST['get_settings']) || (isset($_POST['type']) && $_POST['type'] ==
 		$response['settings']['minimum_version_required'] = empty($response['settings']['delivery_boy_min_version']) ? (empty($response['settings']['minimum_version_required']) ? "0" : $response['settings']['minimum_version_required']) : $response['settings']['delivery_boy_min_version'];
 		$response['settings']['is_version_system_on'] = isset($response['settings']['is_delivery_boy_version_system_on']) ? $response['settings']['is_delivery_boy_version_system_on'] : (isset($response['settings']['is-version-system-on']) ? $response['settings']['is-version-system-on'] : "0");
 		$response['settings']['privacy_policy_url'] = "https://krishdelivery.com/delivery-partner-privacy-policy.php";
+
+		// UPI payment settings for passenger ride & delivery collections
+		$admin_upi_id = !empty($response['settings']['admin_upi_id']) ? $response['settings']['admin_upi_id'] : (!empty($response['settings']['upi_id']) ? $response['settings']['upi_id'] : "");
+		$admin_upi_mobile = !empty($response['settings']['admin_upi_mobile']) ? $response['settings']['admin_upi_mobile'] : (!empty($response['settings']['support_number']) ? $response['settings']['support_number'] : (!empty($response['settings']['whatsapp_number']) ? $response['settings']['whatsapp_number'] : ""));
+		$admin_upi_name = !empty($response['settings']['admin_upi_name']) ? $response['settings']['admin_upi_name'] : (!empty($response['settings']['app_name']) ? $response['settings']['app_name'] : "Krish Delivery");
+
+		$qr_file = "";
+		if (!empty($response['settings']['admin_upi_qr_code'])) {
+			$qr_file = $response['settings']['admin_upi_qr_code'];
+		} else {
+			$db->sql("SELECT value FROM settings WHERE variable = 'admin_upi_qr_code' LIMIT 1");
+			$qr_res = $db->getResult();
+			if (!empty($qr_res) && !empty($qr_res[0]['value'])) {
+				$qr_file = $qr_res[0]['value'];
+			}
+		}
+
+		$base_img_url = "https://krishdelivery.com/dist/img/";
+		$admin_upi_qr_code = !empty($qr_file) ? ($base_img_url . $qr_file) : "";
+
+		$response['settings']['admin_upi_id'] = $admin_upi_id;
+		$response['settings']['admin_upi_mobile'] = $admin_upi_mobile;
+		$response['settings']['admin_upi_name'] = $admin_upi_name;
+		$response['settings']['admin_upi_qr_code'] = $admin_upi_qr_code;
+
 		print_r(json_encode($response));
 	} else {
 		$response['error'] = true;
@@ -2101,6 +2126,34 @@ if (isset($_POST['get_passenger_ride_details']) || isset($_GET['get_passenger_ri
 		'payment_status' => $ride['payment_status'],
 		'payment_method' => $ride['payment_method']
 	);
+
+	// Include Admin UPI settings for ride payment
+	$db->sql("SELECT value FROM settings WHERE variable = 'system_timezone' LIMIT 1");
+	$st_res = $db->getResult();
+	$sys_cfg = (!empty($st_res) && !empty($st_res[0]['value'])) ? json_decode($st_res[0]['value'], true) : array();
+
+	$admin_upi_id = !empty($sys_cfg['admin_upi_id']) ? $sys_cfg['admin_upi_id'] : (!empty($sys_cfg['upi_id']) ? $sys_cfg['upi_id'] : "");
+	$admin_upi_mobile = !empty($sys_cfg['admin_upi_mobile']) ? $sys_cfg['admin_upi_mobile'] : (!empty($sys_cfg['support_number']) ? $sys_cfg['support_number'] : (!empty($sys_cfg['whatsapp_number']) ? $sys_cfg['whatsapp_number'] : ""));
+	$admin_upi_name = !empty($sys_cfg['admin_upi_name']) ? $sys_cfg['admin_upi_name'] : (!empty($sys_cfg['app_name']) ? $sys_cfg['app_name'] : "Krish Delivery");
+
+	$qr_file = "";
+	if (!empty($sys_cfg['admin_upi_qr_code'])) {
+		$qr_file = $sys_cfg['admin_upi_qr_code'];
+	} else {
+		$db->sql("SELECT value FROM settings WHERE variable = 'admin_upi_qr_code' LIMIT 1");
+		$qr_res = $db->getResult();
+		if (!empty($qr_res) && !empty($qr_res[0]['value'])) {
+			$qr_file = $qr_res[0]['value'];
+		}
+	}
+	$base_img_url = "https://krishdelivery.com/dist/img/";
+	$admin_upi_qr_code = !empty($qr_file) ? ($base_img_url . $qr_file) : "";
+
+	$response['data']['admin_upi_id'] = $admin_upi_id;
+	$response['data']['admin_upi_mobile'] = $admin_upi_mobile;
+	$response['data']['admin_upi_name'] = $admin_upi_name;
+	$response['data']['admin_upi_qr_code'] = $admin_upi_qr_code;
+
 	print_r(json_encode($response));
 	die;
 }

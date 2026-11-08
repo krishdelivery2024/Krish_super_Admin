@@ -33,6 +33,9 @@
                     $sql = "select value from `settings` where variable='Store_seal' OR variable='store_seal'";
                     $db->sql($sql);
                     $res_store_seal = $db->getResult();
+                    $sql = "select value from `settings` where variable='admin_upi_qr_code' OR variable='upi_qr_code'";
+                    $db->sql($sql);
+                    $res_upi_qr = $db->getResult();
                     $sql="SELECT * FROM settings WHERE variable='currency'";
                     $db->sql($sql);
                     $res_currency = $db->getResult();
@@ -63,6 +66,40 @@
                             <label for="app_name">Logo:</label>
                             <img src="<?=DOMAIN_URL.'dist/img/'.$res_logo[0]['value']?>" title='<?=$data['app_name']?> - Logo' alt='<?=(isset($data['app_name']))?$data['app_name']:"";?> - Logo' style="max-width:100%"/>
                             <input type='file' name='logo' id='logo' accept="image/*"/>
+                        </div>
+
+                        <h4><i class="fa fa-qrcode"></i> Admin UPI Payment Settings (Passenger Rides &amp; Delivery)</h4>
+                        <p class="text-muted">Configure the UPI ID, Mobile Number, and QR Code used when delivery boy / driver collects payment from passenger via UPI.</p>
+                        <hr>
+                        <div class="row" style="background:#f4fbf7; padding:15px; margin:0 0 20px 0; border-radius:8px; border:1px solid #cceee0;">
+                            <div class="form-group col-md-6">
+                                <label for="admin_upi_id">Admin UPI ID:</label>
+                                <input type="text" class="form-control" name="admin_upi_id" value="<?=(isset($data['admin_upi_id']))?$data['admin_upi_id']:((isset($data['upi_id']))?$data['upi_id']:'');?>" placeholder="e.g. krishdelivery@okaxis or 9876543210@paytm"/>
+                                <small class="text-muted">UPI ID shown to passenger to make UPI payment</small>
+                            </div>
+                            <div class="form-group col-md-6">
+                                <label for="admin_upi_mobile">UPI Mobile Number:</label>
+                                <input type="text" class="form-control" name="admin_upi_mobile" value="<?=(isset($data['admin_upi_mobile']))?$data['admin_upi_mobile']:((isset($data['support_number']))?$data['support_number']:'');?>" placeholder="e.g. 9876543210"/>
+                                <small class="text-muted">Mobile number shown on QR page for manual verification</small>
+                            </div>
+                            <div class="form-group col-md-6">
+                                <label for="admin_upi_name">Account Holder / Business Name:</label>
+                                <input type="text" class="form-control" name="admin_upi_name" value="<?=(isset($data['admin_upi_name']))?$data['admin_upi_name']:((isset($data['app_name']))?$data['app_name']:'Krish Delivery');?>" placeholder="e.g. Krish Delivery"/>
+                                <small class="text-muted">Payee name displayed to passenger</small>
+                            </div>
+                            <div class="form-group col-md-6">
+                                <label for="admin_upi_qr_code">Admin UPI QR Code Image:</label>
+                                <?php 
+                                $current_qr_img = !empty($res_upi_qr[0]['value']) ? $res_upi_qr[0]['value'] : (!empty($data['admin_upi_qr_code']) ? $data['admin_upi_qr_code'] : '');
+                                if(!empty($current_qr_img)){ ?>
+                                    <div style="margin-bottom:8px;">
+                                        <img src="<?=DOMAIN_URL.'dist/img/'.$current_qr_img?>" title="UPI QR Code" alt="UPI QR Code" style="max-height:130px; border:1px solid #ddd; padding:4px; border-radius:4px; background:#fff;"/>
+                                        <p class="text-success" style="font-size:12px; margin-top:4px;"><i class="fa fa-check-circle"></i> Current QR: <?=$current_qr_img?></p>
+                                    </div>
+                                <?php } ?>
+                                <input type="file" name="admin_upi_qr_code" id="admin_upi_qr_code" accept="image/*"/>
+                                <small class="text-muted">Upload merchant QR code image (GPay/PhonePe/Paytm/Bank). If uploaded, delivery boy app displays this exact QR code.</small>
+                            </div>
                         </div>
                         <?php 
 		                $sql_query = "SELECT * FROM state ORDER BY id ASC";

@@ -268,6 +268,10 @@ $(document).on('change', '#modal_status', function() {
                                                        </label>
                                                      </div>
                                                  </div>
+                                                 <div class="form-group" id="update_vehicle_number_container">
+                                                     <label for="update_vehicle_number">Vehicle Number <span style="color:red;">*</span></label>
+                                                     <input type="text" class="form-control" name="update_vehicle_number" id="update_vehicle_number" placeholder="e.g. TN 76 AB 1234" required>
+                                                 </div>
                                                 <div class="form-group">
                                                     <label for="">Zone</label>
                                                     <?php
@@ -4066,6 +4070,7 @@ $(document).on('change','#loose',function(){
         update_name:"required",
         update_mobile:"required",
         update_address:"required",
+        update_vehicle_number:"required",
         update_aadhaar : {
                     required:true,
                     digits:true,
@@ -4173,7 +4178,7 @@ $(document).on('change','#loose',function(){
                 $('#update_zone_id').val(row.zone_id);
             else
                 $('#update_zone_id').val('');
-            $('#update_vehicle_number').val(row.vehicle_number || row.vehicle_number_value || '');
+            $('#update_vehicle_number').val(row.vehicle_number_value !== undefined && row.vehicle_number_value !== '' ? row.vehicle_number_value : (row.vehicle_number && row.vehicle_number !== '-' ? row.vehicle_number : ''));
             $('#update_aadhaar').val(row.aadhaar);
             $('#update_driving_license').val(row.driving_license);
         }
