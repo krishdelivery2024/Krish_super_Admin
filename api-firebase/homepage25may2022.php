@@ -50,7 +50,7 @@ if(isset($_POST['accesskey'])) {
     	}
     	$data['offers'] = $temp1;
     	
-    	$sql = 'select * from slider order by id desc';
+    	$sql = 'select * from slider where status = 1 order by id desc';
     	$db->sql($sql);
     	$result =$db->getResult();
     	$temp = $temp1 = array();

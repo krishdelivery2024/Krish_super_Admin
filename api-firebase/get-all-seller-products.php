@@ -54,7 +54,7 @@
                 $price = 'MIN(price)';
                 $price_sort = 'pv.price ASC';
             }else{
-                $sort = 'ORDER BY row_order ASC, name ASC';
+                $sort = 'ORDER BY p.row_order ASC, p.id ASC';
                 $price = 'MIN(price)';
                 $price_sort = 'pv.price ASC';
             }
@@ -68,9 +68,6 @@
             $res = $db->getResult();
             // return $res;
             $product = array();
-            $product1 = array();
-            $product2 = array();
-            $i = 0;
             foreach($res as $row){
                 $sql = "SELECT AVG(rating) AS avg_rating, COUNT(id) AS user_count FROM product_rating WHERE product_id=".$row['id']." GROUP BY product_id";
                 $db->sql($sql);
@@ -129,25 +126,11 @@ $row['image'] = DOMAIN_URL.$row['image'];
                         
                         
             		}
-                if($row['stock_check']!=0){
-                        if(count($variants)>0){
-                    $product1[$i] = $row;
-                    
-                    $product1[$i]['variants'] = $variants;
-                    $i++;
-                        }
-                }else{
-                    if(count($variants)>0){
-                   $product2[$i] = $row;
-                    
-                    $product2[$i]['variants'] = $variants;
-                    $i++;
-                    }
+                if(count($variants)>0){
+                    $row['variants'] = $variants;
+                    $product[] = $row;
                 }
-                
             }
-            
-		    $product=array_merge($product1,$product2);
 			// create json output
 			if(!empty($product)){
 			    $output = json_encode(array('error' => false,

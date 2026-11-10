@@ -1284,33 +1284,52 @@
 		if(isset($_GET['order']))
 			$order = $_GET['order'];
 		
-		if(isset($_GET['search'])){
-			$search = $_GET['search'];
-			$where = " Where u.`id` like '%".$search."%' OR u.`name` like '%".$search."%' OR u.`email` like '%".$search."%' OR u.`mobile` like '%".$search."%' OR u.`company_name` like '%".$search."%' OR u.`commission` like '%".$search."%'";
+		$open_calc_sql = "(u.store_status = 'true' AND ((u.opening_time IS NULL OR u.closing_time IS NULL OR u.opening_time = '' OR u.closing_time = '' OR u.opening_time = u.closing_time) OR (u.opening_time < u.closing_time AND CURTIME() >= u.opening_time AND CURTIME() < u.closing_time) OR (u.opening_time > u.closing_time AND (CURTIME() >= u.opening_time OR CURTIME() < u.closing_time))))";
+
+		$where_conditions = array();
+		if(isset($_GET['search']) && $_GET['search'] != ''){
+			$search = $db->escapeString($_GET['search']);
+			$where_conditions[] = "(u.`id` like '%".$search."%' OR u.`name` like '%".$search."%' OR u.`email` like '%".$search."%' OR u.`mobile` like '%".$search."%' OR u.`company_name` like '%".$search."%' OR u.`commission` like '%".$search."%')";
 		}
 		if(isset($_GET['filter_order_status']) && $_GET['filter_order_status'] !=''){
-			$filter_order = $_GET['filter_order'];
-			if(isset($_GET['search']) AND $_GET['search']!='')
-				$where .=' and active_status='.$filter_order;
-			else
-				$where =' where active_status='.$filter_order;
+			$filter_order = $db->escapeString($_GET['filter_order_status']);
+			$where_conditions[] = "active_status = '".$filter_order."'";
 		}
 		if(isset($_GET['filter_zone']) && $_GET['filter_zone'] != ''){
 			$filter_zone = (int)$_GET['filter_zone'];
-			if(isset($_GET['search']) && $_GET['search'] != '')
-				$where .=' and u.zone_id = '.$filter_zone;
-			else
-				$where =' where u.zone_id = '.$filter_zone;
+			$where_conditions[] = "u.zone_id = ".$filter_zone;
 		}
+		if(isset($_GET['filter_store_status']) && $_GET['filter_store_status'] != ''){
+			$f_store = trim(strtolower($_GET['filter_store_status']));
+			if($f_store === 'open' || $f_store === 'opened'){
+				$where_conditions[] = $open_calc_sql;
+			}elseif($f_store === 'closed' || $f_store === 'close'){
+				$where_conditions[] = "NOT " . $open_calc_sql;
+			}
+		}
+
+		$where = !empty($where_conditions) ? " WHERE " . implode(" AND ", $where_conditions) : "";
 		
-		$sql = "SELECT COUNT(*) as total FROM `seller` u ".$where;
+		if($sort === 'store_status'){
+			$sort_col = $open_calc_sql;
+		}elseif($sort === 'zone_name'){
+			$sort_col = "z.name";
+		}else{
+			$sort_col = "u.`" . $db->escapeString($sort) . "`";
+		}
+		$order_sql = (strtoupper($order) === 'ASC') ? 'ASC' : 'DESC';
+
+		$sql = "SELECT COUNT(*) as total FROM `seller` u LEFT JOIN `zone` z ON z.id = u.zone_id ".$where;
 		$db->sql($sql);
 		$res = $db->getResult();
 		// print_r($res);
-		foreach($res as $row)
-			$total = $row['total'];
+		$total = 0;
+		if(!empty($res)){
+			foreach($res as $row)
+				$total = $row['total'];
+		}
 		
-		$sql = "SELECT u.*, IFNULL(z.name,'-') as zone_name FROM `seller` u LEFT JOIN `zone` z ON z.id = u.zone_id ".$where." ORDER BY u.`".$sort."` ".$order." LIMIT ".$offset.", ".$limit;
+		$sql = "SELECT u.*, IFNULL(z.name,'-') as zone_name FROM `seller` u LEFT JOIN `zone` z ON z.id = u.zone_id ".$where." ORDER BY ".$sort_col." ".$order_sql." LIMIT ".$offset.", ".$limit;
 		$db->sql($sql);
 		$res = $db->getResult();
 // 		print_r($res);
@@ -1339,6 +1358,35 @@
 			    ? floatval($row['commission'])
 			    : $global_seller_comm;
 			$tempRow['commission'] = $seller_comm . '%';
+			$is_open = $fn->is_seller_open_now($row);
+			$manual_status = isset($row['store_status']) ? $row['store_status'] : 'true';
+			
+			if($is_open){
+				$store_html = "<span class='label label-success' style='font-size:12px;'><i class='fa fa-circle'></i> Opened</span>";
+			}else{
+				$store_html = "<span class='label label-danger' style='font-size:12px;'><i class='fa fa-circle'></i> Closed</span>";
+			}
+
+			if(!empty($row['opening_time']) && !empty($row['closing_time'])){
+				$time_str = date('h:i A', strtotime($row['opening_time'])) . ' - ' . date('h:i A', strtotime($row['closing_time']));
+				$sub = $time_str;
+				if($manual_status === 'false'){
+					$sub .= ' (Off)';
+				}
+				$store_html .= "<br><small class='text-muted' style='font-size:11px;'><i class='fa fa-clock-o'></i> " . htmlspecialchars($sub) . "</small>";
+			}elseif($manual_status === 'false'){
+				$store_html .= "<br><small class='text-muted' style='font-size:11px;'>Manual Off</small>";
+			}else{
+				$store_html .= "<br><small class='text-muted' style='font-size:11px;'>24 Hours</small>";
+			}
+
+			if($manual_status === 'true'){
+				$store_html .= "<br><a href='javascript:void(0);' class='btn btn-xs btn-default toggle-store-status' data-id='".$row['id']."' data-status='false' title='Click to Close Store' style='margin-top:4px;'><i class='fa fa-power-off text-danger'></i> Set Closed</a>";
+			}else{
+				$store_html .= "<br><a href='javascript:void(0);' class='btn btn-xs btn-default toggle-store-status' data-id='".$row['id']."' data-status='true' title='Click to Open Store' style='margin-top:4px;'><i class='fa fa-power-off text-success'></i> Set Open</a>";
+			}
+
+			$tempRow['store_status'] = $store_html;
 			if($row['status']==0)
 			    $tempRow['status']="<label class='label label-danger'>Inactive</label>";
             else
@@ -1629,6 +1677,7 @@
 			'date_added'   => 's.date_added',
 			'zone_id'      => 's.zone_id',
 			'zone_name'    => 'z.name',
+			'status'       => 's.status',
 		);
 		$sort_sql = isset($sortable[$sort]) ? $sortable[$sort] : 's.id';
 		$order_sql = (strtoupper($order) === 'ASC') ? 'ASC' : 'DESC';
@@ -1654,8 +1703,16 @@
 		$tempRow = array();
 		
 		foreach($res as $row){
-			$operate = " <a class='btn btn-xs btn-danger delete-slider' data-id='".$row['id']."' data-image='".$row['image']."' title='Delete'><i class='fa fa-trash-o'></i>Delete</a>";
-			
+			$curr_status = isset($row['status']) ? (int)$row['status'] : 1;
+			if($curr_status == 1){
+				$status_badge = "<span class='label label-success'>Enabled</span>";
+				$status_btn = "<a class='btn btn-xs btn-warning toggle-slider-status' data-id='".$row['id']."' data-status='0' title='Disable Slider'><i class='fa fa-ban'></i> Disable</a>";
+			}else{
+				$status_badge = "<span class='label label-danger'>Disabled</span>";
+				$status_btn = "<a class='btn btn-xs btn-success toggle-slider-status' data-id='".$row['id']."' data-status='1' title='Enable Slider'><i class='fa fa-check'></i> Enable</a>";
+			}
+
+			$operate = $status_btn . " <a class='btn btn-xs btn-danger delete-slider' data-id='".$row['id']."' data-image='".$row['image']."' title='Delete'><i class='fa fa-trash-o'></i> Delete</a>";
 			
 			$tempRow['id'] = $row['id'];
 			$tempRow['type'] = $row['type'];
@@ -1666,6 +1723,7 @@
 			$tempRow['zone_name'] = (!empty($row['zone_id']) && !empty($row['zone_name']))
 				? "<label class='label label-primary'>".$row['zone_name']."</label>"
 				: "<label class='label label-default'>All Zones</label>";
+			$tempRow['status'] = $status_badge;
 			$tempRow['operate'] = $operate;
 			$rows[] = $tempRow;
 		}

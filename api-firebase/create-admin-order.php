@@ -477,11 +477,22 @@ if ($action == 'place_admin_order') {
     }
     $admin_db_comm = isset($settings['delivery_boy_commission']) && $settings['delivery_boy_commission'] !== '' ? floatval($settings['delivery_boy_commission']) : 5.0;
 
+    $assign_delivery_boy_id = isset($_POST['delivery_boy_id']) ? (int) $_POST['delivery_boy_id'] : 0;
+    $assigned_boy_info = null;
+    if ($assign_delivery_boy_id > 0) {
+        $db->sql("SELECT id, name, mobile FROM delivery_boys WHERE id = " . $assign_delivery_boy_id . " LIMIT 1");
+        $db_boy_res = $db->getResult();
+        if (!empty($db_boy_res)) {
+            $assigned_boy_info = $db_boy_res[0];
+        }
+    }
+
     // 4. Insert Order
     $order_data = array(
         'user_id' => $user_id,
         'seller_id' => $seller_id,
         'store_id' => 0,
+        'delivery_boy_id' => $assign_delivery_boy_id,
         'mobile' => $db->escapeString($function->xss_clean($mobile)),
         'alternate_mobile' => $db->escapeString($function->xss_clean($alternate_mobile)),
         'name' => $db->escapeString($function->xss_clean($name)),
@@ -573,12 +584,22 @@ if ($action == 'place_admin_order') {
     } catch (Error $e) {
     }
 
+    if ($assign_delivery_boy_id > 0) {
+        try {
+            $db_msg = "Order #" . $order_id . " has been assigned to you by Admin. Address: " . mb_substr($address, 0, 45);
+            $function->send_notification_to_delivery_boy($assign_delivery_boy_id, "New Order Assigned by Admin", $db_msg, 'order_assigned', $order_id, 'food');
+        } catch (Exception $e) {
+        } catch (Error $e) {
+        }
+    }
+
     echo json_encode(array(
         'error' => false,
         'message' => "Order #$order_id placed successfully!",
         'order_id' => $order_id,
         'payment_method' => $payment_method,
-        'final_total' => $final_total
+        'final_total' => $final_total,
+        'assigned_boy' => $assigned_boy_info
     ));
     exit;
 }
@@ -613,7 +634,7 @@ if ($action == 'get_service_meta') {
     if (!is_array($passenger_pricing)) $passenger_pricing = array();
 
     // 6. Active Delivery Boys (for manual direct assignment)
-    $db->sql("SELECT id, name, mobile, service_type, vehicle_type FROM delivery_boys WHERE status = 1 ORDER BY name ASC");
+    $db->sql("SELECT id, name, mobile, service_type, vehicle_type, zone_id, active_status FROM delivery_boys WHERE status = 1 ORDER BY name ASC");
     $delivery_boys = $db->getResult();
     if (!is_array($delivery_boys)) $delivery_boys = array();
 

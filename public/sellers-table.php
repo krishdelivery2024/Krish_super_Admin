@@ -22,6 +22,14 @@
                                     <?php }} ?>
                                 </select>
                             </div>
+                            <div class="col-md-3 form-group">
+                                <label for="filter_store_status" class="control-label">Filter By Store Status:</label>
+                                <select id="filter_store_status" name="filter_store_status" class="form-control">
+                                    <option value="">All (Opened &amp; Closed)</option>
+                                    <option value="open">Opened</option>
+                                    <option value="closed">Closed</option>
+                                </select>
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -44,7 +52,8 @@
                     <th data-field="company_name" data-sortable="true">Company Name</th>
                     <th data-field="zone_name" data-sortable="true">Zone</th>
                     <th data-field="commission" data-sortable="true">Commission (%)</th>
-                    <th data-field="status" data-sortable="false">Status</th>
+                    <th data-field="store_status" data-sortable="true">Store Status</th>
+                    <th data-field="status" data-sortable="false">Account Status</th>
                     <th data-field="date_created" data-sortable="true">Created At</th>
                     <th data-field="operate" data-sortable="false">Action</th>
                     </tr>
@@ -67,11 +76,47 @@ function queryParams_seller(p){
     if(zone){
         p.filter_zone = zone;
     }
+    var storeStatus = $('#filter_store_status').val();
+    if(storeStatus){
+        p.filter_store_status = storeStatus;
+    }
     return p;
 }
 $(document).ready(function(){
-    $('#filter_zone').on('change', function(){
-        $('#seller_list').bootstrapTable('refresh', {query:{filter_zone: $('#filter_zone').val()}});
+    $('#filter_zone, #filter_store_status').on('change', function(){
+        $('#seller_list').bootstrapTable('refresh');
     });
+});
+$(document).on('click', '.toggle-store-status', function(e){
+    e.preventDefault();
+    var btn = $(this);
+    var sellerId = btn.data('id');
+    var targetStatus = btn.data('status');
+    var actionText = (targetStatus === 'true') ? 'Open' : 'Close';
+    if(confirm('Are you sure you want to ' + actionText + ' this store?')){
+        btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Updating...');
+        $.ajax({
+            url: 'public/db-operation.php',
+            type: 'POST',
+            data: {
+                toggle_store_status: 1,
+                seller_id: sellerId,
+                status: targetStatus
+            },
+            dataType: 'json',
+            success: function(resp){
+                if(resp && !resp.error){
+                    $('#seller_list').bootstrapTable('refresh');
+                }else{
+                    alert((resp && resp.message) ? resp.message : 'Failed to update store status');
+                    $('#seller_list').bootstrapTable('refresh');
+                }
+            },
+            error: function(){
+                alert('Network or server error while updating store status.');
+                $('#seller_list').bootstrapTable('refresh');
+            }
+        });
+    }
 });
 </script>

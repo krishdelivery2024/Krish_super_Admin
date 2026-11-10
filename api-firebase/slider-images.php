@@ -129,7 +129,7 @@ if ((isset($_POST['add-image'])) && ($_POST['add-image'] == 1)) {
 		$fn->compress_image_file('../upload/slider/'.$image);
 		// insert new data to menu table
 		$upload_image = 'upload/slider/'.$image;
-		$sql = "INSERT INTO `slider`(`image`,`type`, `type_id`,`slider`,`section_type`,`zone_id`) VALUES ('$upload_image','".$type."','".$id."','".$slider."','".$section_type."',".$zone_column.")";
+		$sql = "INSERT INTO `slider`(`image`,`type`, `type_id`,`slider`,`section_type`,`zone_id`,`status`) VALUES ('$upload_image','".$type."','".$id."','".$slider."','".$section_type."',".$zone_column.",1)";
 // 		echo $sql;
 		// echo "a";
 		// echo $sql;
@@ -166,11 +166,32 @@ if(isset($_GET['type']) && $_GET['type'] != '' && $_GET['type'] == 'delete-slide
 		echo 0;
 	}
 }
+if(isset($_GET['type']) && $_GET['type'] != '' && $_GET['type'] == 'update-slider-status') {
+	$permissions = $fn->get_permissions($_SESSION['id']);
+	if(isset($permissions['home_sliders']['create']) && $permissions['home_sliders']['create'] == 0 && isset($permissions['home_sliders']['delete']) && $permissions['home_sliders']['delete'] == 0){
+		echo 2;
+		return false;
+	}
+	$id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+	$status = isset($_GET['status']) ? (int)$_GET['status'] : 0;
+	$status = ($status == 1) ? 1 : 0;
+	if($id > 0){
+		$sql = "UPDATE `slider` SET `status` = " . $status . " WHERE `id` = " . $id;
+		if($db->sql($sql)){
+			echo 1;
+		}else{
+			echo 0;
+		}
+	}else{
+		echo 0;
+	}
+	return true;
+}
 if(isset($_POST['get-slider-images'])) {
     if(!verify_token()){
         return false;
     }
-	$sql = 'select * from slider order by id desc';
+	$sql = 'select * from slider where status = 1 order by id desc';
 	$db->sql($sql);
 	$result =$db->getResult();
 	$response = $temp = $temp1 = array();

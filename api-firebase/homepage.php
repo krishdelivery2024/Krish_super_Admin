@@ -74,14 +74,14 @@ if(isset($_POST['accesskey'])) {
 		// "zone_id IS NULL" matters here: without it an unresolved zone would
 		// fall back to every row and leak other zones' banners.
 		if ($slider_zone_id) {
-			$slider_where_1 = "section_type=1 AND (zone_id = ".(int)$slider_zone_id." OR zone_id IS NULL)";
-			$slider_where_2 = "section_type=2 AND (zone_id = ".(int)$slider_zone_id." OR zone_id IS NULL)";
+			$slider_where_1 = "status=1 AND section_type=1 AND (zone_id = ".(int)$slider_zone_id." OR zone_id IS NULL)";
+			$slider_where_2 = "status=1 AND section_type=2 AND (zone_id = ".(int)$slider_zone_id." OR zone_id IS NULL)";
 			// (zone_id IS NULL) is 0 for zone rows and 1 for global rows, so
 			// ascending puts the zone rows first.
 			$slider_order = " ORDER BY (zone_id IS NULL) ASC, id DESC";
 		} else {
-			$slider_where_1 = "section_type=1 AND zone_id IS NULL";
-			$slider_where_2 = "section_type=2 AND zone_id IS NULL";
+			$slider_where_1 = "status=1 AND section_type=1 AND zone_id IS NULL";
+			$slider_where_2 = "status=1 AND section_type=2 AND zone_id IS NULL";
 			$slider_order = " ORDER BY id DESC";
 		}
 

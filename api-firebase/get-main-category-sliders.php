@@ -25,7 +25,7 @@ if(isset($_POST['accesskey'])) {
 		// get all category data from category table
 		$sql_query = "SELECT * 
 			FROM slider 
-			WHERE type_id = '$main_cat' AND type = 'main_category'
+			WHERE status = 1 AND type_id = '$main_cat' AND type = 'main_category'
 			ORDER BY id ASC ";
 		$db->sql($sql_query);
 		$res=$db->getResult();

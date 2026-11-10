@@ -773,7 +773,7 @@ $zone_id = $db->escapeString((string)$zone_id);
     }
     $password = $db->escapeString($fn->xss_clean($_POST['password']));
     $password = md5($password);
-    $sql='SELECT id FROM delivery_boys WHERE mobile='.$mobile;
+    $sql = "SELECT id FROM delivery_boys WHERE mobile = '$mobile' LIMIT 1";
     $db->sql($sql);
     $res=$db->getResult();
     $count=$db->numRows($res);
@@ -852,6 +852,22 @@ if ($is_sub_admin) {
        return false; 
     }
     $name = $db->escapeString($fn->xss_clean($_POST['update_name']));
+    $mobile = isset($_POST['update_mobile']) ? $db->escapeString($fn->xss_clean(trim($_POST['update_mobile']))) : '';
+    if (empty($mobile)) {
+        echo '<label class="alert alert-danger">Mobile number is required!</label>';
+        return false;
+    }
+    if (!preg_match('/^[0-9]{10,15}$/', $mobile)) {
+        echo '<label class="alert alert-danger">Valid Mobile Number (10 to 15 digits) is required!</label>';
+        return false;
+    }
+
+    $db->sql("SELECT id FROM delivery_boys WHERE mobile = '$mobile' AND id != " . $id . " LIMIT 1");
+    $existing_mobile = $db->getResult();
+    if (!empty($existing_mobile)) {
+        echo '<label class="alert alert-danger">Mobile number already exists for another delivery boy!</label>';
+        return false;
+    }
     $password = !empty($_POST['update_password'])?$db->escapeString($fn->xss_clean($_POST['update_password'])) : '';
     $store_id = !empty($_POST['store_id1']) ? $db->escapeString($fn->xss_clean($_POST['store_id1'])) : '0';
     $address = $db->escapeString($fn->xss_clean($_POST['update_address']));
@@ -950,9 +966,9 @@ $update_zone_id = $db->escapeString((string)$update_zone_id);
     $status = $db->escapeString($fn->xss_clean($_POST['status']));
     $password = !empty($password)?md5($password):'';
     if(!empty($password)){
-        $sql = "Update delivery_boys set `name`='".$name."',password='".$password."',`address`='".$address."',`bonus`='".$bonus."',`commission`='".$commission."',`zone_id`='".$update_zone_id."',`service_type`='".$service_type."',`vehicle_type`='".$update_vehicle_type."',`vehicle_number`='".$update_vehicle_number."',`aadhaar`='".$aadhaar."',`driving_license`='".$driving_license."',`status`='".$status."'".$profile_update.$aadhaar_image_update.$dl_image_update." where `id`=".$id;
+        $sql = "Update delivery_boys set `name`='".$name."',`mobile`='".$mobile."',password='".$password."',`address`='".$address."',`bonus`='".$bonus."',`commission`='".$commission."',`zone_id`='".$update_zone_id."',`service_type`='".$service_type."',`vehicle_type`='".$update_vehicle_type."',`vehicle_number`='".$update_vehicle_number."',`aadhaar`='".$aadhaar."',`driving_license`='".$driving_license."',`status`='".$status."'".$profile_update.$aadhaar_image_update.$dl_image_update." where `id`=".$id;
     }else{
-        $sql = "Update delivery_boys set `name`='".$name."',`address`='".$address."',`bonus`='".$bonus."',`commission`='".$commission."',`zone_id`='".$update_zone_id."',`service_type`='".$service_type."',`vehicle_type`='".$update_vehicle_type."',`vehicle_number`='".$update_vehicle_number."',`aadhaar`='".$aadhaar."',`driving_license`='".$driving_license."',`status`='".$status."'".$profile_update.$aadhaar_image_update.$dl_image_update." where `id`=".$id;
+        $sql = "Update delivery_boys set `name`='".$name."',`mobile`='".$mobile."',`address`='".$address."',`bonus`='".$bonus."',`commission`='".$commission."',`zone_id`='".$update_zone_id."',`service_type`='".$service_type."',`vehicle_type`='".$update_vehicle_type."',`vehicle_number`='".$update_vehicle_number."',`aadhaar`='".$aadhaar."',`driving_license`='".$driving_license."',`status`='".$status."'".$profile_update.$aadhaar_image_update.$dl_image_update." where `id`=".$id;
     }
     if($db->sql($sql)){
         echo "<label class='alert alert-success'>Information Updated Successfully.</label>";
@@ -1846,6 +1862,29 @@ if(isset($_POST['link_payment_to_order'])){
     $db->sql("UPDATE orders SET payment_status = 1 WHERE id = '$order_id'");
     $db->sql("UPDATE razorpay_orders SET local_order_id = '$order_id', status = 'order_placed' WHERE payment_id = '$txn_id'");
     echo json_encode(array('error' => false, 'message' => "Payment $txn_id successfully linked to Order #$order_id."));
+    exit;
+}
+
+// Toggle seller store status (Open / Closed)
+if(isset($_POST['toggle_store_status']) && $_POST['toggle_store_status'] == 1){
+    header('Content-Type: application/json');
+    if(!checkadmin($auth_username)){
+        echo json_encode(array('error' => true, 'message' => 'Access denied. You are not authorized.'));
+        exit;
+    }
+    $seller_id = isset($_POST['seller_id']) ? (int)$_POST['seller_id'] : 0;
+    $new_status = (isset($_POST['status']) && $_POST['status'] === 'true') ? 'true' : 'false';
+    if($seller_id <= 0){
+        echo json_encode(array('error' => true, 'message' => 'Invalid seller ID.'));
+        exit;
+    }
+    $sql = "UPDATE `seller` SET `store_status` = '$new_status' WHERE `id` = $seller_id";
+    if($db->sql($sql)){
+        $status_text = ($new_status === 'true') ? 'Opened' : 'Closed';
+        echo json_encode(array('error' => false, 'message' => "Store is now $status_text!"));
+    }else{
+        echo json_encode(array('error' => true, 'message' => 'Failed to update store status in database.'));
+    }
     exit;
 }
 

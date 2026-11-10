@@ -268,6 +268,7 @@ include"header.php";?>
                                 <th data-field="type_id">ID</th>
                                 <th data-field="slider">Slider</th>
                                 <th data-field="zone_name">Zone</th>
+                                <th data-field="status" data-sortable="true">Status</th>
                                 <th data-field="operate">Action</th>
                             </tr>
                             </thead>
@@ -506,6 +507,28 @@ function compressImageToTarget(file, maxBytes, done) {
     }); 
     </script>
    <script>
+    $(document).on('click','.toggle-slider-status',function(){
+        var id = $(this).data("id");
+        var status = $(this).data("status");
+        var actionText = (status == 1) ? 'enable' : 'disable';
+        if(confirm('Are you sure want to ' + actionText + ' this slider?')){
+            $.ajax({
+                url : 'api-firebase/slider-images.php',
+                type: "get",
+                data: 'accesskey=90336&id='+id+'&status='+status+'&type=update-slider-status',
+                success: function(result){
+                    if(result==1){
+                        $('#notifications_table').bootstrapTable('refresh');
+                    } else if(result==2){
+                        alert('You have no permission to update home slider');
+                    } else {
+                        alert('Error! Slider status could not be updated');
+                    }
+                }
+            });
+        }
+    });
+
     $(document).on('click','.delete-slider',function(){
         if(confirm('Are you sure?')){
             id = $(this).data("id");

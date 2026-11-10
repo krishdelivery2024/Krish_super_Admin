@@ -62,7 +62,7 @@ $db->sql("SELECT id, vehicle_type, display_name, base_price, base_km, per_km_pri
 $active_passenger_pricing = $db->getResult();
 if (!is_array($active_passenger_pricing)) $active_passenger_pricing = array();
 
-$db->sql("SELECT id, name, mobile, service_type, vehicle_type FROM delivery_boys WHERE status=1 ORDER BY name ASC");
+$db->sql("SELECT id, name, mobile, service_type, vehicle_type, zone_id, active_status FROM delivery_boys WHERE status=1 ORDER BY name ASC");
 $active_delivery_boys = $db->getResult();
 if (!is_array($active_delivery_boys)) $active_delivery_boys = array();
 
@@ -703,6 +703,30 @@ if (!in_array($initial_service, array('food', 'parcel', 'shipping', 'passenger')
                         </div>
                     </label>
 
+                    <!-- Delivery Boy Assignment -->
+                    <div style="margin-top: 15px; margin-bottom: 15px; padding-top: 14px; border-top: 1px dashed #e0e0e0;">
+                        <label style="font-weight: 700; color: #333; margin-bottom: 8px;">Delivery Boy Assignment:</label>
+                        <div class="row" style="margin-bottom: 12px;">
+                            <div class="col-md-6">
+                                <label class="radio-inline" style="font-weight: 600;">
+                                    <input type="radio" name="food_driver_mode" id="food_driver_broadcast" value="broadcast" checked> Broadcast / Auto Assign
+                                </label>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="radio-inline" style="font-weight: 600;">
+                                    <input type="radio" name="food_driver_mode" id="food_driver_direct" value="direct"> Assign specific delivery boy
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group" id="food_driver_select_group" style="display: none;">
+                            <label for="food_assign_delivery_boy">Select Delivery Boy to Assign <span class="text-danger">*</span></label>
+                            <select id="food_assign_delivery_boy" class="form-control select2" style="width: 100%;">
+                                <option value="">-- Please select a Zone first --</option>
+                            </select>
+                        </div>
+                    </div>
+
                     <!-- Place Order Button -->
                     <div style="margin-top: 20px;">
                         <button type="button" class="btn btn-success btn-lg btn-block" id="btn_place_order" style="font-weight: 700; padding: 14px; font-size: 17px; box-shadow: 0 4px 12px rgba(46,125,50,0.3);">
@@ -1125,12 +1149,7 @@ if (!in_array($initial_service, array('food', 'parcel', 'shipping', 'passenger')
                         <div class="form-group" id="svc_driver_select_group" style="display: none;">
                             <label for="svc_assign_delivery_boy">Select Driver to Assign <span class="text-danger">*</span></label>
                             <select id="svc_assign_delivery_boy" class="form-control select2" style="width: 100%;">
-                                <option value="">-- Select Active Driver --</option>
-                                <?php foreach($active_delivery_boys as $dboy){ ?>
-                                    <option value="<?=$dboy['id']?>" data-vehicle="<?=$dboy['vehicle_type']?>" data-services="<?=$dboy['service_type']?>">
-                                        <?=htmlspecialchars($dboy['name'])?> (<?=$dboy['mobile']?>) &bull; <?=ucfirst($dboy['vehicle_type'])?>
-                                    </option>
-                                <?php } ?>
+                                <option value="">-- Please select a Zone first --</option>
                             </select>
                         </div>
 
@@ -1454,7 +1473,7 @@ function updateSvcRouteAndFare() {
                 }
 
                 if (resp.zone_id && !$('#svc_order_zone').val()) {
-                    $('#svc_order_zone').val(resp.zone_id);
+                    $('#svc_order_zone').val(resp.zone_id).trigger('change');
                 }
 
                 $('#svc_txt_grand_total').html('&#8377; ' + grandTotal.toFixed(2));
@@ -1689,6 +1708,130 @@ window.initDeliveryMap = function() {
 $(document).ready(function(){
     var cartItems = {}; // key: variant_id, value: { variant_id, product_id, product_name, measurement, price, qty }
     var loadedProducts = [];
+    var allDeliveryBoys = <?=json_encode($active_delivery_boys)?>;
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        return $('<div>').text(text).html();
+    }
+
+    function initDeliveryBoySelect2($select) {
+        if (!$select || $select.length === 0 || !$.fn.select2) return;
+        if ($select.data('select2')) {
+            $select.select2('destroy');
+        }
+        $select.select2({
+            width: '100%',
+            templateResult: function(data) {
+                if (!data.id) return data.text;
+                var $elem = $(data.element);
+                var isOnline = $elem.attr('data-online') === '1';
+                var name = $elem.attr('data-name') || data.text;
+                var mobile = $elem.attr('data-mobile') || '';
+                var vehicle = $elem.attr('data-vehicle') || '';
+                if (vehicle) {
+                    vehicle = vehicle.charAt(0).toUpperCase() + vehicle.slice(1);
+                }
+                var dotColor = isOnline ? '#28a745' : '#dc3545';
+                var statusText = isOnline ? 'Online' : 'Offline';
+                var badgeClass = isOnline ? 'label-success' : 'label-danger';
+                return $(
+                    '<div style="display:flex; justify-content:space-between; align-items:center; width:100%; padding:2px 0;">' +
+                        '<div>' +
+                            '<strong>' + escapeHtml(name) + '</strong> ' +
+                            (mobile ? '<span class="text-muted" style="font-size:12px;">(' + escapeHtml(mobile) + ')</span> ' : '') +
+                            (vehicle ? '&bull; <small style="color:#555;">' + escapeHtml(vehicle) + '</small>' : '') +
+                        '</div>' +
+                        '<div style="white-space:nowrap; margin-left:12px;">' +
+                            '<span style="display:inline-block; width:9px; height:9px; border-radius:50%; background:' + dotColor + '; margin-right:4px; box-shadow:0 0 4px ' + dotColor + ';"></span>' +
+                            '<span class="label ' + badgeClass + '" style="font-size:10px; padding:2px 5px;">' + statusText + '</span>' +
+                        '</div>' +
+                    '</div>'
+                );
+            },
+            templateSelection: function(data) {
+                if (!data.id) return data.text;
+                var $elem = $(data.element);
+                var isOnline = $elem.attr('data-online') === '1';
+                var name = $elem.attr('data-name') || data.text;
+                var mobile = $elem.attr('data-mobile') || '';
+                var dot = isOnline ? '🟢' : '🔴';
+                var statusText = isOnline ? 'Online' : 'Offline';
+                return name + ' ' + dot + (mobile ? ' (' + mobile + ')' : '') + ' [' + statusText + ']';
+            }
+        });
+    }
+
+    function renderDeliveryBoyOptions($select, zoneId, currentService, selectedBoyId) {
+        if (!$select || $select.length === 0) return;
+        $select.empty();
+
+        if (!zoneId || isNaN(parseInt(zoneId, 10)) || parseInt(zoneId, 10) <= 0) {
+            $select.append('<option value="">-- Please select a Zone first --</option>');
+            if ($.fn.select2) {
+                initDeliveryBoySelect2($select);
+                $select.trigger('change');
+            }
+            return;
+        }
+
+        var zoneIdInt = parseInt(zoneId, 10);
+        var filtered = (allDeliveryBoys || []).filter(function(dboy) {
+            return parseInt(dboy.zone_id, 10) === zoneIdInt;
+        });
+
+        if (filtered.length === 0) {
+            $select.append('<option value="">-- No delivery boys found in this zone --</option>');
+            if ($.fn.select2) {
+                initDeliveryBoySelect2($select);
+                $select.trigger('change');
+            }
+            return;
+        }
+
+        // Sort: Online first (active_status === 'true'), then by name ASC
+        filtered.sort(function(a, b) {
+            var aOnline = (a.active_status === 'true' || a.active_status === '1' || a.active_status === true) ? 1 : 0;
+            var bOnline = (b.active_status === 'true' || b.active_status === '1' || b.active_status === true) ? 1 : 0;
+            if (aOnline !== bOnline) {
+                return bOnline - aOnline;
+            }
+            return (a.name || '').localeCompare(b.name || '');
+        });
+
+        $select.append('<option value="">-- Select Active Delivery Boy (' + filtered.length + ' in zone) --</option>');
+
+        filtered.forEach(function(dboy) {
+            var isOnline = (dboy.active_status === 'true' || dboy.active_status === '1' || dboy.active_status === true);
+            var dot = isOnline ? '🟢' : '🔴';
+            var statusText = isOnline ? 'Online' : 'Offline';
+            var vehicle = (dboy.vehicle_type || 'bike');
+            vehicle = vehicle.charAt(0).toUpperCase() + vehicle.slice(1);
+
+            // Name 🟢 (Mobile) • Vehicle (Online)
+            var label = dboy.name + ' ' + dot + ' (' + dboy.mobile + ') • ' + vehicle + ' (' + statusText + ')';
+
+            var $opt = $('<option></option>')
+                .val(dboy.id)
+                .text(label)
+                .attr('data-online', isOnline ? '1' : '0')
+                .attr('data-name', dboy.name)
+                .attr('data-mobile', dboy.mobile)
+                .attr('data-vehicle', dboy.vehicle_type)
+                .attr('data-services', dboy.service_type);
+
+            if (selectedBoyId && parseInt(selectedBoyId, 10) === parseInt(dboy.id, 10)) {
+                $opt.prop('selected', true);
+            }
+
+            $select.append($opt);
+        });
+
+        if ($.fn.select2) {
+            initDeliveryBoySelect2($select);
+            $select.trigger('change');
+        }
+    }
 
     // Move modal directly under <body> to prevent AdminLTE wrapper stacking-context from trapping it under backdrop
     $('#orderSuccessModal').appendTo('body');
@@ -1768,6 +1911,9 @@ $(document).ready(function(){
     $('#order_zone').on('change', function(){
         var zoneId = $(this).val();
         resetSellerAndProducts();
+        if ($('input[name="food_driver_mode"]:checked').val() === 'direct') {
+            renderDeliveryBoyOptions($('#food_assign_delivery_boy'), zoneId, 'food');
+        }
         
         if(!zoneId){
             $('#order_seller').html('<option value="">-- First Select a Zone above --</option>').prop('disabled', true);
@@ -2159,6 +2305,19 @@ $(document).ready(function(){
         $(this).closest('.payment-option-card').addClass('selected');
     });
 
+    // Food Driver Assignment Mode Toggle
+    $('input[name="food_driver_mode"]').on('change', function() {
+        var mode = $(this).val();
+        if (mode === 'direct') {
+            $('#food_driver_select_group').slideDown();
+            var zId = $('#order_zone').val();
+            renderDeliveryBoyOptions($('#food_assign_delivery_boy'), zId, 'food');
+        } else {
+            $('#food_driver_select_group').slideUp();
+            $('#food_assign_delivery_boy').val('');
+        }
+    });
+
     // 10. Place Order Handler
     $('#btn_place_order').on('click', function(){
         var name = $('#cust_name').val().trim();
@@ -2198,6 +2357,17 @@ $(document).ready(function(){
             return;
         }
 
+        var foodDriverMode = $('input[name="food_driver_mode"]:checked').val() || 'broadcast';
+        var deliveryBoyId = 0;
+        if (foodDriverMode === 'direct') {
+            deliveryBoyId = $('#food_assign_delivery_boy').val();
+            if (!deliveryBoyId) {
+                alert('Please select a delivery boy to assign.');
+                $('#food_assign_delivery_boy').focus();
+                return;
+            }
+        }
+
         var itemsArr = [];
         Object.keys(cartItems).forEach(function(vid){
             itemsArr.push({
@@ -2232,6 +2402,7 @@ $(document).ready(function(){
                 notes: notes,
                 delivery_charge: deliveryCharge,
                 payment_method: paymentMethod,
+                delivery_boy_id: deliveryBoyId,
                 latitude: latitude,
                 longitude: longitude,
                 items: JSON.stringify(itemsArr)
@@ -2241,7 +2412,11 @@ $(document).ready(function(){
                 $btn.prop('disabled', false).html('<i class="fa fa-check"></i> Place Food Order Now');
                 if(!resp.error && resp.order_id){
                     $('#modal_order_id').text('#' + resp.order_id);
-                    $('#modal_order_details').html('Payment Mode: <strong>' + escapeHtml(resp.payment_method) + '</strong> | Total: <strong>&#8377; ' + parseFloat(resp.final_total).toFixed(2) + '</strong>');
+                    var detailsHtml = 'Payment Mode: <strong>' + escapeHtml(resp.payment_method) + '</strong> | Total: <strong>&#8377; ' + parseFloat(resp.final_total).toFixed(2) + '</strong>';
+                    if (resp.assigned_boy) {
+                        detailsHtml += '<div style="margin-top: 8px;"><span class="label label-success" style="font-size: 12px; padding: 4px 8px;"><i class="fa fa-motorcycle"></i> Assigned: ' + escapeHtml(resp.assigned_boy.name) + ' (' + escapeHtml(resp.assigned_boy.mobile) + ')</span></div>';
+                    }
+                    $('#modal_order_details').html(detailsHtml);
                     $('#modal_view_order_btn').attr('href', 'order-detail.php?id=' + resp.order_id);
                     $('#orderSuccessModal').modal('show');
                 } else {
@@ -2288,16 +2463,17 @@ $(document).ready(function(){
         $('#svc_image_preview_shipping').empty();
         $('#svc_parcel_images').val('');
         $('#svc_shipping_images').val('');
+        $('#food_driver_broadcast').prop('checked', true);
+        $('#food_driver_select_group').hide();
+        $('#food_assign_delivery_boy').val('');
+        $('#svc_driver_broadcast').prop('checked', true);
+        $('#svc_driver_select_group').hide();
+        $('#svc_assign_delivery_boy').val('');
         isManualTariff = false;
         $('#svc_input_tariff').prop('readonly', true);
         $('#svc_btn_edit_tariff').removeClass('btn-primary').addClass('btn-default');
         updateSvcRouteAndFare();
     });
-
-    function escapeHtml(text) {
-        if (!text) return '';
-        return $('<div>').text(text).html();
-    }
 
     // ==============================================================
     // SERVICE ORDER JAVASCRIPT LOGIC (PARCEL, SHIPPING, PASSENGER)
@@ -2363,6 +2539,10 @@ $(document).ready(function(){
     // Service Zone Change
     $('#svc_order_zone').on('change', function() {
         updateSvcRouteAndFare();
+        var zId = $(this).val();
+        if ($('input[name="svc_driver_mode"]:checked').val() === 'direct') {
+            renderDeliveryBoyOptions($('#svc_assign_delivery_boy'), zId, currentActiveService);
+        }
     });
 
     // Parcel Item Types
@@ -2520,8 +2700,11 @@ $(document).ready(function(){
         var mode = $(this).val();
         if (mode === 'direct') {
             $('#svc_driver_select_group').slideDown();
+            var zId = $('#svc_order_zone').val();
+            renderDeliveryBoyOptions($('#svc_assign_delivery_boy'), zId, currentActiveService);
         } else {
             $('#svc_driver_select_group').slideUp();
+            $('#svc_assign_delivery_boy').val('');
         }
     });
 

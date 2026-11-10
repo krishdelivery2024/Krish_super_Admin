@@ -215,7 +215,7 @@ $(document).on('change', '#modal_status', function() {
                                                 </div>
                                                 <div class="form-group">
                                                     <label class="" for="">Mobile</label>
-                                                    <input type="text" id="update_mobile" name="update_mobile" class="form-control col-md-7 col-xs-12" readonly>
+                                                    <input type="text" id="update_mobile" name="update_mobile" class="form-control col-md-7 col-xs-12" maxlength="15" required>
                                                 </div>
                                                 <div class="form-group">
                                                     <label class="" for="">Password</label><small>( Leave it blank for no change )</small>
@@ -4068,7 +4068,12 @@ $(document).on('change','#loose',function(){
       $('#update_form').validate({
         rules:{
         update_name:"required",
-        update_mobile:"required",
+        update_mobile:{
+            required:true,
+            digits:true,
+            minlength:10,
+            maxlength:15
+        },
         update_address:"required",
         update_vehicle_number:"required",
         update_aadhaar : {
@@ -4132,9 +4137,11 @@ $(document).on('change','#loose',function(){
                 $('#update_result').html(result);
                 $('#update_result').show().delay(6000).fadeOut();
                 $('#update_btn').html('Update');
-                $('#update_form')[0].reset();
-                $('#delivery-boys').bootstrapTable('refresh');
-                setTimeout(function() {$('#editDeliveryBoyModal').modal('hide');}, 3000);
+                if(result.indexOf('alert-danger') === -1 && result.indexOf('danger') === -1){
+                    $('#update_form')[0].reset();
+                    $('#delivery-boys').bootstrapTable('refresh');
+                    setTimeout(function() {$('#editDeliveryBoyModal').modal('hide');}, 3000);
+                }
                 // $('#area_tp_form').find(':input').each(function(){
                 //      $('#area_tp').val('');
                 // });
@@ -4148,6 +4155,7 @@ $(document).on('change','#loose',function(){
   <script>
     window.actionEvents = {
         'click .edit-delivery-boy': function (e, value, row, index) {
+            $('#update_result').html('').hide();
             //alert('You click remove icon, row: ' + JSON.stringify(row));
             $("input[name=status][value=1]").prop('checked', true);
             if($(row.status).text() == 'Deactive')
