@@ -53,10 +53,10 @@ if (isset($_POST['btnEdit'])) {
             }
         }
 
-        $product_status = (isset($_POST['product_status']) && $_POST['product_status'] !== '') ? (int) $_POST['product_status'] : 1;
-        $subcategory_id = !empty($_POST['subcategory_id']) ? $db->escapeString($fn->xss_clean($_POST['subcategory_id'])) : '0';
+        $product_status = $db->escapeString($fn->xss_clean($_POST['product_status']));
+        $subcategory_id = $db->escapeString($fn->xss_clean($_POST['subcategory_id']));
         $category_id = $db->escapeString($fn->xss_clean($_POST['category_id']));
-        $brand_id = !empty($_POST['brand_id']) ? $db->escapeString($fn->xss_clean($_POST['brand_id'])) : '0';
+        $brand_id = !empty($_POST['brand_id']) ? $db->escapeString($fn->xss_clean($_POST['brand_id'])) : '';
         $serve_for = $db->escapeString($fn->xss_clean($_POST['serve_for']));
         $price_type = $db->escapeString($fn->xss_clean($_POST['price_type']));
         $hsn = !empty($_POST['hsn']) ? $db->escapeString($fn->xss_clean($_POST['hsn'])) : '';
@@ -65,9 +65,9 @@ if (isset($_POST['btnEdit'])) {
         $igst = !empty($_POST['igst']) ? $db->escapeString($fn->xss_clean($_POST['igst'])) : '';
 
         $description = $db->escapeString($fn->xss_clean($_POST['description']));
-        $min_stock = (isset($_POST['min_stock']) && $_POST['min_stock'] !== '') ? (float) $_POST['min_stock'] : 0;
-        $min_order_qty = (isset($_POST['min_order_qty']) && trim($_POST['min_order_qty']) !== '') ? (int) $_POST['min_order_qty'] : 0;
-        $indicator = (isset($_POST['indicator']) && $_POST['indicator'] !== '') ? (int) $_POST['indicator'] : 0;
+        $min_stock = (isset($_POST['min_stock']) && $_POST['min_stock'] !== '') ? (int) $_POST['min_stock'] : 0;
+        $min_order_qty = $db->escapeString($fn->xss_clean($_POST['min_order_qty']));
+        $indicator = $db->escapeString($fn->xss_clean($_POST['indicator']));
         $available_time = !empty($_POST['available_time']) ? implode(',', array_map(function ($value) use ($fn, $db) {
             return $db->escapeString($fn->xss_clean($value)); }, $_POST['available_time'])) : '';
         $suggested_products = '';
@@ -257,12 +257,6 @@ if (isset($_POST['btnEdit'])) {
                     $variant_offer_price = ($v_is_offer == 1 && !empty($_POST['packate_offer_price'][$i])) ? $db->escapeString($fn->xss_clean($_POST['packate_offer_price'][$i])) : 0.00;
                     $variant_offer_limit = ($v_is_offer == 1 && !empty($_POST['packate_offer_limit_per_user'][$i])) ? (int) $_POST['packate_offer_limit_per_user'][$i] : 0;
 
-                    $stock_raw = isset($_POST['packate_stock'][$i]) ? trim($_POST['packate_stock'][$i]) : '';
-                    $stock = ($stock_raw === '') ? 0 : (float) $stock_raw;
-                    $serve_for_variant = ($stock > 0)
-                        ? $db->escapeString($fn->xss_clean($_POST['packate_serve_for'][$i]))
-                        : 'Sold Out';
-
                     $data = array(
                         'type' => $db->escapeString($fn->xss_clean($_POST['type'])),
                         'measurement' => $db->escapeString($fn->xss_clean($_POST['packate_measurement'][$i])),
@@ -270,7 +264,7 @@ if (isset($_POST['btnEdit'])) {
                         'weight' => (isset($_POST['packate_weight'][$i]) && $_POST['packate_weight'][$i] !== '') ? (float) $_POST['packate_weight'][$i] : 0,
                         'price' => $db->escapeString($fn->xss_clean($_POST['packate_price'][$i])),
                         'vendor_price' => $db->escapeString($fn->xss_clean($_POST['packate_vendor_price'][$i])),
-                        'discounted_price' => !empty($fn->xss_clean($_POST['packate_discounted_price'][$i])) ? $db->escapeString($fn->xss_clean($_POST['packate_discounted_price'][$i])) : 0,
+                        'discounted_price' => $db->escapeString($fn->xss_clean($_POST['packate_discounted_price'][$i])),
                         'is_offer' => $v_is_offer,
                         'offer_price' => $variant_offer_price,
                         'offer_limit_per_user' => $variant_offer_limit,
@@ -278,16 +272,16 @@ if (isset($_POST['btnEdit'])) {
                         'item_sgst' => $db->escapeString($fn->xss_clean($_POST['packate_item_sgst'][$i])),
                         'item_cgst' => $db->escapeString($fn->xss_clean($_POST['packate_item_cgst'][$i])),
                         'item_igst' => $db->escapeString($fn->xss_clean($_POST['packate_item_igst'][$i])),
-                        'stock' => $stock,
+                        'stock' => $db->escapeString($fn->xss_clean($_POST['packate_stock'][$i])),
                         'stock_unit_id' => !empty($_POST['packate_stock_unit_id'][$i]) ? $db->escapeString($fn->xss_clean($_POST['packate_stock_unit_id'][$i])) : '5',
-                        'serve_for' => $serve_for_variant,
+                        'serve_for' => $db->escapeString($fn->xss_clean($_POST['packate_serve_for'][$i])),
                         'barcode_data' => $db->escapeString($fn->xss_clean($_POST['barcode_text'][$i]))
 
                     );
 
                     $db->update('product_variant', $data, 'id=' . $fn->xss_clean($_POST['product_variant_id'][$i]));
                     $res = $db->getResult();
-                    if ($min_stock < $stock) {
+                    if ($min_stock < $_POST['packate_stock'][$i]) {
                         $data = array(
                             "min_stock_notified" => 0
                         );
@@ -299,11 +293,6 @@ if (isset($_POST['btnEdit'])) {
                     $v_is_offer = (!empty($_POST['loose_is_offer'][$i]) && $_POST['loose_is_offer'][$i] == 1) ? 1 : 0;
                     $variant_offer_price = ($v_is_offer == 1 && !empty($_POST['loose_offer_price'][$i])) ? $db->escapeString($fn->xss_clean($_POST['loose_offer_price'][$i])) : 0.00;
                     $variant_offer_limit = ($v_is_offer == 1 && !empty($_POST['loose_offer_limit_per_user'][$i])) ? (int) $_POST['loose_offer_limit_per_user'][$i] : 0;
-                    $stock_raw = isset($_POST['loose_stock']) ? trim($_POST['loose_stock']) : '';
-                    $stock = ($stock_raw === '') ? 0 : (float) $stock_raw;
-                    $serve_for_variant = ($stock > 0)
-                        ? $db->escapeString($fn->xss_clean($_POST['serve_for']))
-                        : 'Sold Out';
 
                     $data = array(
                         'type' => $db->escapeString($fn->xss_clean($_POST['type'])),
@@ -312,7 +301,7 @@ if (isset($_POST['btnEdit'])) {
                         'weight' => (isset($_POST['loose_weight'][$i]) && $_POST['loose_weight'][$i] !== '') ? (float) $_POST['loose_weight'][$i] : 0,
                         'price' => $db->escapeString($fn->xss_clean($_POST['loose_price'][$i])),
                         'vendor_price' => $db->escapeString($fn->xss_clean($_POST['loose_vendor_price'][$i])),
-                        'discounted_price' => !empty($fn->xss_clean($_POST['loose_discounted_price'][$i])) ? $db->escapeString($fn->xss_clean($_POST['loose_discounted_price'][$i])) : 0,
+                        'discounted_price' => $db->escapeString($fn->xss_clean($_POST['loose_discounted_price'][$i])),
                         'is_offer' => $v_is_offer,
                         'offer_price' => $variant_offer_price,
                         'offer_limit_per_user' => $variant_offer_limit,
@@ -320,14 +309,14 @@ if (isset($_POST['btnEdit'])) {
                         'item_sgst' => $db->escapeString($fn->xss_clean($_POST['loose_item_sgst'][$i])),
                         'item_cgst' => $db->escapeString($fn->xss_clean($_POST['loose_item_cgst'][$i])),
                         'item_igst' => $db->escapeString($fn->xss_clean($_POST['loose_item_igst'][$i])),
-                        'stock' => $stock,
-                        'stock_unit_id' => !empty($_POST['loose_stock_unit_id']) ? $db->escapeString($fn->xss_clean($_POST['loose_stock_unit_id'])) : '5',
-                        'serve_for' => $serve_for_variant,
+                        'stock' => $db->escapeString($fn->xss_clean($_POST['loose_stock'])),
+                        'stock_unit_id' => $db->escapeString($fn->xss_clean($_POST['loose_stock_unit_id'])),
+                        'serve_for' => $db->escapeString($fn->xss_clean($_POST['serve_for'])),
                         'barcode_data' => $db->escapeString($fn->xss_clean($_POST['loose_barcode_text']))
                     );
                     $db->update('product_variant', $data, 'id=' . $fn->xss_clean($_POST['product_variant_id'][$i]));
                     $res = $db->getResult();
-                    if ($min_stock < $stock) {
+                    if ($min_stock < $_POST['loose_stock']) {
                         $data = array(
                             "min_stock_notified" => 0
                         );
@@ -346,12 +335,6 @@ if (isset($_POST['btnEdit'])) {
                     $v_is_offer = (!empty($_POST['insert_packate_is_offer'][$i]) && $_POST['insert_packate_is_offer'][$i] == 1) ? 1 : 0;
                     $variant_offer_price = ($v_is_offer == 1 && !empty($_POST['insert_packate_offer_price'][$i])) ? $db->escapeString($fn->xss_clean($_POST['insert_packate_offer_price'][$i])) : 0.00;
                     $variant_offer_limit = ($v_is_offer == 1 && !empty($_POST['insert_packate_offer_limit_per_user'][$i])) ? (int) $_POST['insert_packate_offer_limit_per_user'][$i] : 0;
-                    $stock_raw = isset($_POST['insert_packate_stock'][$i]) ? trim($_POST['insert_packate_stock'][$i]) : '';
-                    $stock = ($stock_raw === '') ? 0 : (float) $stock_raw;
-                    $serve_for_raw = isset($_POST['insert_packate_serve_for'][$i]) ? $_POST['insert_packate_serve_for'][$i] : $_POST['serve_for'];
-                    $serve_for_variant = ($stock > 0)
-                        ? $db->escapeString($fn->xss_clean($serve_for_raw))
-                        : 'Sold Out';
 
                     $data = array(
                         "product_id" => $db->escapeString($ID),
@@ -361,7 +344,7 @@ if (isset($_POST['btnEdit'])) {
                         'weight' => (isset($_POST['insert_packate_weight'][$i]) && $_POST['insert_packate_weight'][$i] !== '') ? (float) $_POST['insert_packate_weight'][$i] : 0,
                         "price" => $db->escapeString($fn->xss_clean($_POST['insert_packate_price'][$i])),
                         "vendor_price" => $db->escapeString($fn->xss_clean($_POST['insert_packate_vendor_price'][$i])),
-                        "discounted_price" => !empty($fn->xss_clean($_POST['insert_packate_discounted_price'][$i])) ? $db->escapeString($fn->xss_clean($_POST['insert_packate_discounted_price'][$i])) : 0,
+                        "discounted_price" => $db->escapeString($fn->xss_clean($_POST['insert_packate_discounted_price'][$i])),
                         'is_offer' => $v_is_offer,
                         "offer_price" => $variant_offer_price,
                         'offer_limit_per_user' => $variant_offer_limit,
@@ -369,9 +352,9 @@ if (isset($_POST['btnEdit'])) {
                         'item_sgst' => $db->escapeString($fn->xss_clean($_POST['insert_packate_item_sgst'][$i])),
                         'item_cgst' => $db->escapeString($fn->xss_clean($_POST['insert_packate_item_cgst'][$i])),
                         'item_igst' => $db->escapeString($fn->xss_clean($_POST['insert_packate_item_igst'][$i])),
-                        "stock" => $stock,
+                        "stock" => $db->escapeString($fn->xss_clean($_POST['insert_packate_stock'][$i])),
                         "stock_unit_id" => $db->escapeString($fn->xss_clean($_POST['insert_packate_measurement_unit_id'][$i])),
-                        "serve_for" => $serve_for_variant,
+                        "serve_for" => $db->escapeString($fn->xss_clean($_POST['serve_for'])[$i]),
                         "barcode_data" => $db->escapeString($fn->xss_clean($_POST['insert_packate_barcode_text'][$i]))
                     );
                     //  print_r($data);exit;
@@ -391,11 +374,6 @@ if (isset($_POST['btnEdit'])) {
                     $v_is_offer = (!empty($_POST['insert_loose_is_offer'][$i]) && $_POST['insert_loose_is_offer'][$i] == 1) ? 1 : 0;
                     $variant_offer_price = ($v_is_offer == 1 && !empty($_POST['insert_loose_offer_price'][$i])) ? $db->escapeString($fn->xss_clean($_POST['insert_loose_offer_price'][$i])) : 0.00;
                     $variant_offer_limit = ($v_is_offer == 1 && !empty($_POST['insert_loose_offer_limit_per_user'][$i])) ? (int) $_POST['insert_loose_offer_limit_per_user'][$i] : 0;
-                    $stock_raw = isset($_POST['loose_stock']) ? trim($_POST['loose_stock']) : '';
-                    $stock = ($stock_raw === '') ? 0 : (float) $stock_raw;
-                    $serve_for_variant = ($stock > 0)
-                        ? $db->escapeString($fn->xss_clean($_POST['serve_for']))
-                        : 'Sold Out';
 
                     $data = array(
                         "product_id" => $db->escapeString($ID),
@@ -405,7 +383,7 @@ if (isset($_POST['btnEdit'])) {
                         'weight' => (isset($_POST['insert_loose_weight'][$i]) && $_POST['insert_loose_weight'][$i] !== '') ? (float) $_POST['insert_loose_weight'][$i] : 0,
                         "price" => $db->escapeString($fn->xss_clean($_POST['insert_loose_price'][$i])),
                         "vendor_price" => $db->escapeString($fn->xss_clean($_POST['insert_loose_vendor_price'][$i])),
-                        "discounted_price" => !empty($fn->xss_clean($_POST['insert_loose_discounted_price'][$i])) ? $db->escapeString($fn->xss_clean($_POST['insert_loose_discounted_price'][$i])) : 0,
+                        "discounted_price" => $db->escapeString($fn->xss_clean($_POST['insert_loose_discounted_price'][$i])),
                         'is_offer' => $v_is_offer,
                         "offer_price" => $variant_offer_price,
                         'offer_limit_per_user' => $variant_offer_limit,
@@ -413,9 +391,9 @@ if (isset($_POST['btnEdit'])) {
                         'item_sgst' => $db->escapeString($fn->xss_clean($_POST['insert_loose_item_sgst'][$i])),
                         'item_cgst' => $db->escapeString($fn->xss_clean($_POST['insert_loose_item_cgst'][$i])),
                         'item_igst' => $db->escapeString($fn->xss_clean($_POST['insert_loose_item_igst'][$i])),
-                        "stock" => $stock,
-                        "stock_unit_id" => !empty($_POST['loose_stock_unit_id']) ? $db->escapeString($fn->xss_clean($_POST['loose_stock_unit_id'])) : '5',
-                        "serve_for" => $serve_for_variant,
+                        "stock" => $db->escapeString($fn->xss_clean($_POST['loose_stock'])),
+                        "stock_unit_id" => $db->escapeString($fn->xss_clean($_POST['loose_stock_unit_id'])),
+                        "serve_for" => $db->escapeString($fn->xss_clean($_POST['serve_for'])),
                         "barcode_data" => $db->escapeString($fn->xss_clean($_POST['loose_barcode_text']))
                     );
                     if ($_POST['insert_loose_measurement_unit_id'][$i] != '' && $_POST['insert_loose_measurement_unit_id'][$i] != 0) {
