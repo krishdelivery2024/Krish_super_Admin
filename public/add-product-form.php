@@ -49,7 +49,7 @@ $res_cur = $db->getResult();
 if (isset($_POST['btnAdd'])) {
     if ($permissions['products']['create'] == 1) {
         //    print_r($_POST);die;
-        $product_status = $db->escapeString($fn->xss_clean($_POST['product_status']));
+        $product_status = (isset($_POST['product_status']) && $_POST['product_status'] !== '') ? (int) $_POST['product_status'] : 1;
         $name = $db->escapeString($fn->xss_clean($_POST['name']));
         $slug = $function->slugify($fn->xss_clean($_POST['name']));
         $category_id = $db->escapeString($fn->xss_clean($_POST['category_id']));
@@ -63,12 +63,13 @@ if (isset($_POST['btnAdd'])) {
         $cgst = !empty($_POST['cgst']) ? $db->escapeString($fn->xss_clean($_POST['cgst'])) : '';
         $igst = !empty($_POST['igst']) ? $db->escapeString($fn->xss_clean($_POST['igst'])) : '';
 
-        $min_stock = (isset($_POST['min_stock']) && $_POST['min_stock'] !== '') ? (int) $_POST['min_stock'] : 0;
-        $indicator = $db->escapeString($fn->xss_clean($_POST['indicator']));
+        $min_stock = (isset($_POST['min_stock']) && $_POST['min_stock'] !== '') ? (float) $_POST['min_stock'] : 0;
+        $indicator = (isset($_POST['indicator']) && $_POST['indicator'] !== '') ? (int) $_POST['indicator'] : 0;
 
-        $min_order_qty = $db->escapeString($fn->xss_clean($_POST['min_order_qty']));
+        $min_order_qty = (isset($_POST['min_order_qty']) && trim($_POST['min_order_qty']) !== '') ? (int) $_POST['min_order_qty'] : 0;
         $available_time = !empty($_POST['available_time']) ? implode(',', array_map(function ($value) use ($fn, $db) {
-            return $db->escapeString($fn->xss_clean($value)); }, $_POST['available_time'])) : '';
+            return $db->escapeString($fn->xss_clean($value));
+        }, $_POST['available_time'])) : '';
         $suggested_products = '';
         if (!empty($_POST['suggested_products']) && is_array($_POST['suggested_products'])) {
             $clean_sug = array();
@@ -99,8 +100,8 @@ if (isset($_POST['btnAdd'])) {
         if (empty($price)) {
             $error['price'] = " <span class='label label-danger'>Required!</span>";
         }/* else if(!is_numeric($price)){
-           $error['price'] = " <span class='label label-danger'>Price in number!</span>";
-       } */
+          $error['price'] = " <span class='label label-danger'>Price in number!</span>";
+      } */
 
         if (empty($measurement)) {
             $error['measurement'] = " <span class='label label-danger'>Required!</span>";
@@ -282,11 +283,21 @@ if (isset($_POST['btnAdd'])) {
                         $item_cgst = !empty($fn->xss_clean($_POST['packate_item_cgst'][$i])) ? $db->escapeString($fn->xss_clean($_POST['packate_item_cgst'][$i])) : 0;
                         $item_igst = !empty($fn->xss_clean($_POST['packate_item_igst'][$i])) ? $db->escapeString($fn->xss_clean($_POST['packate_item_igst'][$i])) : 0;
 
-                        $serve_for = !empty($db->escapeString($fn->xss_clean($_POST['packate_stock'][$i]))) ? $db->escapeString($fn->xss_clean($_POST['packate_serve_for'][$i])) : 'Sold Out';
+                        $stock_raw = isset($_POST['packate_stock'][$i]) ? trim($_POST['packate_stock'][$i]) : '';
+                        $stock = ($stock_raw === '') ? 0 : (float) $stock_raw;
 
-                        $stock = $db->escapeString($fn->xss_clean($_POST['packate_stock'][$i]));
-                        $stock_unit_id = !empty($_POST['packate_stock_unit_id'][$i]) ? $db->escapeString($fn->xss_clean($_POST['packate_stock_unit_id'][$i])) : '5';
-                        $barcode_data = $db->escapeString($fn->xss_clean($_POST['barcode_text'][$i]));
+                        // Auto-derive status from stock so "Sold Out" without a number still works
+                        $serve_for = ($stock > 0)
+                            ? $db->escapeString($fn->xss_clean($_POST['packate_serve_for'][$i]))
+                            : 'Sold Out';
+
+                        $stock_unit_id = !empty($_POST['packate_stock_unit_id'][$i])
+                            ? $db->escapeString($fn->xss_clean($_POST['packate_stock_unit_id'][$i]))
+                            : '5';
+
+                        $barcode_data = isset($_POST['barcode_text'][$i])
+                            ? $db->escapeString($fn->xss_clean($_POST['barcode_text'][$i]))
+                            : '';
                         $sql = "INSERT INTO product_variant (product_id,type,measurement,measurement_unit_id,weight,price,vendor_price,discounted_price,is_offer,offer_price,offer_limit_per_user,product_price,item_sgst,item_cgst,item_igst,serve_for,stock,stock_unit_id,barcode_data) VALUES('$product_id','$type','$measurement','$measurement_unit_id','$weight','$price','$vendorprice','$discounted_price','$v_is_offer','$variant_offer_price','$variant_offer_limit','$product_price','$item_sgst','$item_cgst','$item_igst','$serve_for','$stock','$stock_unit_id','$barcode_data')";
                         $db->sql($sql);
                         $product_variant = $db->getResult();
@@ -318,10 +329,17 @@ if (isset($_POST['btnAdd'])) {
                         $item_sgst = !empty($fn->xss_clean($_POST['loose_item_sgst'][$i])) ? $db->escapeString($fn->xss_clean($_POST['loose_item_sgst'][$i])) : 0;
                         $item_cgst = !empty($fn->xss_clean($_POST['loose_item_cgst'][$i])) ? $db->escapeString($fn->xss_clean($_POST['loose_item_cgst'][$i])) : 0;
                         $item_igst = !empty($fn->xss_clean($_POST['loose_item_igst'][$i])) ? $db->escapeString($fn->xss_clean($_POST['loose_item_igst'][$i])) : 0;
-                        $serve_for = $db->escapeString($fn->xss_clean($_POST['serve_for']));
-                        $stock = $db->escapeString($fn->xss_clean($_POST['loose_stock']));
-                        $stock_unit_id = $db->escapeString($fn->xss_clean($_POST['loose_stock_unit_id']));
-                        $barcode_data = $db->escapeString($fn->xss_clean($_POST['loose_barcode_text']));
+                        $stock_raw = isset($_POST['loose_stock']) ? trim($_POST['loose_stock']) : '';
+                        $stock = ($stock_raw === '') ? 0 : (float) $stock_raw;
+                        $serve_for = ($stock > 0)
+                            ? $db->escapeString($fn->xss_clean($_POST['serve_for']))
+                            : 'Sold Out';
+                        $stock_unit_id = !empty($_POST['loose_stock_unit_id'])
+                            ? $db->escapeString($fn->xss_clean($_POST['loose_stock_unit_id']))
+                            : '5';
+                        $barcode_data = isset($_POST['loose_barcode_text'])
+                            ? $db->escapeString($fn->xss_clean($_POST['loose_barcode_text']))
+                            : '';
                         $sql = "INSERT INTO product_variant (product_id,type,measurement,measurement_unit_id,weight,price,vendor_price,discounted_price,is_offer,offer_price,offer_limit_per_user,product_price,item_sgst,item_cgst,item_igst,serve_for,stock,stock_unit_id,barcode_data) VALUES('$product_id','$type','$measurement','$measurement_unit_id','$weight','$price','$vendorprice','$discounted_price','$v_is_offer','$variant_offer_price','$variant_offer_limit','$product_price','$item_sgst','$item_cgst','$item_igst','$serve_for','$stock','$stock_unit_id','$barcode_data')";
                         $db->sql($sql);
                         $product_variant = $db->getResult();
