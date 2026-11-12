@@ -41,34 +41,78 @@ if ($seller_id > 0) {
 $main_cat_id = $seller ? (int)$seller['main_cat_id'] : 0;
 $main_cat_name = ($seller && !empty($seller['main_category_name'])) ? $seller['main_category_name'] : 'Not Assigned';
 
-// Fetch available categories under this Business Category
-$available_categories = array();
-if ($main_cat_id > 0) {
-    $db->sql("SELECT id, name, subtitle, image, status 
-              FROM category 
-              WHERE main_cat = $main_cat_id AND status = 1 
-              ORDER BY name ASC");
-    $available_categories = $db->getResult();
+// Ensure per-seller category ordering column exists
+$col_check = $db->sql("SHOW COLUMNS FROM seller_categories LIKE 'row_order'");
+$col_res = $db->getResult();
+$has_row_order = !empty($col_res);
+if (!$has_row_order) {
+    $db->sql("ALTER TABLE seller_categories ADD COLUMN row_order INT NOT NULL DEFAULT 0 AFTER category_id");
+    $has_row_order = true;
 }
 
-// Fetch already selected category IDs for this seller
+// Fetch already selected category IDs (in saved order) for this seller
 $selected_category_ids = array();
+$selected_order_map = array();
 if ($seller_id > 0) {
-    $db->sql("SELECT category_id FROM seller_categories WHERE seller_id = $seller_id");
+    $order_clause = $has_row_order
+        ? "ORDER BY CASE WHEN row_order > 0 THEN 0 ELSE 1 END ASC, row_order ASC, id ASC"
+        : "ORDER BY id ASC";
+    $db->sql("SELECT category_id" . ($has_row_order ? ", row_order" : "") . " FROM seller_categories WHERE seller_id = $seller_id $order_clause");
     $sc_res = $db->getResult();
     if (!empty($sc_res)) {
+        $pos = 1;
         foreach ($sc_res as $r) {
-            $selected_category_ids[] = (int)$r['category_id'];
+            $cid = (int)$r['category_id'];
+            if ($cid > 0 && !isset($selected_order_map[$cid])) {
+                $selected_category_ids[] = $cid;
+                $selected_order_map[$cid] = ($has_row_order && (int)$r['row_order'] > 0) ? (int)$r['row_order'] : (100000 + $pos);
+                $pos++;
+            }
         }
     } elseif (!empty($seller['categories'])) {
         $parts = explode(',', $seller['categories']);
+        $pos = 1;
         foreach ($parts as $p) {
             $cid = (int)trim($p);
-            if ($cid > 0) $selected_category_ids[] = $cid;
+            if ($cid > 0 && !isset($selected_order_map[$cid])) {
+                $selected_category_ids[] = $cid;
+                $selected_order_map[$cid] = 100000 + $pos;
+                $pos++;
+            }
         }
     }
 }
 $selected_category_ids = array_unique($selected_category_ids);
+
+// Fetch available categories under this Business Category
+$available_categories = array();
+if ($main_cat_id > 0) {
+    $db->sql("SELECT id, name, subtitle, image, status, cat_priority 
+              FROM category 
+              WHERE main_cat = $main_cat_id AND status = 1 
+              ORDER BY cat_priority ASC, name ASC");
+    $available_categories = $db->getResult();
+
+    // Sort selected categories first in their saved order, then remaining categories
+    if (!empty($available_categories) && !empty($selected_order_map)) {
+        usort($available_categories, function ($a, $b) use ($selected_order_map) {
+            $idA = (int)$a['id'];
+            $idB = (int)$b['id'];
+            $selA = isset($selected_order_map[$idA]);
+            $selB = isset($selected_order_map[$idB]);
+            if ($selA && $selB) {
+                if ($selected_order_map[$idA] !== $selected_order_map[$idB]) {
+                    return $selected_order_map[$idA] - $selected_order_map[$idB];
+                }
+            } elseif ($selA !== $selB) {
+                return $selA ? -1 : 1;
+            }
+            $prioDiff = ((int)$a['cat_priority']) - ((int)$b['cat_priority']);
+            if ($prioDiff !== 0) return $prioDiff;
+            return strcasecmp($a['name'], $b['name']);
+        });
+    }
+}
 ?>
 
 <style>
@@ -109,16 +153,37 @@ $selected_category_ids = array_unique($selected_category_ids);
     font-size: 14px;
     width: 100%;
 }
+.categories-sortable-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 15px;
+}
+@media (max-width: 991px) {
+    .categories-sortable-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+@media (max-width: 600px) {
+    .categories-sortable-grid {
+        grid-template-columns: 1fr;
+    }
+}
+.cat-card-wrapper {
+    min-width: 0;
+}
 .category-card-item {
     background: #ffffff;
     border: 2px solid #e5e7eb;
     border-radius: 8px;
     padding: 14px 16px;
-    margin-bottom: 15px;
-    transition: all 0.2s ease-in-out;
-    cursor: pointer;
+    height: 100%;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    cursor: grab;
     position: relative;
     user-select: none;
+}
+.category-card-item:active {
+    cursor: grabbing;
 }
 .category-card-item:hover {
     border-color: #fb8b40;
@@ -129,6 +194,46 @@ $selected_category_ids = array_unique($selected_category_ids);
     border-color: #10b981;
     background: #f0fdf4;
     box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
+}
+.ui-sortable-helper .category-card-item {
+    box-shadow: 0 12px 28px rgba(0,0,0,0.2);
+    border-color: #fb8b40;
+    cursor: grabbing;
+}
+.ui-sortable-placeholder {
+    border: 2px dashed #fb8b40;
+    background: #fff7ed;
+    border-radius: 8px;
+    min-height: 82px;
+    visibility: visible !important;
+}
+.cat-card-top-badges {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.cat-order-badge {
+    background: #fb8b40;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 10px;
+}
+.cat-order-badge.is-hidden {
+    display: none;
+}
+.cat-drag-handle {
+    color: #9ca3af;
+    cursor: grab;
+    padding: 2px 4px;
+    font-size: 14px;
+}
+.cat-drag-handle:hover {
+    color: #fb8b40;
 }
 .cat-card-img {
     width: 50px;
@@ -149,6 +254,7 @@ $selected_category_ids = array_unique($selected_category_ids);
     font-weight: 700;
     color: #1f2937;
     margin: 0 0 4px 0;
+    padding-right: 95px;
 }
 .cat-card-subtitle {
     font-size: 12px;
@@ -157,9 +263,6 @@ $selected_category_ids = array_unique($selected_category_ids);
     line-height: 1.3;
 }
 .cat-status-pill {
-    position: absolute;
-    top: 10px;
-    right: 12px;
     font-size: 11px;
     font-weight: 600;
     padding: 2px 8px;
@@ -172,6 +275,16 @@ $selected_category_ids = array_unique($selected_category_ids);
 .cat-status-pill.inactive-pill {
     background: #f3f4f6;
     color: #9ca3af;
+}
+.unsaved-order-hint {
+    display: none;
+    color: #b45309;
+    background: #fef3c7;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-left: 8px;
 }
 .save-bar-sticky {
     position: sticky;
@@ -236,7 +349,7 @@ $selected_category_ids = array_unique($selected_category_ids);
                     </div>
                 </div>
                 <div style="margin-top: 12px; font-size: 13px; color: #6b7280; border-top: 1px dashed #e5e7eb; padding-top: 10px;">
-                    <i class="fa fa-info-circle text-info"></i> <strong>How it works:</strong> Check the categories your store deals in. <strong>Only the category names you select here will be shown in your Seller Mobile App Inventory</strong>, keeping your inventory clear and focused.
+                    <i class="fa fa-info-circle text-info"></i> <strong>How it works:</strong> Check the categories your store deals in, and <strong>drag any category card to any position</strong> to set its display sequence. This category order is shown in the <strong>Mobile User App</strong>.
                 </div>
             </div>
 
@@ -274,19 +387,25 @@ $selected_category_ids = array_unique($selected_category_ids);
                     <input type="hidden" name="action" value="save_seller_categories">
                     <input type="hidden" name="seller_id" value="<?= $seller_id ?>">
 
-                    <div class="row" id="categories_grid_container">
-                        <?php foreach ($available_categories as $cat): 
+                    <div class="categories-sortable-grid" id="categories_grid_container">
+                        <?php
+                        $pos_num = 1;
+                        foreach ($available_categories as $cat): 
                             $is_selected = in_array((int)$cat['id'], $selected_category_ids);
                             $img_url = !empty($cat['image']) ? $cat['image'] : 'dist/img/default-50x50.gif';
                             if (!empty($cat['image']) && strpos($cat['image'], 'http') !== 0 && strpos($cat['image'], '/') !== 0) {
                                 $img_url = $cat['image'];
                             }
                         ?>
-                        <div class="col-md-4 col-sm-6 col-xs-12 cat-card-wrapper" data-name="<?= strtolower(htmlspecialchars($cat['name'])) ?>" data-sub="<?= strtolower(htmlspecialchars($cat['subtitle'] ?? '')) ?>">
+                        <div class="cat-card-wrapper" data-id="<?= $cat['id'] ?>" data-name="<?= strtolower(htmlspecialchars($cat['name'])) ?>" data-sub="<?= strtolower(htmlspecialchars($cat['subtitle'] ?? '')) ?>">
                             <div class="category-card-item <?= $is_selected ? 'selected' : '' ?>" data-id="<?= $cat['id'] ?>">
-                                <span class="cat-status-pill <?= $is_selected ? 'active-pill' : 'inactive-pill' ?>" id="pill_<?= $cat['id'] ?>">
-                                    <?= $is_selected ? '<i class="fa fa-check"></i> Enabled' : 'Disabled' ?>
-                                </span>
+                                <div class="cat-card-top-badges">
+                                    <span class="cat-order-badge <?= $is_selected ? '' : 'is-hidden' ?>"><?= $is_selected ? '#' . ($pos_num++) : '' ?></span>
+                                    <span class="cat-status-pill <?= $is_selected ? 'active-pill' : 'inactive-pill' ?>" id="pill_<?= $cat['id'] ?>">
+                                        <?= $is_selected ? '<i class="fa fa-check"></i> Enabled' : 'Disabled' ?>
+                                    </span>
+                                    <span class="cat-drag-handle" title="Drag to move category"><i class="fa fa-bars"></i></span>
+                                </div>
 
                                 <div style="display: flex; align-items: center; gap: 14px;">
                                     <input type="checkbox" name="category_ids[]" value="<?= $cat['id'] ?>" class="cat-card-checkbox" <?= $is_selected ? 'checked' : '' ?>>
@@ -312,10 +431,11 @@ $selected_category_ids = array_unique($selected_category_ids);
                                 <span style="font-size: 14px; color: #374151;">
                                     <strong><span id="bottom_txt_selected_count"><?= count($selected_category_ids) ?></span></strong> categories selected for store <strong><?= htmlspecialchars($seller['name']) ?></strong>.
                                 </span>
+                                <span class="unsaved-order-hint" id="unsaved_order_hint"><i class="fa fa-exclamation-circle"></i> Unsaved changes</span>
                             </div>
                             <div class="col-md-5 col-xs-12 text-right">
                                 <button type="button" class="btn btn-success btn-save-categories" style="padding: 8px 24px; font-size: 14px; font-weight: 700; border-radius: 6px; background: #10b981; border-color: #10b981; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">
-                                    <i class="fa fa-check"></i> Save Categories for Seller App
+                                    <i class="fa fa-check"></i> Save Categories &amp; Order
                                 </button>
                             </div>
                         </div>
@@ -329,12 +449,61 @@ $selected_category_ids = array_unique($selected_category_ids);
     </section>
 </div>
 
+<script src="dist/plugin/jquery-ui/jquery.ui.touch-punch.min.js"></script>
 <script>
 $(document).ready(function() {
+    var wasDragged = false;
+
+    function refreshOrderBadges() {
+        var orderNum = 1;
+        $('#categories_grid_container .cat-card-wrapper').each(function() {
+            var $wrapper = $(this);
+            var isChecked = $wrapper.find('.cat-card-checkbox').prop('checked');
+            var $badge = $wrapper.find('.cat-order-badge');
+            if (isChecked) {
+                $badge.text('#' + orderNum).removeClass('is-hidden');
+                orderNum++;
+            } else {
+                $badge.text('').addClass('is-hidden');
+            }
+        });
+    }
+
+    function markDirty() {
+        $('#unsaved_order_hint').fadeIn(150);
+    }
+
+    // 0. Drag and drop any single category card to any position
+    if ($('#categories_grid_container').length && typeof $.fn.sortable === 'function') {
+        $('#categories_grid_container').sortable({
+            items: '> .cat-card-wrapper:visible',
+            placeholder: 'cat-card-wrapper ui-sortable-placeholder',
+            tolerance: 'pointer',
+            distance: 8,
+            cancel: 'input, button, a, label',
+            cursor: 'grabbing',
+            start: function() {
+                wasDragged = true;
+            },
+            stop: function() {
+                setTimeout(function() {
+                    wasDragged = false;
+                }, 50);
+            },
+            update: function() {
+                refreshOrderBadges();
+                markDirty();
+            }
+        });
+    }
+
     // 1. Category Card click toggle
     $('.category-card-item').on('click', function(e) {
-        // If clicking directly on checkbox, let checkbox change handler handle it
-        if ($(e.target).is('input[type="checkbox"]')) {
+        if (wasDragged) {
+            return;
+        }
+        // If clicking directly on checkbox or drag handle, don't double-toggle
+        if ($(e.target).is('input[type="checkbox"]') || $(e.target).closest('.cat-drag-handle').length) {
             return;
         }
         var $cb = $(this).find('.cat-card-checkbox');
@@ -356,6 +525,8 @@ $(document).ready(function() {
             $pill.removeClass('active-pill').addClass('inactive-pill').text('Disabled');
         }
         updateSelectedCounter();
+        refreshOrderBadges();
+        markDirty();
     });
 
     // 3. Update counter badges
@@ -398,16 +569,19 @@ $(document).ready(function() {
         });
     });
 
-    // 7. Save Categories via AJAX
+    // 7. Save Categories & Order via AJAX
     $('.btn-save-categories').on('click', function(e) {
         e.preventDefault();
         var $btn = $(this);
         var originalHtml = $btn.html();
-        $('.btn-save-categories').prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Saving...');
+        $('.btn-save-categories').prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Saving Order...');
 
         var selectedIds = [];
-        $('.cat-card-checkbox:checked').each(function() {
-            selectedIds.push($(this).val());
+        $('#categories_grid_container .cat-card-wrapper').each(function() {
+            var $cb = $(this).find('.cat-card-checkbox');
+            if ($cb.prop('checked')) {
+                selectedIds.push($cb.val());
+            }
         });
 
         var sellerId = $('input[name="seller_id"]').val();
@@ -424,10 +598,12 @@ $(document).ready(function() {
             success: function(resp) {
                 $('.btn-save-categories').prop('disabled', false).html(originalHtml);
                 if (!resp.error) {
+                    $('#unsaved_order_hint').fadeOut(200);
+                    refreshOrderBadges();
                     $('#save_alert_box')
                         .removeClass('alert-danger')
                         .addClass('alert alert-success')
-                        .html('<i class="fa fa-check-circle"></i> <strong>Success!</strong> ' + (resp.message || 'Categories saved successfully!') + ' (Total: ' + resp.count + ' categories active for seller mobile app inventory)')
+                        .html('<i class="fa fa-check-circle"></i> <strong>Success!</strong> ' + (resp.message || 'Categories and custom order saved successfully!') + ' (Total: ' + resp.count + ' categories active for mobile user app & seller app)')
                         .slideDown();
                     
                     // Smoothly scroll to alert if needed

@@ -34,10 +34,23 @@
 				$category_ids = array_column($res, 'category_id');
 				$category_ids_str = implode(',', $category_ids);
 
-				// Step 2: Get category details
-				$sql = "SELECT id, main_cat, row_order, name, subtitle, image, status, cat_priority 
-						FROM category 
-						WHERE id IN ($category_ids_str) AND main_cat IN (SELECT id FROM main_category WHERE status = '1') ORDER BY cat_priority ASC";
+				// Step 2: Get category details ordered by seller's custom order (Mobile User App)
+				$db->sql("SHOW COLUMNS FROM seller_categories LIKE 'row_order'");
+				$sc_col = $db->getResult();
+				$has_sc_order = !empty($sc_col);
+
+				if ($has_sc_order) {
+					$sql = "SELECT c.id, c.main_cat, c.row_order, c.name, c.subtitle, c.image, c.status, c.cat_priority 
+							FROM category c
+							LEFT JOIN seller_categories sc ON sc.category_id = c.id AND sc.seller_id = '$seller_id'
+							WHERE c.id IN ($category_ids_str) AND c.main_cat IN (SELECT id FROM main_category WHERE status = '1') 
+							ORDER BY CASE WHEN sc.row_order IS NOT NULL AND sc.row_order > 0 THEN 0 ELSE 1 END ASC, sc.row_order ASC, c.cat_priority ASC, c.id ASC";
+				} else {
+					$sql = "SELECT id, main_cat, row_order, name, subtitle, image, status, cat_priority 
+							FROM category 
+							WHERE id IN ($category_ids_str) AND main_cat IN (SELECT id FROM main_category WHERE status = '1') 
+							ORDER BY cat_priority ASC, id ASC";
+				}
 				$db->sql($sql);
 				$categories = $db->getResult();
                 for ($i = 0; $i < count($categories); $i++) {
