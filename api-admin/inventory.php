@@ -92,7 +92,7 @@ if(isset($_POST['type'])){
 
         // 2. Check seller.categories column fallback
         if (empty($res)) {
-            $db->sql("SELECT categories, main_cat_id FROM seller WHERE id = $seller_id LIMIT 1");
+            $db->sql("SELECT * FROM seller WHERE id = $seller_id LIMIT 1");
             $s_res = $db->getResult();
             if (!empty($s_res)) {
                 $raw_cats = trim($s_res[0]['categories'] ?? '');

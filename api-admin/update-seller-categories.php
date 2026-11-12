@@ -98,9 +98,13 @@ if ($action == 'save_seller_categories') {
         $db->sql($sql_insert);
     }
 
-    // Keep seller.categories column updated with ordered comma-separated IDs
-    $cats_str = implode(',', $cat_ids);
-    $db->sql("UPDATE seller SET categories = '$cats_str' WHERE id = $target_seller_id");
+    // Keep seller.categories column updated with ordered comma-separated IDs only if the column exists
+    $db->sql("SHOW COLUMNS FROM seller LIKE 'categories'");
+    $seller_col = $db->getResult();
+    if (!empty($seller_col)) {
+        $cats_str = implode(',', $cat_ids);
+        $db->sql("UPDATE seller SET categories = '$cats_str' WHERE id = $target_seller_id");
+    }
 
     $response['error'] = false;
     $response['message'] = 'Categories and custom order saved successfully!';
