@@ -32,6 +32,14 @@ if(isset($_POST)){
     $Delivery_by_courier   = isset($_POST['Delivery_by_courier']) ? 1 : 0;
     $dunzo                 = isset($_POST['dunzo']) ? 1 : 0;
 
+    // Enforce that at least one delivery method must always remain enabled
+    if (!$storepickup && !$in_persion_delivery && !$Delivery_by_courier) {
+        $response['error'] = true;
+        $response['message'] = "At least one delivery method must remain enabled! You cannot disable both methods.";
+        echo json_encode($response);
+        exit();
+    }
+
     if($Delivery_by_courier){
         $sql="SELECT * FROM product_variant WHERE weight IS NULL OR weight=0";
         $db_con->sql($sql);
@@ -112,6 +120,11 @@ if(isset($_POST)){
             $z_storepickup = isset($_POST['z_storepickup'][$zone_id]) ? 1 : 0;
             $z_inperson    = isset($_POST['z_inperson'][$zone_id]) ? 1 : 0;
             $z_active      = isset($_POST['z_active'][$zone_id]) ? 1 : 0;
+
+            // If the zone is active, ensure at least one delivery method remains enabled
+            if ($z_active && !$z_storepickup && !$z_inperson) {
+                $z_inperson = 1;
+            }
 
             $z_first_km = isset($_POST['z_first_km'][$zone_id])
                 ? zone_blank_to_null($_POST['z_first_km'][$zone_id]) : null;

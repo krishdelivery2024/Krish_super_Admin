@@ -38,31 +38,46 @@
         vertical-align: top;
     }
 </style>
-<script>
-    $("body").on('click', '.exportcustomer', function(){
-        var url = 'public/exportcustomer.php';
-        document.location.href = url;
-    });
-</script>
-<div style="margin-bottom: 20px;">
-    <span class="exportcustomer"><i class="fa fa-download"></i> Export Customer Data</span>
-</div>
 <div class="row">
     <div class="col-xs-12">
         <?php if($permissions['customers']['read']==1){?>
         <div class="box">
-            <div class="box-header">
-                <h3 class="box-title">Customers</h3>
+            <div class="box-header with-border">
+                <div class="row" style="margin-top: 5px; margin-bottom: 5px;">
+                    <div class="col-md-4 col-sm-6">
+                        <label for="cust_date" class="control-label" style="font-weight: 600;">
+                            <i class="fa fa-calendar text-primary"></i> Filter by Registration Date:
+                        </label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="cust_date" name="cust_date" autocomplete="off" placeholder="All Dates (click to select)" />
+                            <span class="input-group-btn">
+                                <button type="button" class="btn btn-default" id="btn_clear_cust_date" title="Clear Date Filter"><i class="fa fa-times text-danger"></i> Clear</button>
+                            </span>
+                        </div>
+                        <input type="hidden" id="cust_start_date" name="cust_start_date">
+                        <input type="hidden" id="cust_end_date" name="cust_end_date">
+                    </div>
+                    <div class="col-md-4 col-sm-6" style="padding-top: 25px;">
+                        <span class="badge" style="background:#3F51B5; font-size:13px; padding:7px 14px; border-radius: 4px;">
+                            <i class="fa fa-users"></i> Registered Users: <strong id="total_registered_users">...</strong>
+                        </span>
+                        <span id="date_filter_status" class="text-muted" style="margin-left: 8px; font-size: 11px;"></span>
+                    </div>
+                    <div class="col-md-4 col-sm-12 text-right" style="padding-top: 25px;">
+                        <span class="exportcustomer"><i class="fa fa-download"></i> Export Customer Data</span>
+                    </div>
+                </div>
             </div>
             <div class="box-body table-responsive">
-                <table class="table table-hover" data-toggle="table" 
+                <table class="table table-hover" data-toggle="table" id="users_table"
                     data-url="api-firebase/get-bootstrap-table-data.php?table=users"
                     data-page-list="[5, 10, 20, 50, 100, 200]"
                     data-show-refresh="true" data-show-columns="true"
                     data-side-pagination="server" data-pagination="true"
                     data-search="true" data-trim-on-search="false"
                     data-filter-control="true" data-filter-show-clear="true"
-                    data-sort-name="id" data-sort-order="desc">
+                    data-sort-name="id" data-sort-order="desc"
+                    data-query-params="custQueryParams">
                     <thead>
                         <tr>
                             <th data-field="id" data-sortable="true">ID</th>
@@ -179,6 +194,18 @@
 <script>
     var currentModalCustomerId = 0;
 
+    function custQueryParams(p) {
+        return {
+            start_date: $('#cust_start_date').val(),
+            end_date: $('#cust_end_date').val(),
+            limit: p.limit,
+            sort: p.sort,
+            order: p.order,
+            offset: p.offset,
+            search: p.search
+        };
+    }
+
     function modalCustomerOrdersQueryParams(p) {
         return {
             "user_id": currentModalCustomerId,
@@ -192,6 +219,78 @@
     }
 
     $(document).ready(function() {
+        // Update registered users count on table load
+        $('#users_table').on('load-success.bs.table', function(e, data) {
+            if (data && typeof data.total !== 'undefined') {
+                $('#total_registered_users').text(data.total);
+            }
+        });
+
+        // Export Customers (with applied date range filter)
+        $("body").on('click', '.exportcustomer', function(){
+            var url = 'public/exportcustomer.php';
+            var s = $('#cust_start_date').val();
+            var e = $('#cust_end_date').val();
+            if (s && e) {
+                url += '?start_date=' + encodeURIComponent(s) + '&end_date=' + encodeURIComponent(e);
+            } else if (s) {
+                url += '?start_date=' + encodeURIComponent(s);
+            } else if (e) {
+                url += '?end_date=' + encodeURIComponent(e);
+            }
+            document.location.href = url;
+        });
+
+        // Registration Date Range Picker initialization
+        if ($.fn.daterangepicker) {
+            $('#cust_date').daterangepicker({
+                autoUpdateInput: false,
+                showDropdowns: true,
+                alwaysShowCalendars: true,
+                ranges: {
+                    'Today': [moment(), moment()],
+                    'Yesterday': [moment().subtract(1, 'days'), moment().subtract(1, 'days')],
+                    'Last 7 Days': [moment().subtract(6, 'days'), moment()],
+                    'Last 30 Days': [moment().subtract(29, 'days'), moment()],
+                    'This Month': [moment().startOf('month'), moment().endOf('month')],
+                    'Last Month': [moment().subtract(1, 'month').startOf('month'), moment().subtract(1, 'month').endOf('month')]
+                },
+                locale: {
+                    format: 'DD/MM/YYYY',
+                    separator: ' - ',
+                    cancelLabel: 'Clear'
+                }
+            });
+
+            $('#cust_date').on('apply.daterangepicker', function(ev, picker) {
+                var display = picker.startDate.format('DD/MM/YYYY');
+                if (picker.startDate.format('YYYY-MM-DD') !== picker.endDate.format('YYYY-MM-DD')) {
+                    display += ' - ' + picker.endDate.format('DD/MM/YYYY');
+                }
+                $(this).val(display);
+                $('#cust_start_date').val(picker.startDate.format('YYYY-MM-DD'));
+                $('#cust_end_date').val(picker.endDate.format('YYYY-MM-DD'));
+                $('#date_filter_status').html('<span class="label label-info">Filtered: ' + display + '</span>');
+                $('#users_table').bootstrapTable('refresh');
+            });
+
+            $('#cust_date').on('cancel.daterangepicker', function(ev, picker) {
+                $(this).val('');
+                $('#cust_start_date').val('');
+                $('#cust_end_date').val('');
+                $('#date_filter_status').html('');
+                $('#users_table').bootstrapTable('refresh');
+            });
+        }
+
+        $('#btn_clear_cust_date').on('click', function() {
+            $('#cust_date').val('');
+            $('#cust_start_date').val('');
+            $('#cust_end_date').val('');
+            $('#date_filter_status').html('');
+            $('#users_table').bootstrapTable('refresh');
+        });
+
         // Ensure both modals are children of <body> so they never render under backdrops
         $('#customerOrdersModal').appendTo('body');
         $('#editOrderStatusModal').appendTo('body');

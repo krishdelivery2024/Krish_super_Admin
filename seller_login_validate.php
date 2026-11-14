@@ -69,6 +69,7 @@ session_start();
 
         if ($num == 1) {
             $_SESSION['id'] = $res[0]['id'];
+            $_SESSION['seller_id'] = $res[0]['id'];
             $_SESSION['role'] = "seller";
             $_SESSION['user'] = $res[0]['name'];
             $_SESSION['secretkey'] = rand();

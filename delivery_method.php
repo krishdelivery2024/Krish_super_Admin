@@ -99,7 +99,9 @@ width: 50px;
 }
 </style>
 
-<h4>Delivery METHOD</h4><hr>
+<h4>Delivery METHOD</h4>
+<p class="text-muted" style="margin-bottom:12px;font-size:12px;"><i class="fa fa-info-circle"></i> Note: At least one delivery method (Store Pickup or In/Person Delivery) must always remain enabled.</p>
+<hr>
 <form id="delivery">
 <div class="form-group displayinline">
     <?php if($res[0]['storepickup']==0){ ?>
@@ -320,15 +322,25 @@ foreach ($zone_delivery_rows as $zrow) {
             $('.' + data).show();
         });
 
-        $("body").on('click', '.dopt', function(){
-            var data = $(this).data('opt');
-            $('.opt').hide();
-            $('.'+data).show();
-            $('.sbtn').show();
+        $("body").on('click', '.dopt', function(e){
+            var storepickup = $('#storepickup').is(':checked');
+            var inpersion   = $('#inpersion').is(':checked');
 
-            if (!$(this).is(":checked")) {
-                $('.'+data).hide();
+            // Restrict disabling both methods: at least one delivery method must remain enabled
+            if (!storepickup && !inpersion) {
+                $(this).prop('checked', true);
+                alert('At least one delivery method must remain enabled! You cannot disable both methods.');
+                return false;
             }
+
+            // Keep in-person delivery options visible if in-person is checked
+            if ($('#inpersion').is(':checked')) {
+                $('.opt5').show();
+            } else {
+                $('.opt5').hide();
+            }
+
+            $('.sbtn').show();
         });
 
         $("body").on('click', '.inp', function(){
@@ -340,6 +352,14 @@ foreach ($zone_delivery_rows as $zrow) {
 
 
         $("body").on('click', '.sbtn', function(){
+            var storepickup = $('#storepickup').is(':checked');
+            var inpersion   = $('#inpersion').is(':checked');
+
+            if (!storepickup && !inpersion) {
+                alert('At least one delivery method must remain enabled! You cannot disable both methods.');
+                return false;
+            }
+
             $.ajax({
                 url:'getdeliverymethod.php',
                 type: 'POST',
@@ -358,6 +378,33 @@ foreach ($zone_delivery_rows as $zrow) {
                     alert('Error!, the server did not respond');
                 }
             });
+        });
+
+        // Zone delivery method checks: ensure active zone retains at least one delivery method
+        $("body").on('click', '.zm-service', function() {
+            var $tr = $(this).closest('tr');
+            var isActive = $tr.find('.zm-active').is(':checked');
+            var sp  = $tr.find('input[name^="z_storepickup"]').is(':checked');
+            var ipd = $tr.find('input[name^="z_inperson"]').is(':checked');
+
+            if (isActive && !sp && !ipd) {
+                $(this).prop('checked', true);
+                alert('At least one delivery method must remain enabled for this active zone! To disable delivery in this zone, uncheck "Service Enabled".');
+                return false;
+            }
+            $('.sbtn').show();
+        });
+
+        $("body").on('change', '.zm-active', function() {
+            var $tr = $(this).closest('tr');
+            if ($(this).is(':checked')) {
+                var sp  = $tr.find('input[name^="z_storepickup"]').is(':checked');
+                var ipd = $tr.find('input[name^="z_inperson"]').is(':checked');
+                if (!sp && !ipd) {
+                    $tr.find('input[name^="z_inperson"]').prop('checked', true);
+                }
+            }
+            $('.sbtn').show();
         });
 
         // Any zone change means there is something to save.

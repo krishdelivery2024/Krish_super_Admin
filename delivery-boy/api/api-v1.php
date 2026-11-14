@@ -669,8 +669,11 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 	$db->sql($sql);
 	$res = $db->getResult();
 
-	foreach ($res as $row) {
-		$total = $row['total'];
+	$total = 0;
+	if (!empty($res)) {
+		foreach ($res as $row) {
+			$total = $row['total'];
+		}
 	}
 	$sql = "select o.*,o.name as username,u.name as name, u.latitude as user_latitude, u.longitude as user_longitude, s.latitude as seller_latitude, s.longitude as seller_longitude, s.name as seller_name,s.company_name as seller_company_name,s.mobile as seller_mobile,s.company_address as seller_company_address,s.image as seller_image FROM orders o " . $orders_join . " " . $where . " ORDER BY " . $sort . " " . $order . " LIMIT " . $offset . ", " . $limit;
 
@@ -1099,10 +1102,10 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 		$tempRow['promo_discount'] = number_format((float) $row['promo_discount'], 2, '.', '');
 		$tempRow['wallet_balance'] = number_format((float) $row['wallet_balance'], 2, '.', '');
 		$tempRow['discount'] = $discount_in_rupees . '(' . $discount_percentage . '%)';
-		$tempRow['qty'] = $qty;
+		$tempRow['qty'] = ($qty !== null && $qty !== '') ? (string)$qty : '1';
 		$tempRow['final_total'] = ceil($row['final_total']);
-		$tempRow['promo_code'] = $row['promo_code'];
-		$tempRow['deliver_by'] = $deliver_by;
+		$tempRow['promo_code'] = !empty($row['promo_code']) ? (string)$row['promo_code'] : '';
+		$tempRow['deliver_by'] = ($deliver_by !== null && $deliver_by !== '') ? (string)$deliver_by : '';
 		$tempRow['payment_method'] = $row['payment_method'];
 		$tempRow['payment_request'] = $row['payment_request'];
 		$tempRow['address'] = $row['address'];
@@ -1117,8 +1120,8 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 
 		$tempRow['distance'] = number_format((float)$distance, 1, '.', '');
 
-		$tempRow['accept_status'] = $row['accept_status'];
-		$tempRow['delivery_time'] = $row['delivery_time'];
+		$tempRow['accept_status'] = !empty($row['accept_status']) ? (string)$row['accept_status'] : '';
+		$tempRow['delivery_time'] = !empty($row['delivery_time']) ? (string)$row['delivery_time'] : '';
 		$tempRow['order_date_time'] = !empty($row['date_added']) ? date('d-m-Y h:i A', strtotime($row['date_added'])) : '';
 		$tempRow['active_status'] = $active_status;
 		$tempRow['wallet_balance'] = number_format((float) $row['wallet_balance'], 2, '.', '');
@@ -2469,6 +2472,13 @@ if (isset($_POST['update_order_status']) && isset($_POST['order_id'])) {
 	$id = $db->escapeString($fn->xss_clean($_POST['order_id']));
 	$postStatus = $db->escapeString($fn->xss_clean($_POST['status']));
 	$delivery_boy_id = $db->escapeString($fn->xss_clean($_POST['delivery_boy_id']));
+
+	if ($postStatus == 'picked' || $postStatus == 'pickup') {
+		$postStatus = 'shipped';
+	}
+	if ($postStatus == 'ready_for_pickup') {
+		$postStatus = 'ready';
+	}
 
 	$sql = "SELECT user_id,delivery_boy_id,status FROM `orders` where id=$id";
 	$db->sql($sql);

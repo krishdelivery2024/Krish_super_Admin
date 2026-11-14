@@ -273,6 +273,25 @@
 
     }
 
+    if(isset($_POST['type']) && ($_POST['type'] == "clear-cart" || $_POST['type'] == "empty-cart")){
+        $user_id = (isset($_POST['user_id'])) ? $db->escapeString($fn->xss_clean($_POST['user_id'])) : "";
+        if(empty($user_id)){
+            $output = json_encode(array('error' => true,
+            'message' => 'user_id is empty.'));
+            echo $output;
+            $db->disconnect();
+            die;
+        }
+        $sql = "DELETE FROM `carts` WHERE `user_id`='$user_id'";
+        $db->sql($sql);
+
+        $output = json_encode(array('error' => false,
+        'message' => "Cart cleared successfully!"));
+        echo $output;
+        $db->disconnect();
+        die;
+    }
+
     if(isset($_POST['type'])  && $_POST['type'] == "over-right-cart"){
     	
         $user_id = (isset($_POST['user_id']))?$db->escapeString($fn->xss_clean($_POST['user_id'])):"";

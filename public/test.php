@@ -26,7 +26,15 @@ fputcsv($output, array(
 $db = new Database();
 $db->connect();
 
-$seller_id = $_SESSION['id'];
+$is_seller = (isset($_SESSION['role']) && $_SESSION['role'] == 'seller');
+$seller_id = 0;
+if ($is_seller) {
+    if (!empty($_SESSION['seller_id'])) {
+        $seller_id = (int)$_SESSION['seller_id'];
+    } elseif (!empty($_SESSION['id'])) {
+        $seller_id = (int)$_SESSION['id'];
+    }
+}
 
 // ================= DATE FORMAT =================
 
@@ -47,93 +55,48 @@ $daysago = parse_date_param($_GET['end'] ?? '');
 // ================= SEARCH =================
 
 if (isset($_GET['search'])) {
-
     $keyword = trim($_GET['search']);
-
 } else {
-
     $keyword = "";
 }
 
 // ================= QUERY =================
 
-if (empty($keyword)) {
-
-    $sql_query = "
-    SELECT 
-
-        o.id,
-        o.mobile,
-        o.address,
-        o.date_added,
-        o.final_total,
-        o.payment_method,
-
-        GROUP_CONCAT(DISTINCT p.name SEPARATOR ', ') AS product_name,
-
-        SUM(oi.quantity) AS qty
-
-    FROM orders o
-
-    LEFT JOIN order_items oi
-        ON oi.order_id = o.id
-
-    LEFT JOIN product_variant pv
-        ON pv.id = oi.product_variant_id
-
-    LEFT JOIN products p
-        ON p.id = pv.product_id
-
-    WHERE DATE(o.date_added) <= '".$daysago."'
-    AND DATE(o.date_added) >= '".$month."'
-
-    AND o.seller_id = '".$seller_id."'
-
-    GROUP BY o.id
-
-    ORDER BY o.id DESC";
-
-} else {
-
-    $sql_query = "
-    SELECT 
-
-        o.id,
-        o.mobile,
-        o.address,
-        o.date_added,
-        o.final_total,
-        o.payment_method,
-
-        GROUP_CONCAT(DISTINCT p.name SEPARATOR ', ') AS product_name,
-
-        SUM(oi.quantity) AS qty
-
-    FROM orders o
-
-    LEFT JOIN order_items oi
-        ON oi.order_id = o.id
-
-    LEFT JOIN product_variant pv
-        ON pv.id = oi.product_variant_id
-
-    LEFT JOIN products p
-        ON p.id = pv.product_id
-
-    WHERE DATE(o.date_added) <= '".$daysago."'
-    AND DATE(o.date_added) >= '".$month."'
-
-    AND (
-        o.mobile LIKE '%".$keyword."%'
-        OR p.name LIKE '%".$keyword."%'
-    )
-
-    AND o.seller_id = '".$seller_id."'
-
-    GROUP BY o.id
-
-    ORDER BY o.id DESC";
+$where = " WHERE 1=1 ";
+if (!empty($month) && !empty($daysago)) {
+    $where .= " AND DATE(o.date_added) >= '" . $db->escapeString($month) . "' AND DATE(o.date_added) <= '" . $db->escapeString($daysago) . "' ";
+} elseif (!empty($month)) {
+    $where .= " AND DATE(o.date_added) >= '" . $db->escapeString($month) . "' ";
+} elseif (!empty($daysago)) {
+    $where .= " AND DATE(o.date_added) <= '" . $db->escapeString($daysago) . "' ";
 }
+
+if ($is_seller) {
+    $where .= " AND o.seller_id = '" . $seller_id . "' ";
+}
+
+if (!empty($keyword)) {
+    $kw = $db->escapeString($keyword);
+    $where .= " AND (o.mobile LIKE '%" . $kw . "%' OR p.name LIKE '%" . $kw . "%') ";
+}
+
+$sql_query = "
+SELECT 
+    o.id,
+    o.mobile,
+    o.address,
+    o.date_added,
+    o.final_total,
+    o.payment_method,
+    GROUP_CONCAT(DISTINCT p.name SEPARATOR ', ') AS product_name,
+    SUM(oi.quantity) AS qty
+FROM orders o
+LEFT JOIN order_items oi ON oi.order_id = o.id
+LEFT JOIN product_variant pv ON pv.id = oi.product_variant_id
+LEFT JOIN products p ON p.id = pv.product_id
+" . $where . "
+GROUP BY o.id
+ORDER BY o.id DESC";
 
 // ================= EXECUTE QUERY =================
 

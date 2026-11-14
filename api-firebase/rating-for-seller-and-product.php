@@ -43,48 +43,60 @@ if (isset($_POST['accesskey'])) {
         $res['error'] = true;
         $res['message'] = "This order already rated!";
     }else{
-        if (!empty($seller_id) && !empty($seller_rating)) {
-        $sql = "INSERT INTO seller_rating (seller_id,user_id,order_id,rating,rating_desc,created_at) 
-                VALUES('$seller_id','$user_id','$order_id','$seller_rating','$rating_desc','$cdate')";
-        $db->sql($sql);
-
-        $sql = "SELECT AVG(rating) AS avg_rating, COUNT(id) AS user_count FROM seller_rating WHERE seller_id='$seller_id'";
-        $db->sql($sql);			
-        $seller_result = $db->getResult();
-        if(isset($seller_result[0])){
-            $avg_rating = $seller_result[0]['avg_rating'] ? $seller_result[0]['avg_rating'] :'0';
-            $user_count = $seller_result[0]['user_count'] ? $seller_result[0]['user_count'] :'0';
-
-            $sql = "UPDATE seller SET rating='$avg_rating', rating_count='$user_count' WHERE id='$seller_id'";
+        if (!empty($seller_id) && !empty($seller_rating) && floatval($seller_rating) > 0) {
+            $seller_rating_val = floatval($seller_rating);
+            $sql_check = "SELECT id FROM seller_rating WHERE seller_id='$seller_id' AND order_id='$order_id' AND user_id='$user_id'";
+            $db->sql($sql_check);
+            if ($db->numRows() > 0) {
+                $sql = "UPDATE seller_rating SET rating='$seller_rating_val', rating_desc='$rating_desc', created_at='$cdate' WHERE seller_id='$seller_id' AND order_id='$order_id' AND user_id='$user_id'";
+            } else {
+                $sql = "INSERT INTO seller_rating (seller_id,user_id,order_id,rating,rating_desc,created_at) 
+                        VALUES('$seller_id','$user_id','$order_id','$seller_rating_val','$rating_desc','$cdate')";
+            }
             $db->sql($sql);
 
-            $sql = "UPDATE orders SET rated='true' WHERE id='$order_id'";
-            $db->sql($sql);
-        }
+            $sql = "SELECT AVG(rating) AS avg_rating, COUNT(id) AS user_count FROM seller_rating WHERE seller_id='$seller_id' AND rating > 0";
+            $db->sql($sql);			
+            $seller_result = $db->getResult();
+            if(isset($seller_result[0]) && !empty($seller_result[0]['avg_rating'])){
+                $avg_rating = strval(round(floatval($seller_result[0]['avg_rating']), 1));
+                $user_count = strval($seller_result[0]['user_count']);
 
-        }else{
-            $res['error'] = true;
-            $res['message'] = "Seller ID and Seller Rating is required!";
+                $sql = "UPDATE seller SET rating='$avg_rating', rating_count='$user_count' WHERE id='$seller_id'";
+                $db->sql($sql);
+            }
         }
-        
-        
 
         if (!empty($product_ids) && is_array($product_ids) && !empty($ratings) && is_array($ratings)) {
             foreach ($product_ids as $index => $product_id) {
                 $product_id = $db->escapeString($fn->xss_clean($product_id));
-                $rating = isset($ratings[$index]) ? $db->escapeString($fn->xss_clean($ratings[$index])) : 0;
-              
+                $rating_val = isset($ratings[$index]) ? floatval($ratings[$index]) : 0;
+                // Only save real ratings (> 0 stars)
+                if ($rating_val <= 0) {
+                    continue;
+                }
+                $sql_check = "SELECT id FROM product_rating WHERE product_id='$product_id' AND order_id='$order_id' AND user_id='$user_id'";
+                $db->sql($sql_check);
+                if ($db->numRows() > 0) {
+                    $sql = "UPDATE product_rating SET rating='$rating_val', rating_desc='$rating_desc', created_at='$cdate' WHERE product_id='$product_id' AND order_id='$order_id' AND user_id='$user_id'";
+                } else {
                     $sql = "INSERT INTO product_rating (product_id,user_id,order_id,rating,rating_desc,created_at) 
-                            VALUES('$product_id','$user_id','$order_id','$rating','$rating_desc','$cdate')";
-                    $db->sql($sql);
-                
+                            VALUES('$product_id','$user_id','$order_id','$rating_val','$rating_desc','$cdate')";
+                }
+                $db->sql($sql);
             }
+
+            $sql = "UPDATE orders SET rated='true' WHERE id='$order_id'";
+            $db->sql($sql);
 
             $res['error'] = false;
             $res['message'] = "Ratings saved successfully";
         } else {
-            $res['error'] = true;
-            $res['message'] = "Product IDs and Ratings must be arrays";
+            $sql = "UPDATE orders SET rated='true' WHERE id='$order_id'";
+            $db->sql($sql);
+
+            $res['error'] = false;
+            $res['message'] = "Ratings saved successfully";
         }
 
     }

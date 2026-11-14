@@ -75,16 +75,16 @@ if(isset($_POST['type']) && $_POST['type'] == 'products-search'){
 	$i=0;
 	
 	foreach($res as $row){
-	    $sql = "SELECT AVG(rating) AS avg_rating, COUNT(id) AS user_count FROM product_rating WHERE product_id=".$row['id']." GROUP BY product_id";
+	    $sql = "SELECT AVG(rating) AS avg_rating, COUNT(id) AS user_count FROM product_rating WHERE product_id=".$row['id']." AND rating > 0 GROUP BY product_id";
                 $db->sql($sql);
                 $rating = $db->getResult();
-                if(isset($rating[0])){
-                    $row['rating'] = $rating[0]['avg_rating'] ? $rating[0]['avg_rating'] :0;
-                    $row['rating_count'] = $rating[0]['user_count'] ? $rating[0]['user_count'] :0;
+                if(isset($rating[0]) && !empty($rating[0]['avg_rating'])){
+                    $row['rating'] = strval(round(floatval($rating[0]['avg_rating']), 1));
+                    $row['rating_count'] = $rating[0]['user_count'] ? strval($rating[0]['user_count']) :'0';
                 }else{
                     
-                $row['rating'] = 0;
-                $row['rating_count'] = 0;
+                $row['rating'] = '0';
+                $row['rating_count'] = '0';
                 }
 		$sql = "SELECT *,(SELECT short_code FROM unit u WHERE u.id=pv.measurement_unit_id) as measurement_unit_name,(SELECT short_code FROM unit u WHERE u.id=pv.stock_unit_id) as stock_unit_name FROM product_variant pv WHERE pv.product_id=".$row['id']." ORDER BY pv.serve_for, pv.stock DESC";
         $db->sql($sql);

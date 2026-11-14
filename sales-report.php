@@ -120,6 +120,14 @@ $(document).ready(function(){
             $('#sales_table').bootstrapTable('refresh');
         }
     });
+    $('#from_date, #to_date').on('change keyup', function(){
+        if ($(this).val().trim() === '') {
+            if (this.id === 'from_date') { $('#start_from').val(''); }
+            if (this.id === 'to_date') { $('#end_to').val(''); }
+            $('#sales_table').bootstrapTable('refresh');
+        }
+    });
+
     $(document).on('keyup', '#sales_keyword', function(){
         $('#sales_table').bootstrapTable('refresh');
     });

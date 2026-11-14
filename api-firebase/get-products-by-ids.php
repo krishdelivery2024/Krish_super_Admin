@@ -47,17 +47,17 @@
             $product = array();
             $i = 0;
             foreach($res as $row){
-                $sql = "SELECT AVG(rating) AS avg_rating, COUNT(id) AS user_count FROM product_rating WHERE product_id=".$row['id']." GROUP BY product_id";
+                $sql = "SELECT AVG(rating) AS avg_rating, COUNT(id) AS user_count FROM product_rating WHERE product_id=".$row['id']." AND rating > 0 GROUP BY product_id";
                 $db->sql($sql);
                 $rating = $db->getResult();
-                if(isset($rating[0])){
-                    $row['rating'] = $rating[0]['avg_rating'] ? $rating[0]['avg_rating'] :0;
-                    $row['rating_count'] = $rating[0]['user_count'] ? $rating[0]['user_count'] :0;
+                if(isset($rating[0]) && !empty($rating[0]['avg_rating'])){
+                    $row['rating'] = strval(round(floatval($rating[0]['avg_rating']), 1));
+                    $row['rating_count'] = $rating[0]['user_count'] ? strval($rating[0]['user_count']) :'0';
                 }else{
-                    $row['rating'] = 0;
-                    $row['rating_count'] = 0;
+                    $row['rating'] = '0';
+                    $row['rating_count'] = '0';
                 }
-                $sql = "SELECT * FROM product_rating WHERE product_id=".$row['id'];
+                $sql = "SELECT * FROM product_rating WHERE product_id=".$row['id']." AND rating > 0";
                 $db->sql($sql);
                 $ratings = $db->getResult();
                 $row['ratings']=$ratings;

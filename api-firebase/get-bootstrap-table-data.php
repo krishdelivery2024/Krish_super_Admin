@@ -1199,24 +1199,36 @@
 			$order = 'DESC';
 		}
 		
-		if(isset($_GET['search'])){
-			$search = $db->escapeString($_GET['search']);
-			$where = " Where `id` like '%".$search."%' OR `name` like '%".$search."%' OR `email` like '%".$search."%' OR `mobile` like '%".$search."%' OR `fcm_id` like '%".$search."%' OR `city` like '%".$search."%' OR `area` like '%".$search."%' OR `street` like '%".$search."%' OR `status` like '%".$search."%' OR `created_at` like '%".$search."%'";
+		$conditions = [];
+		if(isset($_GET['search']) && trim($_GET['search']) != ''){
+			$search = $db->escapeString(trim($_GET['search']));
+			$conditions[] = "(u.`id` like '%".$search."%' OR u.`name` like '%".$search."%' OR u.`email` like '%".$search."%' OR u.`mobile` like '%".$search."%' OR u.`fcm_id` like '%".$search."%' OR u.`city` like '%".$search."%' OR u.`area` like '%".$search."%' OR u.`street` like '%".$search."%' OR u.`status` like '%".$search."%' OR u.`created_at` like '%".$search."%')";
 		}
 		if(isset($_GET['filter_order_status']) && $_GET['filter_order_status'] !=''){
 			$filter_order = $db->escapeString($_GET['filter_order_status']);
-			if(isset($_GET['search']) AND $_GET['search']!='')
-				$where .=" and active_status='".$filter_order."'";
-			else
-				$where =" where active_status='".$filter_order."'";
+			$conditions[] = "u.`status`='".$filter_order."'";
+		}
+		if(!empty($_GET['start_date']) && !empty($_GET['end_date'])){
+			$start_date = $db->escapeString(trim($_GET['start_date']));
+			$end_date = $db->escapeString(trim($_GET['end_date']));
+			$conditions[] = "DATE(u.created_at) >= '".$start_date."' AND DATE(u.created_at) <= '".$end_date."'";
+		} elseif(!empty($_GET['start_date'])){
+			$start_date = $db->escapeString(trim($_GET['start_date']));
+			$conditions[] = "DATE(u.created_at) = '".$start_date."'";
+		} elseif(!empty($_GET['end_date'])){
+			$end_date = $db->escapeString(trim($_GET['end_date']));
+			$conditions[] = "DATE(u.created_at) <= '".$end_date."'";
+		}
+
+		if(!empty($conditions)){
+			$where = " WHERE " . implode(" AND ", $conditions);
 		}
 		
-		$sql = "SELECT COUNT(*) as total FROM `users` ".$where;
+		$sql = "SELECT COUNT(*) as total FROM `users` u ".$where;
 		$db->sql($sql);
 		$res = $db->getResult();
 		// print_r($res);
-		foreach($res as $row)
-			$total = $row['total'];
+		$total = !empty($res) ? (int)$res[0]['total'] : 0;
 		
 		$sql = "SELECT u.*,
 			(SELECT COUNT(o.id) FROM orders o WHERE o.user_id = u.id) as orders_count,
@@ -3731,7 +3743,13 @@ if ($role === 'sub admin') {
         }
      
         $is_seller = (isset($_SESSION['role']) && $_SESSION['role'] == 'seller');
-        $seller_id = isset($_SESSION['seller_id']) ? $_SESSION['seller_id'] : 0;
+        if ($is_seller) {
+            if (!empty($_SESSION['seller_id'])) {
+                $seller_id = (int)$_SESSION['seller_id'];
+            } elseif (!empty($_SESSION['id'])) {
+                $seller_id = (int)$_SESSION['id'];
+            }
+        }
 
         // ================= Build extra filters once, appended to whichever WHERE branch runs =================
         $extra_filters = "";
@@ -3868,60 +3886,37 @@ if ($role === 'sub admin') {
                 ON z.id = o.zone_id
         ";
      
-        // ================= DATE FILTER =================
-     
-        if (!empty($_GET['start_date']) && !empty($_GET['end_date'])) {
-     
-            $month   = $_GET['start_date'];
-            $daysago = $_GET['end_date'];
-     
-            $where = "
-                WHERE DATE(o.date_added) >= '" . $month . "'
-                AND DATE(o.date_added) <= '" . $daysago . "'
-            ";
-     
-            if ($is_seller) {
-                $where .= " AND o.seller_id = '" . $seller_id . "' ";
-            }
-     
-            if (!empty($keyword)) {
-                $where .= "
-                    AND (
-                        o.mobile LIKE '%" . $keyword . "%'
-                        OR p.name LIKE '%" . $keyword . "%'
-                        OR us.name LIKE '%" . $keyword . "%'
-                        OR se.name LIKE '%" . $keyword . "%'
-                    )
-                ";
-            }
+        // ================= DATE & EXTRA FILTERS =================
+        $where = " WHERE 1=1 ";
 
-            $where .= $extra_filters;
-     
-        } else {
-     
-            // ================= DEFAULT LAST 1 MONTH =================
-     
-            $where = "
-                WHERE o.date_added > DATE_SUB(NOW(), INTERVAL 1 MONTH)
-            ";
-     
-            if ($is_seller) {
-                $where .= " AND o.seller_id = '" . $seller_id . "' ";
-            }
-     
-            if (!empty($keyword)) {
-                $where .= "
-                    AND (
-                        o.mobile LIKE '%" . $keyword . "%'
-                        OR p.name LIKE '%" . $keyword . "%'
-                        OR us.name LIKE '%" . $keyword . "%'
-                        OR se.name LIKE '%" . $keyword . "%'
-                    )
-                ";
-            }
+        $start_date = !empty($_GET['start_date']) ? trim($_GET['start_date']) : '';
+        $end_date   = !empty($_GET['end_date'])   ? trim($_GET['end_date'])   : '';
 
-            $where .= $extra_filters;
+        if (!empty($start_date) && !empty($end_date)) {
+            $where .= " AND DATE(o.date_added) >= '" . $db->escapeString($start_date) . "' AND DATE(o.date_added) <= '" . $db->escapeString($end_date) . "' ";
+        } elseif (!empty($start_date)) {
+            $where .= " AND DATE(o.date_added) >= '" . $db->escapeString($start_date) . "' ";
+        } elseif (!empty($end_date)) {
+            $where .= " AND DATE(o.date_added) <= '" . $db->escapeString($end_date) . "' ";
         }
+
+        if ($is_seller) {
+            $where .= " AND o.seller_id = '" . (int)$seller_id . "' ";
+        }
+
+        if (!empty($keyword)) {
+            $kw = $db->escapeString($keyword);
+            $where .= "
+                AND (
+                    o.mobile LIKE '%" . $kw . "%'
+                    OR p.name LIKE '%" . $kw . "%'
+                    OR us.name LIKE '%" . $kw . "%'
+                    OR se.name LIKE '%" . $kw . "%'
+                )
+            ";
+        }
+
+        $where .= $extra_filters;
      
         $sql_query = $select_block . $where . "
             GROUP BY o.id

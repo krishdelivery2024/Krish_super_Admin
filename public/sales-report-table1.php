@@ -1,6 +1,6 @@
 <?php
-    if($permissions['reports']['read']==1) { 
-        $is_seller = (isset($_SESSION['role']) && $_SESSION['role'] == 'seller');
+    $is_seller = (isset($_SESSION['role']) && $_SESSION['role'] == 'seller');
+    if($is_seller || (!empty($permissions['reports']['read']) && $permissions['reports']['read'] == 1)) { 
 ?>
 <style>
 /* Order status badge */

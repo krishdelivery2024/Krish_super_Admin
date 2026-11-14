@@ -814,6 +814,9 @@ if (!in_array($initial_service, array('food', 'parcel', 'shipping', 'passenger')
                         <div class="input-group">
                             <span class="input-group-addon" style="background:#fef2f2; color:#dc2626; font-weight:bold;">D</span>
                             <input type="text" id="svc_map_drop_search" class="form-control" placeholder="Search destination address, area, town...">
+                            <span class="input-group-btn">
+                                <button class="btn btn-default" type="button" id="svc_btn_detect_drop_gps" title="Locate via GPS"><i class="fa fa-crosshairs text-danger"></i> GPS</button>
+                            </span>
                         </div>
                     </div>
 
@@ -2644,6 +2647,26 @@ $(document).ready(function(){
                 }
             }, function(err) {
                 $btn.prop('disabled', false).html('<i class="fa fa-crosshairs text-success"></i> GPS');
+                alert('Could not detect GPS position: ' + err.message);
+            }, { timeout: 10000, enableHighAccuracy: true });
+        } else {
+            alert('Geolocation is not supported by your browser.');
+        }
+    });
+
+    // GPS Detector for Service Drop / Destination
+    $('#svc_btn_detect_drop_gps').on('click', function() {
+        if (navigator.geolocation) {
+            var $btn = $(this);
+            $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i>');
+            navigator.geolocation.getCurrentPosition(function(pos) {
+                $btn.prop('disabled', false).html('<i class="fa fa-crosshairs text-danger"></i> GPS');
+                setSvcDropLocation(pos.coords.latitude, pos.coords.longitude);
+                if (svcRouteMap) {
+                    svcRouteMap.panTo({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+                }
+            }, function(err) {
+                $btn.prop('disabled', false).html('<i class="fa fa-crosshairs text-danger"></i> GPS');
                 alert('Could not detect GPS position: ' + err.message);
             }, { timeout: 10000, enableHighAccuracy: true });
         } else {

@@ -24,6 +24,7 @@ session_start();
 
         if ($num == 1) {
             $_SESSION['id'] = $res[0]['id'];
+            $_SESSION['seller_id'] = $res[0]['id'];
             $_SESSION['role'] = "seller";
             $_SESSION['user'] = $res[0]['name'];
             $_SESSION['secretkey'] = rand();
@@ -51,6 +52,8 @@ session_start();
             $_SESSION['secretkey'] = $secretkey;
             $_SESSION['timeout'] = $currentTime + 3600000000000;
             $_SESSION['secretlogin'] = 'no';
+            unset($_SESSION['seller_id']);
+            unset($_SESSION['main_cat_id']);
 
             header("location:home.php");
         } else {
