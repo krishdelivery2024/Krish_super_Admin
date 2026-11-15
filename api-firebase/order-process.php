@@ -1346,6 +1346,20 @@ if(isset($_POST['update_order_status']) && isset($_POST['id'])) {
 	
 	$sub_total = 0;
 	
+	$is_seller_sess = (isset($_SESSION['role']) && $_SESSION['role'] == 'seller');
+	$is_admin_mode_sess = (isset($_SESSION['secretlogin']) && $_SESSION['secretlogin'] == 'yes') || (isset($_SESSION['role']) && in_array($_SESSION['role'], array('admin', 'super admin')));
+	$is_restricted_seller_sess = ($is_seller_sess && !$is_admin_mode_sess);
+
+	if ($is_restricted_seller_sess) {
+		unset($_POST['delivery_boy_id']);
+		$allowed_seller_statuses = array('processed', 'ready', 'cancelled');
+		if (!in_array(strtolower($postStatus), $allowed_seller_statuses)) {
+			$response['error'] = true;
+			$response['message'] = "Permission denied: Sellers can only set Processed, Ready for Pickup, or Cancel!";
+			print_r(json_encode($response));
+			return false;
+		}
+	}
 	
 	if(isset($_POST['delivery_boy_id']) && $_POST['delivery_boy_id'] != ''){
 	    $delivery_boy_id = $db->escapeString($function->xss_clean($_POST['delivery_boy_id']));
@@ -1431,7 +1445,7 @@ if(isset($_POST['update_order_status']) && isset($_POST['id'])) {
 	}
 	
 
-	$sql="select user_id,payment_method,wallet_balance,total,delivery_charge,tax_amount,status,active_status,delivery_boy_id from orders where id=".$id;
+	$sql="select user_id,payment_method,delivery_method,wallet_balance,total,delivery_charge,tax_amount,status,active_status,delivery_boy_id,order_ready from orders where id=".$id;
 	$db->sql($sql); // Table name, Column Names, JOIN, WHERE conditions, ORDER BY conditions
 	$res = $db->getResult();
 	$order_user_id=$res[0]['user_id'];
@@ -1456,10 +1470,18 @@ if(isset($_POST['update_order_status']) && isset($_POST['id'])) {
     	$user_id =  $res[0]['user_id'];
     	foreach($status as $each){
     		if (in_array($postStatus, $each)) {
-    			$response['error'] = true;
-    			$response['message'] = isset($_POST['delivery_boy_id']) && $_POST['delivery_boy_id'] != '' && ($res[0]['delivery_boy_id']!=0)?'Delivery Boy updated, Order already '.$postStatus:'Order already '.$postStatus;
-    			print_r(json_encode($response));
-    			return false;
+                if ($postStatus == 'ready' && isset($res[0]['order_ready']) && (int)$res[0]['order_ready'] == 1) {
+                    $response['error'] = true;
+                    $response['message'] = 'Order already marked as Ready for Pickup!';
+                    print_r(json_encode($response));
+                    return false;
+                }
+                if ($postStatus != 'ready') {
+                    $response['error'] = true;
+                    $response['message'] = isset($_POST['delivery_boy_id']) && $_POST['delivery_boy_id'] != '' && ($res[0]['delivery_boy_id']!=0)?'Delivery Boy updated, Order already '.$postStatus:'Order already '.$postStatus;
+                    print_r(json_encode($response));
+                    return false;
+                }
     		}
     	}
     	
@@ -1878,6 +1900,59 @@ if(isset($_POST['update_order_status']) && isset($_POST['id'])) {
     	             $db->getResult();
     	        }
     	    } 
+    	}
+    	
+    	if($postStatus=='ready'){
+    	    $data = array('order_ready' => '1');
+    	    $already_ready = false;
+    	    if (!empty($status) && is_array($status)) {
+    	        foreach($status as $each_st){
+    	            if (is_array($each_st) && (in_array('ready', $each_st) || in_array('ready for pickup', $each_st))) {
+    	                $already_ready = true;
+    	                break;
+    	            }
+    	        }
+    	    }
+    	    if (!$already_ready) {
+    	        $status[] = array('ready for pickup', date("d-m-Y h:i:sa"));
+    	        $data['status'] = $db->escapeString(json_encode($status));
+    	    }
+    	    $db->update('orders', $data, 'id='.$id);
+    	    $db->getResult();
+
+    	    $sql = "select name,email,mobile,country_code from `users` where id=".$user_id;
+    		$db->sql($sql);
+    		$res_user = $db->getResult();
+
+    		$is_store_pickup = (isset($res[0]['delivery_method']) && strtolower(trim($res[0]['delivery_method'])) == 'storepickup');
+    	    if($is_store_pickup){
+        		$message_ready = "Hello, Dear ".ucwords($res_user[0]['name']).", Your order ID : #".$id." is now ready. Please visit the store to collect your order.";
+        		$function->send_order_update_notification($user_id,"Your order is ready for pickup!",$message_ready,'order');
+            	$response['error'] = false;
+            	$response['message'] = "Order marked as ready for pickup!";
+            	print_r(json_encode($response));
+            	return false;
+    	    } else {
+    	        // Food delivery: order is prepared, notify customer and dispatch to delivery boys
+        		$message_ready = "Hello, Dear ".ucwords($res_user[0]['name']).", Your order ID : #".$id." is ready and being assigned to a delivery partner.";
+        		$function->send_order_update_notification($user_id,"Your order is ready for delivery!",$message_ready,'order');
+
+        		$dboy_id = isset($res[0]['delivery_boy_id']) ? (int)$res[0]['delivery_boy_id'] : 0;
+        		if ($dboy_id == 0) {
+        		    $message_delivery_boy = "Hello, A new order (ID : #".$id.") is ready for delivery. Please check your app to accept it.";
+        		    $function->dispatch_new_order(
+        		        'food',
+        		        $id,
+        		        'New Order Ready for Delivery',
+        		        $message_delivery_boy
+        		    );
+        		}
+
+            	$response['error'] = false;
+            	$response['message'] = "Order marked as ready for pickup! Delivery partners notified.";
+            	print_r(json_encode($response));
+            	return false;
+    	    }
     	}
     	
     	$i = sizeof($status);

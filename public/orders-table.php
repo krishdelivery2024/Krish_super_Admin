@@ -86,6 +86,7 @@
                         </select>
 					</div>
 					
+					<?php if(!$is_restricted_seller){ ?>
 					<div class="col-md-3  form-group">
                     <label for="deliver_by" class="control-label">Delivery boy:</label>
                         <?php
@@ -100,6 +101,7 @@
                             <?php }  ?>
                         </select>
 					</div>
+					<?php } ?>
 
                     <?php if(isset($_SESSION['role']) && $_SESSION['role'] != 'seller'){ ?>
                     <div class="col-md-3  form-group">
@@ -130,6 +132,7 @@
                             <option value="">All Orders</option>
                             <option value='received'>Received</option>
                             <option value='processed'>Processed</option>
+                            <option value='ready'>Ready for Pickup</option>
                             <option value='shipped'>Shipped</option>
                             <option value='delivered'>Delivered</option>
                             <option value='cancelled'>Cancelled</option>
@@ -158,6 +161,17 @@
                             >
                             <thead>
                                 <tr>
+                                    <?php if($is_restricted_seller){ ?>
+                                    <th data-field="id" data-sortable='true'>O.ID</th>
+                                    <th data-field="date_added" data-sortable='true' data-visible="true">Order Date</th>
+                                    <th data-field="name" data-sortable='true'>Customer</th>
+                                    <th data-field="mobile" data-sortable='true' data-visible="true">Mobile</th>
+                                    <th data-field="items" data-sortable='true' data-visible="true">Items</th>
+                                    <th data-field="vendor_total" data-sortable='true' data-visible="true">Vendor Total(<?=$settings['currency']?>)</th>
+                                    <th data-field="seller_received" data-sortable='true' data-visible="true">Seller Received(<?=$settings['currency']?>)</th>
+                                    <th data-field="active_status" data-sortable='true' data-visible='true'>Status</th>
+                                    <th data-field="operate">Action</th>
+                                    <?php } else { ?>
     								<th data-field="id" data-sortable='true'>O.ID</th>
 									<th data-field="date_added" data-sortable='true' data-visible="true">Order Date</th>
 									<th data-field="user_id" data-sortable='true' data-visible="false">User ID</th>
@@ -170,10 +184,6 @@
                                     <th data-field="name" data-sortable='true'>U.Name</th>
 									<th data-field="mobile" data-sortable='true' data-visible="true">Mob.</th>
 									<th data-field="items" data-sortable='true' data-visible="true">Items</th>
-									<?php if($is_restricted_seller){ ?>
-									<th data-field="vendor_total" data-sortable='true' data-visible="true">Vendor Total(<?=$settings['currency']?>)</th>
-									<th data-field="seller_received" data-sortable='true' data-visible="true">Seller Received(<?=$settings['currency']?>)</th>
-									<?php } else { ?>
 									<th data-field="total" data-sortable='true' data-visible="true">Total(<?=$settings['currency']?>)</th>
 									<th data-field="delivery_charge" data-sortable='true'>D.Chrg</th>
 									<th data-field="tax" data-sortable='false'>Tax <?=$settings['currency']?>(%)</th>
@@ -186,13 +196,13 @@
 									<th data-field="seller_received" data-sortable='true' data-visible="false">Seller Received(<?=$settings['currency']?>)</th>
 									<th data-field="payment_method" data-sortable='true' data-visible="true">P.Method</th>
 									<th data-field="payment_id" data-sortable='false' data-visible="true">Payment ID</th>
-									<?php } ?>
 									<th data-field="deliver_by" data-sortable='true' data-visible='false'>Deliver By</th>
 									<th data-field="address" data-sortable='true' data-visible="false">Address</th>
 									<th data-field="delivery_time" data-sortable='true' data-visible='false'>D.Time</th>
 									<th data-field="status" data-sortable='true' data-visible='false'>Status</th>
 									<th data-field="active_status" data-sortable='true' data-visible='true'>A.Status</th>
 									<th data-field="operate">Action</th>
+									<?php } ?>
 								</tr>
                             </thead>
                         </table>
@@ -221,16 +231,55 @@ $(document).ready(function(){
         var orderId = $(this).data('id');
         var currentStatus = $(this).data('status');
         var currentBoy = $(this).data('boy');
+        var orderReady = parseInt($(this).data('ready') || 0);
+        var isRestrictedSeller = <?=$is_restricted_seller ? 'true' : 'false'?>;
 
         $('#modal_order_id').val(orderId);
         $('#modal_order_id_display').text('#' + orderId);
-        $('#modal_status').val(currentStatus);
-        if (currentStatus === 'cancelled') {
+
+        if (isRestrictedSeller) {
+            // Build restricted status options based on currentStatus & orderReady
+            var opts = '';
+            if (currentStatus === 'received') {
+                opts += '<option value="processed">Processed (Accept)</option>';
+                opts += '<option value="cancelled">Cancelled (Reject)</option>';
+            } else if (currentStatus === 'processed') {
+                if (orderReady === 0) {
+                    opts += '<option value="ready" selected>Ready for Pickup</option>';
+                    opts += '<option value="cancelled">Cancelled</option>';
+                } else {
+                    opts += '<option value="ready" selected disabled>Ready for Pickup (Waiting for Delivery Partner)</option>';
+                    opts += '<option value="cancelled">Cancelled</option>';
+                }
+            } else {
+                opts += '<option value="' + currentStatus + '" selected disabled>' + currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1) + '</option>';
+            }
+            $('#modal_status').html(opts);
+            $('#modal_delivery_boy_group').hide();
+        } else {
+            // Admin mode: restore standard full options
+            var adminOpts = '<option value="received">Received</option>' +
+                            '<option value="processed">Processed</option>' +
+                            '<option value="ready">Ready for Pickup</option>' +
+                            '<option value="shipped">Shipped</option>' +
+                            '<option value="delivered">Delivered</option>' +
+                            '<option value="cancelled">Cancelled</option>' +
+                            '<option value="returned">Returned</option>';
+            $('#modal_status').html(adminOpts);
+            if (currentStatus === 'processed' && orderReady === 1) {
+                $('#modal_status').val('ready');
+            } else {
+                $('#modal_status').val(currentStatus);
+            }
+            $('#modal_delivery_boy_group').show();
+            $('#modal_delivery_boy_id').val(currentBoy ? currentBoy : '');
+        }
+
+        if ($('#modal_status').val() === 'cancelled') {
             $('#modal_cancelled_by_group').show();
         } else {
             $('#modal_cancelled_by_group').hide();
         }
-        $('#modal_delivery_boy_id').val(currentBoy ? currentBoy : '');
         $('#modal_result_message').hide().removeClass('alert-success alert-danger').html('');
         $('#btn_modal_save_status').prop('disabled', false).html('<i class="fa fa-check"></i> Update Status');
         

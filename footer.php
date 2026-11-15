@@ -6,7 +6,12 @@
 	</div>
 	<!-- /.main-content -->
 </div><!--/#wrapper -->
-<?php if(isset($page) && ($page=="Orders" || $page=="Edit Customer" || $page=="Customers")){ ?>
+<?php 
+$is_seller_footer = (isset($_SESSION['role']) && $_SESSION['role'] == 'seller');
+$is_admin_mode_footer = (isset($_SESSION['secretlogin']) && $_SESSION['secretlogin'] == 'yes') || (isset($_SESSION['role']) && in_array($_SESSION['role'], array('admin', 'super admin')));
+$is_restricted_seller_footer = ($is_seller_footer && !$is_admin_mode_footer);
+?>
+<?php if(isset($page) && ($page=="Orders" || $page=="Edit Customer" || $page=="Customers" || $page=="Home" || $page=="Order Details")){ ?>
 <!-- Modal for Admin / Seller to quickly change order status -->
 <div class="modal fade" id="editOrderStatusModal" tabindex="-1" role="dialog" aria-labelledby="editOrderStatusModalLabel">
     <div class="modal-dialog" role="document">
@@ -31,6 +36,7 @@
                         <select name="status" id="modal_status" class="form-control" required>
                             <option value="received">Received</option>
                             <option value="processed">Processed</option>
+                            <option value="ready">Ready for Pickup</option>
                             <option value="shipped">Shipped</option>
                             <option value="delivered">Delivered</option>
                             <option value="cancelled">Cancelled</option>
@@ -49,7 +55,8 @@
                         </select>
                     </div>
 
-                    <div class="form-group">
+                    <?php if(!$is_restricted_seller_footer){ ?>
+                    <div class="form-group" id="modal_delivery_boy_group">
                         <label for="modal_delivery_boy_id">Delivery Boy</label>
                         <select name="delivery_boy_id" id="modal_delivery_boy_id" class="form-control">
                             <option value="">Select Delivery Boy</option>
@@ -63,6 +70,7 @@
                             <?php }} ?>
                         </select>
                     </div>
+                    <?php } ?>
 
                     <div id="modal_result_message" style="display:none;" class="alert"></div>
                 </div>
@@ -81,6 +89,101 @@ $(document).on('change', '#modal_status', function() {
     } else {
         $('#modal_cancelled_by_group').slideUp(150);
     }
+});
+
+$(document).on('click', '.btn-change-status', function(e) {
+    e.preventDefault();
+    var orderId = $(this).data('id');
+    var currentStatus = $(this).data('status');
+    var currentBoy = $(this).data('boy');
+    var orderReady = parseInt($(this).data('ready') || 0);
+    var isRestrictedSeller = <?=$is_restricted_seller_footer ? 'true' : 'false'?>;
+
+    $('#modal_order_id').val(orderId);
+    $('#modal_order_id_display').text('#' + orderId);
+
+    if (isRestrictedSeller) {
+        var opts = '';
+        if (currentStatus === 'received') {
+            opts += '<option value="processed">Processed (Accept)</option>';
+            opts += '<option value="cancelled">Cancelled (Reject)</option>';
+        } else if (currentStatus === 'processed') {
+            if (orderReady === 0) {
+                opts += '<option value="ready" selected>Ready for Pickup</option>';
+                opts += '<option value="cancelled">Cancelled</option>';
+            } else {
+                opts += '<option value="ready" selected disabled>Ready for Pickup (Waiting for Delivery Partner)</option>';
+                opts += '<option value="cancelled">Cancelled</option>';
+            }
+        } else {
+            opts += '<option value="' + currentStatus + '" selected disabled>' + currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1) + '</option>';
+        }
+        $('#modal_status').html(opts);
+        $('#modal_delivery_boy_group').hide();
+    } else {
+        var adminOpts = '<option value="received">Received</option>' +
+                        '<option value="processed">Processed</option>' +
+                        '<option value="ready">Ready for Pickup</option>' +
+                        '<option value="shipped">Shipped</option>' +
+                        '<option value="delivered">Delivered</option>' +
+                        '<option value="cancelled">Cancelled</option>' +
+                        '<option value="returned">Returned</option>';
+        $('#modal_status').html(adminOpts);
+        if (currentStatus === 'processed' && orderReady === 1) {
+            $('#modal_status').val('ready');
+        } else {
+            $('#modal_status').val(currentStatus);
+        }
+        $('#modal_delivery_boy_group').show();
+        $('#modal_delivery_boy_id').val(currentBoy ? currentBoy : '');
+    }
+
+    if ($('#modal_status').val() === 'cancelled') {
+        $('#modal_cancelled_by_group').show();
+    } else {
+        $('#modal_cancelled_by_group').hide();
+    }
+    $('#modal_result_message').hide().removeClass('alert-success alert-danger').html('');
+    $('#btn_modal_save_status').prop('disabled', false).html('<i class="fa fa-check"></i> Update Status');
+    
+    $('#editOrderStatusModal').appendTo('body');
+    $('#editOrderStatusModal').modal('show');
+});
+
+$(document).on('submit', '#quick_update_order_status_form', function(e) {
+    e.preventDefault();
+    var $btn = $('#btn_modal_save_status');
+    $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Updating...');
+
+    var formData = $(this).serialize();
+    $.ajax({
+        url: 'api-firebase/order-process.php',
+        type: 'POST',
+        data: formData,
+        dataType: 'json',
+        success: function(resp) {
+            $btn.prop('disabled', false).html('<i class="fa fa-check"></i> Update Status');
+            if (resp && resp.error) {
+                $('#modal_result_message').removeClass('alert-success').addClass('alert-danger').html(resp.message).show();
+            } else {
+                var msg = (resp && resp.message) ? resp.message : 'Order status updated successfully!';
+                $('#modal_result_message').removeClass('alert-danger').addClass('alert-success').html(msg).show();
+                setTimeout(function() {
+                    $('#editOrderStatusModal').modal('hide');
+                    if ($('#order_list').length) {
+                        $('#order_list').bootstrapTable('refresh');
+                    }
+                    if ($('#orders_table').length) {
+                        $('#orders_table').bootstrapTable('refresh');
+                    }
+                }, 1000);
+            }
+        },
+        error: function() {
+            $btn.prop('disabled', false).html('<i class="fa fa-check"></i> Update Status');
+            $('#modal_result_message').removeClass('alert-success').addClass('alert-danger').html('Server error occurred while updating order status!').show();
+        }
+    });
 });
 </script>
 <?php } ?>
@@ -3551,25 +3654,17 @@ $(document).on('click','.update_order_status',function(e){
 		async:false,
         success: function (data) {
 			console.log(data);
-            var result = $.map(data, function(value, index) {
-                return [value];
-            });
-            if(result[1][0]=='C'){
-                $('#result_fail').html(result[1]);
-                $('#result_fail').show().delay(3000).fadeOut();
+            if(data && data.error){
+                $('#result_fail').html(data.message || 'Could not update order status!').show().delay(3500).fadeOut();
             }else{
-                $('#result_success').html(result[1]);
-                $('#result_success').show().delay(3000).fadeOut();
+                var sMsg = (data && data.message) ? data.message : 'Order status updated successfully!';
+                $('#result_success').html(sMsg).show();
+                setTimeout(function(){
+                    location.reload();
+                }, 1200);
             }
-            
-            
             $('#submit_btn').attr('disabled',false);
             $('#submit_btn').html('Update');
-            
-             //alert(result[1]);
-//          if(!result[0]){
-//              location.reload();
-//             }
         },
 		error:function (err){
 			console.log(err);

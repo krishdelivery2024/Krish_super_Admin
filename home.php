@@ -624,6 +624,17 @@ $boys_offline_kpi = isset($res_db_kpi[0]['offline_boys_kpi']) ? (int)$res_db_kpi
 										>
 										<thead>
 											<tr>
+												<?php if($is_restricted_seller){ ?>
+												<th data-field="id" data-sortable='true'>O.ID</th>
+												<th data-field="date_added" data-sortable='true' data-visible="true">Order Date</th>
+												<th data-field="name" data-sortable='true'>Customer</th>
+												<th data-field="mobile" data-sortable='true' data-visible="true">Mobile</th>
+												<th data-field="items" data-sortable='true' data-visible="true">Items</th>
+												<th data-field="vendor_total" data-sortable='true' data-visible="true">Vendor Total(<?=$settings['currency']?>)</th>
+												<th data-field="seller_received" data-sortable='true' data-visible="true">Seller Received(<?=$settings['currency']?>)</th>
+												<th data-field="active_status" data-sortable='true' data-visible='true'>Status</th>
+												<th data-field="operate">Action</th>
+												<?php } else { ?>
 												<th data-field="id" data-sortable='true'>O.ID</th>
 												<th data-field="date_added" data-sortable='true' data-visible="true">Order Date</th>
 												<th data-field="user_id" data-sortable='true' data-visible="false">User ID</th>
@@ -631,10 +642,6 @@ $boys_offline_kpi = isset($res_db_kpi[0]['offline_boys_kpi']) ? (int)$res_db_kpi
 												<th data-field="name" data-sortable='true'>U.Name</th>
 												<th data-field="mobile" data-sortable='true' data-visible="true">Mob.</th>
 												<th data-field="items" data-sortable='true' data-visible="true">Items</th>
-												<?php if($is_restricted_seller){ ?>
-												<th data-field="vendor_total" data-sortable='true' data-visible="true">Vendor Total(<?=$settings['currency']?>)</th>
-												<th data-field="seller_received" data-sortable='true' data-visible="true">Seller Received(<?=$settings['currency']?>)</th>
-												<?php } else { ?>
 												<th data-field="total" data-sortable='true' data-visible="true">Total(<?=$settings['currency']?>)</th>
 												<th data-field="delivery_charge" data-sortable='true'>D.Chrg</th>
 												<th data-field="tax" data-sortable='false'>Tax <?=$settings['currency']?>(%)</th>
@@ -646,13 +653,13 @@ $boys_offline_kpi = isset($res_db_kpi[0]['offline_boys_kpi']) ? (int)$res_db_kpi
 												<th data-field="vendor_total" data-sortable='true' data-visible="true">Vendor Total(<?=$settings['currency']?>)</th>
 												<th data-field="seller_received" data-sortable='true' data-visible="true">Seller Received(<?=$settings['currency']?>)</th>
 												<th data-field="payment_method" data-sortable='true' data-visible="true">P.Method</th>
-												<?php } ?>
 												<th data-field="deliver_by" data-sortable='true' data-visible='false'>Deliver By</th>
 												<th data-field="address" data-sortable='true' data-visible="false">Address</th>
 												<th data-field="delivery_time" data-sortable='true' data-visible='false'>D.Time</th>
 												<th data-field="status" data-sortable='true' data-visible='false'>Status</th>
 												<th data-field="active_status" data-sortable='true' data-visible='true'>A.Status</th>
 												<th data-field="operate">Action</th>
+												<?php } ?>
 											</tr>
 										</thead>
 									</table>

@@ -23,6 +23,28 @@ if (isset($_POST['update_order_status'])) {
     WHERE o.id=".$ID;
     $db->sql($sql);
     $res=$db->getResult();
+    $is_seller = (isset($_SESSION['role']) && $_SESSION['role'] == 'seller');
+    $is_admin_mode = (isset($_SESSION['secretlogin']) && $_SESSION['secretlogin'] == 'yes') || (isset($_SESSION['role']) && in_array($_SESSION['role'], array('admin', 'super admin')));
+    $is_restricted_seller = ($is_seller && !$is_admin_mode);
+
+    $vendor_order_total = 0.0;
+    if (!empty($res)) {
+        foreach ($res as $item_row) {
+            $v_p = (!empty($item_row['vendor_price']) && floatval($item_row['vendor_price']) > 0) ? (float)$item_row['vendor_price'] : (float)$item_row['price'];
+            $qty = !empty($item_row['quantity']) ? (int)$item_row['quantity'] : 1;
+            $vendor_order_total += ($v_p * $qty);
+        }
+    }
+    $s_id = isset($res[0]['seller_id']) ? (int)$res[0]['seller_id'] : 0;
+    $seller_comm = 0.0;
+    if ($s_id > 0) {
+        $db->sql("SELECT commission FROM seller WHERE id = $s_id LIMIT 1");
+        $s_res = $db->getResult();
+        if (!empty($s_res) && isset($s_res[0]['commission']) && $s_res[0]['commission'] !== '') {
+            $seller_comm = floatval($s_res[0]['commission']);
+        }
+    }
+    $seller_recv_amount = round($vendor_order_total * (1 - ($seller_comm / 100)), 2);
     $items=[];
     foreach($res as $row){
             $sgstp = !empty($row['sgstp'])?$row['sgstp']:0;
@@ -107,19 +129,19 @@ if (isset($_POST['update_order_status'])) {
 										echo "<tr>";
                                         if($item[16]=='received'){
                                             $active_status = '<label class="label label-primary">'.$item[16].'</label>';
-                                            $cancel_item = '<button class="btn btn-xs btn-danger update_item_status" data-id="'.$item[17].'"><i class="fa fa-trash" title="Cancel Item"></i></button>';
+                                            $cancel_item = $is_restricted_seller ? '' : '<button class="btn btn-xs btn-danger update_item_status" data-id="'.$item[17].'"><i class="fa fa-trash" title="Cancel Item"></i></button>';
                                         }
                                         if($item[16]=='processed'){
                                             $active_status = '<label class="label label-info">'.$item[16].'</label>';
-                                            $cancel_item = '<button class="btn btn-xs btn-danger update_item_status" data-id="'.$item[17].'"><i class="fa fa-trash" title="Cancel Item"></i></button>';
+                                            $cancel_item = $is_restricted_seller ? '' : '<button class="btn btn-xs btn-danger update_item_status" data-id="'.$item[17].'"><i class="fa fa-trash" title="Cancel Item"></i></button>';
                                         }
                                         if($item[16]=='shipped'){
                                             $active_status = '<label class="label label-warning">'.$item[16].'</label>';
-                                            $cancel_item = '<button class="btn btn-xs btn-danger update_item_status" data-id="'.$item[17].'"><i class="fa fa-trash" title="Cancel Item"></i></button>';
+                                            $cancel_item = $is_restricted_seller ? '' : '<button class="btn btn-xs btn-danger update_item_status" data-id="'.$item[17].'"><i class="fa fa-trash" title="Cancel Item"></i></button>';
                                         }
                                         if($item[16]=='delivered'){
                                             $active_status = '<label class="label label-success">'.$item[16].'</label>';
-                                            $cancel_item = '<button class="btn btn-xs btn-danger update_item_status" data-id="'.$item[17].'"><i class="fa fa-trash" title="Cancel Item"></i></button>';
+                                            $cancel_item = $is_restricted_seller ? '' : '<button class="btn btn-xs btn-danger update_item_status" data-id="'.$item[17].'"><i class="fa fa-trash" title="Cancel Item"></i></button>';
                                         }
                                         if($item[16]=='returned' || $item[16]=='cancelled'){
                                             $active_status = '<label class="label label-danger">'.$item[16].'</label>';
@@ -148,6 +170,26 @@ if (isset($_POST['update_order_status'])) {
 									</table>
                                 </td>
                             </tr>
+                            <?php if($is_restricted_seller){ ?>
+                            <tr>
+                                <th style="width: 150px">Vendor Total (<?=$settings['currency']?>)</th>
+                                <td><strong><?=number_format($vendor_order_total, 2)?></strong></td>
+                            </tr>
+                            <tr>
+                                <th style="width: 150px">Commission (%)</th>
+                                <td><?=$seller_comm?>%</td>
+                            </tr>
+                            <tr>
+                                <th style="width: 150px">Seller Received (<?=$settings['currency']?>)</th>
+                                <td><strong class="text-success" style="font-size:15px;"><?=number_format($seller_recv_amount, 2)?></strong></td>
+                            </tr>
+                            <input type="hidden" name="total_amount" id="total_amount" value="<?=number_format($vendor_order_total, 2, '.', '')?>">
+                            <input type="hidden" name="delivery_charge" id="delivery_charge" value="0">
+                            <input type="hidden" name="tax_amount" id="tax_amount" value="0">
+                            <input type="hidden" name="promo_discount" id="promo_discount" value="0">
+                            <input type="hidden" name="wallet_balance" id="wallet_balance" value="0">
+                            <input type="hidden" name="final_amount" id="final_amount" value="<?=number_format($vendor_order_total, 2, '.', '')?>">
+                            <?php } else { ?>
                             <tr>
                                 <th style="width: 10px">Total (<?=$settings['currency']?>)</th>
                                 <td ><?php echo $res[0]['order_total']; ?></td>
@@ -210,6 +252,7 @@ if (isset($_POST['update_order_status'])) {
                                 <th style="width: 10px">Payable Total(<?=$settings['currency']?>)</th>
                                 <td ><input type="text" class="form-control" id="final_total" name="final_total" value="<?=$res[0]['final_total'];?>" disabled ></td>
                             </tr>
+                            <?php } ?>
                             <?php if(!empty($payment_status) && $payment_status==1){ ?>
                             <tr>
                                 <th >Deliver By</th>
@@ -219,6 +262,19 @@ if (isset($_POST['update_order_status'])) {
                                           echo 'Store Pickup';
                                       }elseif($res[0]['delivery_method'] == 'courier'){
                                           echo 'Courier';
+                                      }elseif($is_restricted_seller){
+                                          $db_name = '';
+                                          if (!empty($res[0]['delivery_boy_id'])) {
+                                              $db->sql("SELECT name FROM delivery_boys WHERE id=".(int)$res[0]['delivery_boy_id']);
+                                              $db_res = $db->getResult();
+                                              if(!empty($db_res)){ $db_name = $db_res[0]['name']; }
+                                          }
+                                          if(!empty($db_name)){
+                                              echo '<span class="label label-warning" style="font-size:13px;padding:4px 8px;display:inline-block;"><i class="fa fa-motorcycle"></i> '.htmlspecialchars($db_name).'</span>';
+                                          } else {
+                                              echo '<span class="text-muted"><i class="fa fa-hourglass-half"></i> Not Assigned Yet (Admin will assign delivery partner)</span>';
+                                          }
+                                          echo '<input type="hidden" id="deliver_by" name="deliver_by" value="'.(int)$res[0]['delivery_boy_id'].'">';
                                       }else{
                                 
                                         $sql = "SELECT * FROM delivery_method WHERE id=1";
@@ -320,14 +376,47 @@ if (isset($_POST['update_order_status'])) {
                             $status = json_decode($res[0]['order_status']);
                                     $i = count($status);
                                     $currentStatus = $status[$i - 1][0];
+                                    $act_status = strtolower($res[0]['active_status']);
+                                    $order_ready_val = isset($res[0]['order_ready']) ? (int)$res[0]['order_ready'] : 0;
                             if(!empty($payment_status) && $payment_status==1){ ?>
                             <tr>
                                 <th >Status</th>
                                 <td>
-
+                                <?php if($is_restricted_seller){ 
+                                    if(in_array($act_status, array('shipped', 'delivered', 'cancelled', 'returned'))){ ?>
+                                        <span class="label label-<?=($act_status=='delivered'?'success':($act_status=='cancelled'?'danger':($act_status=='shipped'?'warning':'info'))) ?>" style="font-size:14px;padding:5px 10px;display:inline-block;">
+                                            <?=ucwords($act_status)?>
+                                        </span>
+                                        <input type="hidden" name="status" id="status" value="<?=$act_status?>">
+                                    <?php } else { ?>
+                                        <select name="status" id="status" class="form-control">
+                                            <?php if($act_status == 'received'){ ?>
+                                                <option value="received" selected disabled>Received</option>
+                                                <option value="processed">Processed (Accept)</option>
+                                                <option value="cancelled">Cancel (Reject)</option>
+                                            <?php } elseif($act_status == 'processed'){ ?>
+                                                <?php if($order_ready_val == 0){ ?>
+                                                    <option value="processed" selected disabled>Processed</option>
+                                                    <option value="ready">Ready for Pickup</option>
+                                                    <option value="cancelled">Cancel</option>
+                                                <?php } else { ?>
+                                                    <option value="ready" selected disabled>Ready for Pickup (Waiting for Delivery Partner)</option>
+                                                    <option value="cancelled">Cancel</option>
+                                                <?php } ?>
+                                            <?php } ?>
+                                        </select>
+                                        <div id="order_cancelled_by_group" style="margin-top:8px; display:none;">
+                                            <label style="font-weight:600;font-size:12px;margin-bottom:3px;"><i class="fa fa-info-circle"></i> Cancelled By:</label>
+                                            <select name="cancelled_by" id="cancelled_by" class="form-control input-sm">
+                                                <option value="Seller">Seller Cancelled</option>
+                                            </select>
+                                        </div>
+                                    <?php } ?>
+                                <?php } else { ?>
                                     <select name="status" id="status" class="form-control">
                                         <option value="received" <?=($currentStatus == 'received' || $res[0]['active_status'] == 'received') ? 'selected' : '';?>>Received</option>
                                         <option value="processed" <?=($currentStatus == 'processed' || $res[0]['active_status'] == 'processed') ? 'selected' : '';?>>Processed</option>
+                                        <option value="ready" <?=($res[0]['active_status'] == 'processed' && $order_ready_val == 1) ? 'selected' : '';?>>Ready for Pickup</option>
                                         <option value="shipped" <?=($currentStatus == 'shipped' || $res[0]['active_status'] == 'shipped') ? 'selected' : '';?>>Shipped</option>
                                         <option value="delivered" <?=($currentStatus == 'delivered' || $res[0]['active_status'] == 'delivered') ? 'selected' : '';?>>Delivered</option>
                                         <option value="cancelled" <?=($currentStatus == 'cancelled' || $res[0]['active_status'] == 'cancelled') ? 'selected' : '';?>>Cancel</option>
@@ -343,6 +432,7 @@ if (isset($_POST['update_order_status'])) {
                                             <option value="Admin">Admin Cancelled</option>
                                         </select>
                                     </div>
+                                <?php } ?>
                                 </td>
                             </tr>
                             <?php } ?>
@@ -355,8 +445,10 @@ if (isset($_POST['update_order_status'])) {
                         <div class="alert alert-success" id="result_success" style="display:none"></div>
                         <div class="box-footer clearfix">
                             <?php $whatsapp_message = "Hello ".ucwords($res[0]['uname']).", Your order with ID : ".$res[0]['id']." is ".ucwords($currentStatus).". Please take a note of it. If you have further queries feel free to contact us. Thank you.";?>
-                            <?php if(!empty($payment_status) && $payment_status==1){ ?>
-                            <a href="#" title='update' id="submit_btn" class="btn btn-primary update_order_status" data-id='<?=$res[0]['id'];?>'>Update</a>
+                            <?php if(!empty($payment_status) && $payment_status==1){ 
+                                if(!$is_restricted_seller || in_array($act_status, array('received', 'processed'))){ ?>
+                                <a href="#" title='update' id="submit_btn" class="btn btn-primary update_order_status" data-id='<?=$res[0]['id'];?>'>Update</a>
+                                <?php } ?>
                             <?php } else{ ?>
                             <a class="btn btn-primary mt-3 update_payment_status" href="javascript:void(0)" data-id='<?=$res[0]['id'];?>'><i class="fa fa-arrow-up"></i> Update Payment</a>
                             <?php } ?>
@@ -367,7 +459,7 @@ if (isset($_POST['update_order_status'])) {
                
                <?php 
             //   if($res[0]['delivery_boy_id']!=0){
-                if(!empty($payment_status) && $payment_status==1){ 
+                if(!empty($payment_status) && $payment_status==1 && !$is_restricted_seller){ 
                    if ($currentStatus == "received") { ?>
                         <button class="btn btn-primary pull-right" onclick="myfunction()"  style="margin-right: 5px; margin-top: -45px;"><i class="fa fa-download"></i>Generate Invoice</button>
                     <?php } elseif ($currentStatus == "processed") { ?>
@@ -388,7 +480,7 @@ if (isset($_POST['update_order_status'])) {
 
             <?php
             $refund_details = $function->get_order_refund_details($ID, 'food');
-            $show_refund_card = ($refund_details['is_cancelled'] || $refund_details['refund_state'] !== 'none');
+            $show_refund_card = (!$is_restricted_seller && ($refund_details['is_cancelled'] || $refund_details['refund_state'] !== 'none'));
             if($show_refund_card){
             ?>
             <div class="box box-warning" id="refund_tracking_box" style="margin-top:20px;border-top:3px solid #f39c12;">

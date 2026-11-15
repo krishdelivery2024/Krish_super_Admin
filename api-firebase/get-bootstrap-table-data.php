@@ -128,7 +128,11 @@
 
         if(isset($_GET['filter_order']) && $_GET['filter_order']!=''){
             $filter_order=$db->escapeString($_GET['filter_order']);
-            $where .=" and o.`active_status`='".$filter_order."'";
+            if($filter_order == 'ready'){
+                $where .=" and o.`active_status`='processed' and o.`order_ready`=1";
+            } else {
+                $where .=" and o.`active_status`='".$filter_order."'";
+            }
         }
 
         if(isset($_GET['filter_zone']) && $_GET['filter_zone']!=''){
@@ -261,6 +265,14 @@
 			}
 			if($row['active_status']=='processed'){
 				$active_status = '<label class="label label-info">'.$row['active_status'].'</label>';
+				if(isset($row['order_ready']) && (int)$row['order_ready'] == 1){
+					$active_status .= '<br><span class="label label-success" style="font-size:10px;margin-top:3px;display:inline-block;padding:2px 5px;"><i class="fa fa-clock-o"></i> Ready for Pickup</span>';
+					if(!empty($row['delivery_boy_name']) || (!empty($row['delivery_boy_id']) && (int)$row['delivery_boy_id'] > 0)){
+						$active_status .= '<br><span class="label label-warning" style="font-size:10px;margin-top:2px;display:inline-block;padding:2px 5px;"><i class="fa fa-motorcycle"></i> Partner Assigned</span>';
+					} else {
+						$active_status .= '<br><span class="label label-default" style="font-size:10px;margin-top:2px;display:inline-block;padding:2px 5px;"><i class="fa fa-hourglass-half"></i> Awaiting Partner</span>';
+					}
+				}
 			}
 			if($row['active_status']=='shipped'){
 				$active_status = '<label class="label label-warning">'.$row['active_status'].'</label>';
@@ -351,8 +363,13 @@
 				$tempRow['smobile'] = $row['vendor_mobile'];
 			}
 			$operate = '<a class="btn btn-xs btn-primary" href="order-detail.php?id='.$row['id'].'" target="_blank" title="View Order Details"><i class="fa fa-eye"></i> View</a> ';
-			$operate .= '<button type="button" class="btn btn-xs btn-info btn-change-status" data-id="'.$row['id'].'" data-status="'.htmlspecialchars($row['active_status']).'" data-boy="'.(int)$row['delivery_boy_id'].'" title="Change Order Status"><i class="fa fa-pencil"></i> Status</button>';
-			if(isset($_SESSION['role']) && $_SESSION['role'] == 'seller'){
+			$ord_ready_flag = isset($row['order_ready']) ? (int)$row['order_ready'] : 0;
+			if ($is_restricted_seller_ord) {
+				if (in_array($row['active_status'], array('received', 'processed'))) {
+					$operate .= '<button type="button" class="btn btn-xs btn-info btn-change-status" data-id="'.$row['id'].'" data-status="'.htmlspecialchars($row['active_status']).'" data-ready="'.$ord_ready_flag.'" data-boy="'.(int)$row['delivery_boy_id'].'" title="Change Order Status"><i class="fa fa-pencil"></i> Status</button>';
+				}
+			} else {
+				$operate .= '<button type="button" class="btn btn-xs btn-info btn-change-status" data-id="'.$row['id'].'" data-status="'.htmlspecialchars($row['active_status']).'" data-ready="'.$ord_ready_flag.'" data-boy="'.(int)$row['delivery_boy_id'].'" title="Change Order Status"><i class="fa fa-pencil"></i> Status</button>';
 				$operate .= ' <a class="btn btn-xs btn-danger" href="delete-order.php?id='.$row['id'].'" onclick="return confirm(\'Are you sure you want to delete this order?\');"><i class="fa fa-trash"></i></a>';
 			}
 			$tempRow['operate'] = $operate;
