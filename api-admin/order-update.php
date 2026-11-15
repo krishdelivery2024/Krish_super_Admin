@@ -420,7 +420,8 @@ if ($total == 0) {
     			$db->sql($sql);
     			$currency = $db->getResult();
     		    $message_delivery_boy = "Hello, Dear ".ucwords($res_bonus[0]['name']).", Here is the new update on your order for the order ID : #".$id.". Your Commission of".$reward." is credited. Please take a note of it.";
-    			$function->send_notification_to_delivery_boy($res_boy[0]['delivery_boy_id'],"Your commission ".$reward." ".$currency[0]['value']." has been credited","$message_delivery_boy",'delivery_boys',$id);
+    			// Delivery boy no need to receive delivered notification
+    			// $function->send_notification_to_delivery_boy($res_boy[0]['delivery_boy_id'],"Your commission ".$reward." ".$currency[0]['value']." has been credited","$message_delivery_boy",'delivery_boys',$id);
     			$function->store_delivery_boy_notification($res_boy[0]['delivery_boy_id'],$id,"Your commission ".$reward." ".$currency[0]['value']." has been credited",$message_delivery_boy,'order_reward');
     		}
     		if($config['is-refer-earn-on']==1){
@@ -659,9 +660,12 @@ if ($total == 0) {
                 $db->sql($sql_dboy);
                 $res_dboy = $db->getResult();
                 if (!empty($res_dboy)) {
-                    $message_delivery_boy = "Hello, Dear ".ucwords($res_dboy[0]['name']).", Here is the new update on your assigned order ID : #".$id.". The order status has been updated to ".ucwords($postStatus).".";
-                    $function->send_notification_to_delivery_boy($dboy_id,"Order Status Updated to ".ucwords($postStatus),$message_delivery_boy,'delivery_boys',$id);
-                    $function->store_delivery_boy_notification($dboy_id,$id,"Order Status Updated to ".ucwords($postStatus),$message_delivery_boy,'order_status');
+                    // Delivery boy no need to receive delivered or completed notifications
+                    if (!in_array(strtolower($postStatus), ['delivered', 'completed'])) {
+                        $message_delivery_boy = "Hello, Dear ".ucwords($res_dboy[0]['name']).", Here is the new update on your assigned order ID : #".$id.". The order status has been updated to ".ucwords($postStatus).".";
+                        $function->send_notification_to_delivery_boy($dboy_id,"Order Status Updated to ".ucwords($postStatus),$message_delivery_boy,'delivery_boys',$id);
+                        $function->store_delivery_boy_notification($dboy_id,$id,"Order Status Updated to ".ucwords($postStatus),$message_delivery_boy,'order_status');
+                    }
                 }
             }
             }

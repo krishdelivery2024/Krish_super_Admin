@@ -2,6 +2,12 @@
 $page = "Product Order";
 include "header.php";
 
+$is_admin_mode = (isset($_SESSION['secretlogin']) && $_SESSION['secretlogin'] == 'yes') || (isset($_SESSION['role']) && in_array($_SESSION['role'], array('admin', 'super admin')));
+if (isset($_SESSION['role']) && $_SESSION['role'] == 'seller' && !$is_admin_mode) {
+    echo "<script>location.href = 'products.php';</script>";
+    exit();
+}
+
 header("Expires: on, 01 Jan 1970 00:00:00 GMT");
 header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
 header("Cache-Control: no-store, no-cache, must-revalidate");
@@ -118,7 +124,7 @@ $selected_category = (isset($_GET['category_id']) && $_GET['category_id'] !== ''
 // Fetch products
 $res = array();
 if ($seller_id > 0) {
-    $where = " WHERE p.seller_id = '$seller_id' ";
+    $where = " WHERE p.seller_id = '$seller_id' AND p.is_active = 1 ";
     if ($selected_category !== '') {
         $where .= " AND p.category_id = '$selected_category' ";
     }

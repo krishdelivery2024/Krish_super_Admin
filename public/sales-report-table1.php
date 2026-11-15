@@ -1,5 +1,7 @@
 <?php
     $is_seller = (isset($_SESSION['role']) && $_SESSION['role'] == 'seller');
+    $is_admin_mode = (isset($_SESSION['secretlogin']) && $_SESSION['secretlogin'] == 'yes') || (isset($_SESSION['role']) && in_array($_SESSION['role'], array('admin', 'super admin')));
+    $is_restricted_seller = ($is_seller && !$is_admin_mode);
     if($is_seller || (!empty($permissions['reports']['read']) && $permissions['reports']['read'] == 1)) { 
 ?>
 <style>
@@ -63,6 +65,7 @@
 					        <input type="hidden" id="end_to" name="end_date">
 
                         <!-- Payment Method filter -->
+                        <?php if(!$is_restricted_seller) { ?>
                         <div class="col-md-2 form-group">
                             <label for="payment_method_filter" class="control-label">Payment Method</label>
                             <select class="form-control" id="payment_method_filter" name="payment_method">
@@ -72,6 +75,7 @@
                                 <option value="Paid to Admin">Paid to Admin</option>
                             </select>
                         </div>
+                        <?php } ?>
 
                         <!-- Seller filter (hidden for seller-role users, filtered by zone) -->
                         <?php if(!$is_seller) { ?>
@@ -174,21 +178,25 @@
                             <th data-field="zone_name" data-sortable="true">Zone</th>
                             <?php } ?>
                             <th data-field="order_date" data-sortable="true">Order Date</th>
-                            <?php if(!$is_seller) { ?>
                             <th data-field="vendor_price" data-formatter="priceListFormatter" data-align="right" data-footer-formatter="salesMoneyFormatter">Vendor Price (&#8377;)</th>
+                            <?php if(!$is_seller) { ?>
                             <th data-field="discounted_price" data-formatter="priceListFormatter" data-align="right" data-footer-formatter="salesMoneyFormatter">Discounted Price (&#8377;)</th>
                             <?php } ?>
+                            <?php if(!$is_restricted_seller) { ?>
                             <th data-field="platform_fee" data-sortable="true" data-align="right" data-footer-formatter="salesMoneyFormatter">Platform Fee (&#8377;)</th>
                             <th data-field="convenience_fee" data-sortable="true" data-align="right" data-footer-formatter="salesMoneyFormatter">Convenience Fee (&#8377;)</th>
                             <th data-field="final_total" data-sortable="true" data-align="right" data-footer-formatter="salesMoneyFormatter">Final Total (&#8377;)</th>
-                            <?php if(!$is_seller) { ?>
-                            <th data-field="seller_received" data-formatter="priceListFormatter" data-align="right" data-footer-formatter="salesMoneyFormatter">Seller Received (&#8377;)</th>
-                            <th data-field="commission_percent" data-sortable="false" data-align="center">Commission (%)</th>
-                            <th data-field="commission_amount" data-sortable="false" data-align="right" data-footer-formatter="salesMoneyFormatter">Commission (&#8377;)</th>
                             <?php } ?>
+                            <th data-field="commission_percent" data-sortable="false" data-align="center">Commission (%)</th>
+                            <th data-field="commission_amount" data-formatter="priceListFormatter" data-align="right" data-footer-formatter="salesMoneyFormatter">Commission (&#8377;)</th>
+                            <th data-field="seller_received" data-formatter="priceListFormatter" data-align="right" data-footer-formatter="salesMoneyFormatter">Seller Received (&#8377;)</th>
+                            <?php if(!$is_restricted_seller) { ?>
                             <th data-field="payment_method" data-sortable="true">Payment Method</th>
+                            <?php } ?>
                             <th data-field="active_status" data-sortable="true" data-formatter="statusBadgeFormatter">Order Status</th>
+                            <?php if(!$is_restricted_seller) { ?>
                             <th data-field="refund_status" data-formatter="refundListFormatter">Refund Status</th>
+                            <?php } ?>
                         </tr>
                         </thead>
                     </table>
@@ -254,10 +262,16 @@
         if (!value || !value.length) return '-';
         var items = Array.isArray(value) ? value : [value];
         var html = '<ul class="bullet-list">';
+        var total = 0;
         items.forEach(function (item) {
-            html += '<li>' + item + '</li>';
+            var num = parseFloat(String(item).replace(/[^0-9.\-]/g, '')) || 0;
+            total += num;
+            html += '<li>₹' + num.toFixed(2) + '</li>';
         });
         html += '</ul>';
+        if (items.length > 1) {
+            html += '<div style="border-top: 1px dashed #ccc; font-weight: bold; font-size: 11px; margin-top: 2px; padding-top: 2px; color: #222;">Total: ₹' + total.toFixed(2) + '</div>';
+        }
         return html;
     }
 

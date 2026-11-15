@@ -790,6 +790,10 @@ class custom_functions{
     }
     
     public function send_notification_to_delivery_boy($delivery_boy_id,$title,$message,$type,$order_id,$order_type='food',$custom_data=array()){
+        // Delivery boy does not need to receive delivered, completed, or commission notifications
+        if (stripos($title, 'delivered') !== false || stripos($title, 'completed') !== false || stripos($title, 'commission') !== false) {
+            return false;
+        }
         if(isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD']=='POST'){
         //hecking the required params 
             //creating a new push
@@ -1140,6 +1144,10 @@ class custom_functions{
     }
     
     public function send_notification_to_seller($seller_id,$title,$message,$type,$order_id=0,$order_type='food'){
+        // Seller does not need to receive completed or delivered notifications
+        if (stripos($title, 'completed') !== false || stripos($title, 'delivered') !== false) {
+            return false;
+        }
         if($_SERVER['REQUEST_METHOD']=='POST'){
         //hecking the required params 
             //creating a new push

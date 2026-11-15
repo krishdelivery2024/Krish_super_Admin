@@ -1,4 +1,7 @@
 <?php
+    $is_seller = (isset($_SESSION['role']) && $_SESSION['role'] == 'seller');
+    $is_admin_mode = (isset($_SESSION['secretlogin']) && $_SESSION['secretlogin'] == 'yes') || (isset($_SESSION['role']) && in_array($_SESSION['role'], array('admin', 'super admin')));
+    $is_restricted_seller = ($is_seller && !$is_admin_mode);
     if(!empty($permissions['orders']['read']) || (isset($_SESSION['role']) && ($_SESSION['role'] == 'admin' || $_SESSION['role'] == 'super admin' || $_SESSION['role'] == 'seller'))) { 
         $sql_query = "SELECT id, short_code 
         FROM routes 
@@ -156,6 +159,7 @@
                             <thead>
                                 <tr>
     								<th data-field="id" data-sortable='true'>O.ID</th>
+									<th data-field="date_added" data-sortable='true' data-visible="true">Order Date</th>
 									<th data-field="user_id" data-sortable='true' data-visible="false">User ID</th>
 									<th data-field="qty" data-sortable='true' data-visible="false">Qty</th>
 									 <th data-field="zone_name" data-sortable='true'>Zone</th>
@@ -165,7 +169,11 @@
 									 <?php } ?>
                                     <th data-field="name" data-sortable='true'>U.Name</th>
 									<th data-field="mobile" data-sortable='true' data-visible="true">Mob.</th>
-									<th data-field="items" data-sortable='true' data-visible="false">Items</th>
+									<th data-field="items" data-sortable='true' data-visible="true">Items</th>
+									<?php if($is_restricted_seller){ ?>
+									<th data-field="vendor_total" data-sortable='true' data-visible="true">Vendor Total(<?=$settings['currency']?>)</th>
+									<th data-field="seller_received" data-sortable='true' data-visible="true">Seller Received(<?=$settings['currency']?>)</th>
+									<?php } else { ?>
 									<th data-field="total" data-sortable='true' data-visible="true">Total(<?=$settings['currency']?>)</th>
 									<th data-field="delivery_charge" data-sortable='true'>D.Chrg</th>
 									<th data-field="tax" data-sortable='false'>Tax <?=$settings['currency']?>(%)</th>
@@ -174,13 +182,16 @@
 									<th data-field="promo_discount" data-sortable='true' data-visible="false">Promo Disc.(<?=$settings['currency']?>)</th>
 									<th data-field="wallet_balance" data-sortable='true' data-visible="false">Wallet Used(<?=$settings['currency']?>)</th>
 									<th data-field="final_total" data-sortable='true'>F.Total(<?=$settings['currency']?>)</th>
-									<th data-field="deliver_by" data-sortable='true' data-visible='false'>Deliver By</th>
+									<th data-field="vendor_total" data-sortable='true' data-visible="false">Vendor Total(<?=$settings['currency']?>)</th>
+									<th data-field="seller_received" data-sortable='true' data-visible="false">Seller Received(<?=$settings['currency']?>)</th>
 									<th data-field="payment_method" data-sortable='true' data-visible="true">P.Method</th>
+									<th data-field="payment_id" data-sortable='false' data-visible="true">Payment ID</th>
+									<?php } ?>
+									<th data-field="deliver_by" data-sortable='true' data-visible='false'>Deliver By</th>
 									<th data-field="address" data-sortable='true' data-visible="false">Address</th>
 									<th data-field="delivery_time" data-sortable='true' data-visible='false'>D.Time</th>
 									<th data-field="status" data-sortable='true' data-visible='false'>Status</th>
 									<th data-field="active_status" data-sortable='true' data-visible='true'>A.Status</th>
-									<th data-field="date_added" data-sortable='true' data-visible="false">O.Date</th>
 									<th data-field="operate">Action</th>
 								</tr>
                             </thead>

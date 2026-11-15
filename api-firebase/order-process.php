@@ -1687,7 +1687,8 @@ if(isset($_POST['update_order_status']) && isset($_POST['id'])) {
     			$db->sql($sql);
     			$currency = $db->getResult();
     		    $message_delivery_boy = "Hello, Dear ".ucwords($res_bonus[0]['name']).", Here is the new update on your order for the order ID : #".$id.". Your Commission of".$reward." is credited. Please take a note of it.";
-    			$function->send_notification_to_delivery_boy($delivery_boy_id,"Your commission ".$reward." ".$currency[0]['value']." has been credited","$message_delivery_boy",'delivery_boys',$id);
+    			// Delivery boy no need to receive delivered notification
+    			// $function->send_notification_to_delivery_boy($delivery_boy_id,"Your commission ".$reward." ".$currency[0]['value']." has been credited","$message_delivery_boy",'delivery_boys',$id);
     			$function->store_delivery_boy_notification($delivery_boy_id,$id,"Your commission ".$reward." ".$currency[0]['value']." has been credited",$message_delivery_boy,'order_reward');
     		}
     		
@@ -1937,8 +1938,11 @@ if(isset($_POST['update_order_status']) && isset($_POST['id'])) {
         		$db->sql($sql);
         		$res_seller = $db->getResult();
         		if(!empty($res_seller) && !empty($res_seller[0]['seller_id'])){
-        		    $seller_message = "Your order with ID : #".$id." has been ".ucwords($postStatus).". Please take a note of it.";
-        		    $function->send_notification_to_seller($res_seller[0]['seller_id'],"Order ".ucwords($postStatus),$seller_message,'order',$id);
+        		    // Seller does not need to receive completed or delivered notifications
+        		    if (!in_array(strtolower($postStatus), ['delivered', 'completed'])) {
+        		        $seller_message = "Your order with ID : #".$id." has been ".ucwords($postStatus).". Please take a note of it.";
+        		        $function->send_notification_to_seller($res_seller[0]['seller_id'],"Order ".ucwords($postStatus),$seller_message,'order',$id);
+        		    }
         		}
             } catch (Exception $e) {
                 log_order_debug("Exception in send_notification_to_seller (status update): " . $e->getMessage());

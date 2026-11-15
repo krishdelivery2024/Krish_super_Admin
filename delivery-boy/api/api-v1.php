@@ -1745,7 +1745,8 @@ if (isset($_POST['update_parcel_order_status']) && isset($_POST['order_id'])) {
 				$db->sql($sql);
 				$fn->add_delivery_boy_commission($boy_id, 'credit', $reward, 'Parcel Delivery Boy Commission.');
 				$message_delivery_boy = "Hello, Dear " . ucwords($res_boy[0]['name']) . ", Your Parcel Delivery Commission of " . ceil($reward) . " has been credited for Parcel #" . $id . ".";
-				$fn->send_notification_to_delivery_boy($boy_id, "Your parcel delivery commission credited", $message_delivery_boy, 'delivery_boys', $id, 'parcel');
+				// Delivery boy no need to receive delivered notification
+				// $fn->send_notification_to_delivery_boy($boy_id, "Your parcel delivery commission credited", $message_delivery_boy, 'delivery_boys', $id, 'parcel');
 				$fn->store_delivery_boy_notification($boy_id, $id, "Parcel Commission Credited", $message_delivery_boy, 'parcel');
 			}
 		}
@@ -2599,7 +2600,8 @@ if (isset($_POST['update_order_status']) && isset($_POST['order_id'])) {
 				$db->sql($sql);
 				$currency = $db->getResult();
 				$message_delivery_boy = "Hello, Dear " . ucwords($res_bonus[0]['name']) . ", Here is the new update on your order for the order ID : #" . $id . ". Your Commission of" . $reward . " is credited. Please take a note of it.";
-				$fn->send_notification_to_delivery_boy($delivery_boy_id, "Your commission " . $reward . " " . $currency[0]['value'] . " has been credited", "$message_delivery_boy", 'delivery_boys', $id);
+				// Delivery boy no need to receive delivered notification
+				// $fn->send_notification_to_delivery_boy($delivery_boy_id, "Your commission " . $reward . " " . $currency[0]['value'] . " has been credited", "$message_delivery_boy", 'delivery_boys', $id);
 				//$fn->store_delivery_boy_notification($delivery_boy_id,$id,"Your commission ".$reward." ".$currency[0]['value']." has been credited",$message_delivery_boy,'order_reward');
 
 			}

@@ -269,6 +269,33 @@ if (isset($_POST['update_order_status'])) {
                                 <th style="width: 10px">Payment Method</th>
                                 <td ><?php echo $res[0]['payment_method']; ?></td>
                             </tr>
+                            <?php 
+                            $pm_check = strtolower(trim((string)$res[0]['payment_method']));
+                            $is_online_pm = (!in_array($pm_check, array('cod', 'cash on delivery', 'wallet')) && !empty($res[0]['payment_method']));
+                            if ($is_online_pm) {
+                                $db->sql("SELECT txn_id, payu_txn_id FROM transactions WHERE order_id = '$ID' AND (txn_id LIKE 'pay_%' OR payu_txn_id LIKE 'pay_%' OR (status = 'success' AND (txn_id != '' OR payu_txn_id != ''))) ORDER BY id DESC LIMIT 1");
+                                $t_res = $db->getResult();
+                                $od_pid = '';
+                                if (!empty($t_res)) {
+                                    $od_pid = (strpos($t_res[0]['txn_id'], 'pay_') === 0) ? $t_res[0]['txn_id'] : ((strpos($t_res[0]['payu_txn_id'], 'pay_') === 0) ? $t_res[0]['payu_txn_id'] : (!empty($t_res[0]['txn_id']) ? $t_res[0]['txn_id'] : $t_res[0]['payu_txn_id']));
+                                }
+                                if (empty($od_pid)) {
+                                    $db->sql("SELECT payment_id FROM razorpay_orders WHERE local_order_id = '$ID' AND payment_id != '' ORDER BY id DESC LIMIT 1");
+                                    $rp_res = $db->getResult();
+                                    if (!empty($rp_res)) {
+                                        $od_pid = $rp_res[0]['payment_id'];
+                                    }
+                                }
+                                if (!empty($od_pid)) {
+                            ?>
+                            <tr>
+                                <th style="width: 10px">Payment ID</th>
+                                <td><code style="font-size:12px;color:#0073b7;font-weight:bold;"><?=htmlspecialchars($od_pid)?></code></td>
+                            </tr>
+                            <?php 
+                                }
+                            }
+                            ?>
                             <tr>
                                 <th style="width: 10px">Promo Code</th>
                                 <td ><?=(!empty($res[0]['promo_code']) || $res[0]['promo_code'] != null)?$res[0]['promo_code']:""; ?></td>

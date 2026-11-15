@@ -75,9 +75,9 @@ if ($page) {
 // get all data from reservation table
 
 if (empty($keyword)) {
-                     $sql_query = "SELECT t.id,u.name,t.user_id,t.order_id,t.type,t.payu_txn_id,t.amount,t.status,t.message,t.transaction_date,o.`zone_id`,o.delivery_charge,o.platform_fee,o.convenience_fee,o.tax_amount ".$txn_from." WHERE 1=1".$txn_zone_sql." ORDER BY t.id ASC ";
+                     $sql_query = "SELECT t.id,u.name,t.user_id,t.order_id,t.type,t.payu_txn_id,t.amount,t.status,t.message,t.transaction_date,o.`zone_id`,o.delivery_charge,o.platform_fee,o.convenience_fee,o.tax_amount ".$txn_from." WHERE 1=1".$txn_zone_sql." ORDER BY t.id DESC ";
 } else {
-    $sql_query = "SELECT t.id,u.name,t.user_id,t.order_id,t.type,t.payu_txn_id,t.amount,t.status,t.message,t.transaction_date,o.`zone_id`,o.delivery_charge,o.platform_fee,o.convenience_fee,o.tax_amount ".$txn_from." WHERE (t.id LIKE '%".$keyword."%' OR t.user_id LIKE '%".$keyword."%' OR u.name LIKE '%".$keyword."%' OR o.`zone_id` LIKE '%".$keyword."%')".$txn_zone_sql." ORDER BY t.id ASC";
+    $sql_query = "SELECT t.id,u.name,t.user_id,t.order_id,t.type,t.payu_txn_id,t.amount,t.status,t.message,t.transaction_date,o.`zone_id`,o.delivery_charge,o.platform_fee,o.convenience_fee,o.tax_amount ".$txn_from." WHERE (t.id LIKE '%".$keyword."%' OR t.user_id LIKE '%".$keyword."%' OR u.name LIKE '%".$keyword."%' OR o.`zone_id` LIKE '%".$keyword."%')".$txn_zone_sql." ORDER BY t.id DESC";
                     
             //$sql_query = "SELECT t.id,u.name,user_id,order_id,type,payu_txn_id, amount, t.status, message, transaction_date FROM transactions t INNER JOIN users u ON t.user_id = u.id where t.id LIKE '%".$keyword."%' ORDER BY id ASC LIMIT ".$from.",".$offset."";
 }
@@ -138,6 +138,7 @@ if ($total_records_paging == 0) {
                                 <button type="submit" class="btn btn-default" style="margin-left:5px;"><i class="fa fa-filter"></i> Apply</button>
                             </form>
                             <table class="table table-hover" data-toggle="table"
+                            data-sort-name="id" data-sort-order="desc"
                             data-page-list="[5, 10, 20, 50, 100, 200]"
                         data-show-refresh="true"
                         data-side-pagination="client" data-pagination="true"
@@ -149,20 +150,20 @@ if ($total_records_paging == 0) {
                         data-export-footer="true"
                         >
                                 <thead>
-                                    <th data-field="id" data-footer-formatter="transTotalLabel">Transaction ID</th>
-                                    <th data-field="name">User Name</th>
-                                    <th data-field="zone">Zone</th>
-                                    <th data-field="order_id">Order ID</th>
-                                    <th data-field="type">Type</th>
-                                    <th data-field="payu_txn_id">TXN ID</th>
-                                    <th data-field="delivery_charge" data-align="right" data-footer-formatter="transMoneyFormatter">Delivery Charge (&#8377;)</th>
-                                    <th data-field="platform_fee" data-align="right" data-footer-formatter="transMoneyFormatter">Platform Fee (&#8377;)</th>
-                                    <th data-field="convenience_fee" data-align="right" data-footer-formatter="transMoneyFormatter">Convenience Fee (&#8377;)</th>
-                                    <th data-field="tax_amount" data-align="right" data-footer-formatter="transMoneyFormatter">GST (&#8377;)</th>
-                                    <th data-field="amount" data-align="right" data-footer-formatter="transMoneyFormatter">Amount (&#8377;)</th>
-                                    <th data-field="status">Status</th>
+                                    <th data-field="id" data-sortable="true" data-sorter="numericSorter" data-footer-formatter="transTotalLabel">Transaction ID</th>
+                                    <th data-field="name" data-sortable="true">User Name</th>
+                                    <th data-field="zone" data-sortable="true">Zone</th>
+                                    <th data-field="order_id" data-sortable="true">Order ID</th>
+                                    <th data-field="type" data-sortable="true">Type</th>
+                                    <th data-field="payu_txn_id" data-sortable="false">TXN ID</th>
+                                    <th data-field="delivery_charge" data-sortable="true" data-sorter="numericSorter" data-align="right" data-footer-formatter="transMoneyFormatter">Delivery Charge (&#8377;)</th>
+                                    <th data-field="platform_fee" data-sortable="true" data-sorter="numericSorter" data-align="right" data-footer-formatter="transMoneyFormatter">Platform Fee (&#8377;)</th>
+                                    <th data-field="convenience_fee" data-sortable="true" data-sorter="numericSorter" data-align="right" data-footer-formatter="transMoneyFormatter">Convenience Fee (&#8377;)</th>
+                                    <th data-field="tax_amount" data-sortable="true" data-sorter="numericSorter" data-align="right" data-footer-formatter="transMoneyFormatter">GST (&#8377;)</th>
+                                    <th data-field="amount" data-sortable="true" data-sorter="numericSorter" data-align="right" data-footer-formatter="transMoneyFormatter">Amount (&#8377;)</th>
+                                    <th data-field="status" data-sortable="true">Status</th>
                                     <th data-field="message">Message</th>
-                                    <th data-field="transaction_date">Transaction Date</th>
+                                    <th data-field="transaction_date" data-sortable="true">Transaction Date</th>
                                 </thead>
                                 <tbody>
                                 <?php
@@ -195,6 +196,11 @@ if ($total_records_paging == 0) {
 
                             </table>
                             <script>
+                            function numericSorter(a, b) {
+                                var numA = parseFloat(String(a).replace(/[^0-9.\-]/g, '')) || 0;
+                                var numB = parseFloat(String(b).replace(/[^0-9.\-]/g, '')) || 0;
+                                return numA - numB;
+                            }
                             function transTotalLabel() {
                                 return '<span style="color:green;font-weight:bold;font-size:large;">TOTAL</span>';
                             }

@@ -259,12 +259,18 @@ if (empty($_SESSION['csrf_token'])) {
 				<li <?php if($page=="Orders"){?> class="current" <?php } ?>>		
 					<a class="waves-effect" href="orders.php"><i class="menu-icon ti-shopping-cart"></i><span>Order</span><span class="notice notice-blue"><?php if(empty($res11[0]['active_orders_count'])){echo '0';}else{ echo $res11[0]['active_orders_count']; }?></span></a>
 				</li>
+				<?php if($_SESSION['role'] != 'seller'){ ?>
 				<li <?php if($page=="Incomplete Orders" || $page=="Incomplete Orders & Payment Recovery"){?> class="current" <?php } ?>>
 					<a class="waves-effect" href="incomplete-orders.php"><i class="menu-icon ti-alert"></i><span>Incomplete Order</span><span class="notice notice-blue"><?php if(empty($res11[0]['inactive_orders_count'])){echo '0';}else{ echo $res11[0]['inactive_orders_count']; }?></span></a>
 				</li>
+				<?php } ?>
 			<?php endif; ?>
 				<!-- Seller links -->
 	<?php if($_SESSION['role'] =='seller'){ ?>
+		<?php 
+		$is_admin_mode_menu = (isset($_SESSION['secretlogin']) && $_SESSION['secretlogin'] == 'yes');
+		if($is_admin_mode_menu){ 
+		?>
 				<li <?php if($page=="Manage Category"){?> class="current" <?php } ?>>
 					<a class="waves-effect" href="manage-category.php"><i class="menu-icon ti-view-list-alt"></i><span>Manage Category</span></a>
 				</li>
@@ -288,8 +294,12 @@ if (empty($_SESSION['csrf_token'])) {
 							<a href="bulk-edit-product.php" <?php if($page=="Bulk Upload Products"){?>class="active"<?php } ?>>Bulk Edit Products</a>
 						</li>
 					</ul>
-				</li>				
-
+				</li>
+		<?php } else { ?>
+				<li <?php if($page=="Products"){?> class="current" <?php } ?>>
+					<a class="waves-effect" href="products.php"><i class="menu-icon ti-package"></i><span>Products</span></a>
+				</li>
+		<?php } ?>
 	<?php }else{ ?>
 
 				<?php if(!$is_sub_admin || !empty($permissions['categories']['read'])): ?>
@@ -502,14 +512,8 @@ if (empty($_SESSION['csrf_token'])) {
 	<?php if($_SESSION['role'] =='seller'){ ?>
 			<h5 class="title">Additions</h5>
 			<ul class="menu js__accordion">		
-				<li <?php if($page=="Promo Code"){?>class="current"<?php } ?>>
-					<a class="waves-effect" href="promo-code.php"><i class="menu-icon ti-wand"></i><span>Promo code</span></a>
-				</li>	
 				<li <?php if($page=="Product Rating"){?> class="current" <?php } ?>>    			
 					<a class="waves-effect" href="product_rating.php"><i class="menu-icon ti-star"></i><span>Product Rating</span></a>
-				</li>	
-				<li <?php if($page=="Return Requests"){?>class="current"<?php } ?>>
-					<a class="waves-effect" href="return-requests.php"><i class="menu-icon ti-truck"></i><span>Return Requests</span></a>
 				</li>	
 				<li <?php if($page=="Seller Store Setting"){?>class="current"<?php } ?>>
 					<a class="waves-effect" href="seller-store-settings.php"><i class="menu-icon ti-settings"></i><span>Settings</span></a>
@@ -518,7 +522,9 @@ if (empty($_SESSION['csrf_token'])) {
 					<a class="waves-effect parent-item js__control" href="#"><i class="menu-icon ti-agenda"></i><span>Reports</span><span class="menu-arrow fa fa-angle-down"></span></a>
 					<ul class="sub-menu js__content" <?php if($page=="Sales Report" || $page=="Invoice Reports" || $page=="High Buying Customers Report" || $page=="Highest Selling Products Report" || $page=="Month wise Product Sales Report"){?>style="display: block;"<?php } ?>>
 						<li <?php if($page=="Sales Report"){?>class="current"<?php }?>><a <?php if($page=="Sales Report"){?>class="active"<?php }?> href="sales-report.php">Sales Report</a></li>
+						<?php if(isset($_SESSION['secretlogin']) && $_SESSION['secretlogin'] == 'yes'){ ?>
 						<li <?php if($page=="Invoice Reports"){?>class="current"<?php }?>><a <?php if($page=="Invoice Reports"){?>class="active"<?php }?> href="invoices.php">Invoice Report</a></li>
+						<?php } ?>
 						<li <?php if($page=="High Buying Customers Report"){?>class="current"<?php }?>><a <?php if($page=="High Buying Customers Report"){?>class="active"<?php }?> href="high-buying-customer.php">High Buying Customers</a></li>
 						<li <?php if($page=="Highest Selling Products Report"){?>class="current"<?php }?>><a  <?php if($page=="Highest Selling Products Report"){?>class="active"<?php } ?> href="high-sell-products.php">Highest Selling Products</a></li>
 					</ul>

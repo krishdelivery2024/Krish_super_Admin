@@ -1,7 +1,11 @@
 <?php $page="Incomplete Orders & Payment Recovery";
 include"header.php";?>
 <?php
-if(!empty($permissions['orders']['read']) || (isset($_SESSION['role']) && ($_SESSION['role'] == 'admin' || $_SESSION['role'] == 'super admin' || $_SESSION['role'] == 'seller'))) { 
+if(isset($_SESSION['role']) && $_SESSION['role'] == 'seller'){
+    echo "<script>location.href = 'home.php';</script>";
+    exit();
+}
+if(!empty($permissions['orders']['read']) || (isset($_SESSION['role']) && ($_SESSION['role'] == 'admin' || $_SESSION['role'] == 'super admin'))) { 
 ?>
 <style>
 .uppercase {

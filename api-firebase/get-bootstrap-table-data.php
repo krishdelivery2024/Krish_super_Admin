@@ -83,7 +83,10 @@
 			'promo_discount'  => 'o.promo_discount',
 			'wallet_balance'  => 'o.wallet_balance',
 			'final_total'     => 'o.final_total',
+			'vendor_total'    => 'o.total',
+			'seller_received' => 'o.total',
 			'payment_method'  => 'o.payment_method',
+			'payment_id'      => 'o.id',
 			'address'         => 'o.address',
 			'delivery_time'   => 'o.delivery_time',
 			'active_status'   => 'o.active_status',
@@ -120,7 +123,7 @@
 		if(isset($_GET['search']) && !empty($_GET['search'])){
 			$search = $db->escapeString($_GET['search']);
 			// All columns fully qualified now -> fixes the "ambiguous column 'name'" fatal error
-			$where .= " AND (u.name like '%".$search."%' OR o.id like '%".$search."%' OR o.mobile like '%".$search."%' OR o.address like '%".$search."%' OR o.`payment_method` like '%".$search."%' OR o.`delivery_charge` like '%".$search."%' OR o.`delivery_time` like '%".$search."%' OR o.`status` like '%".$search."%' OR o.`date_added` like '%".$search."%' OR s.name like '%".$search."%' OR s.mobile like '%".$search."%')";
+			$where .= " AND (u.name like '%".$search."%' OR o.id like '%".$search."%' OR o.mobile like '%".$search."%' OR o.address like '%".$search."%' OR o.`payment_method` like '%".$search."%' OR o.`delivery_charge` like '%".$search."%' OR o.`delivery_time` like '%".$search."%' OR o.`status` like '%".$search."%' OR o.`date_added` like '%".$search."%' OR s.name like '%".$search."%' OR s.mobile like '%".$search."%' OR o.id IN (SELECT order_id FROM transactions WHERE txn_id LIKE '%".$search."%' OR payu_txn_id LIKE '%".$search."%') OR o.id IN (SELECT local_order_id FROM razorpay_orders WHERE payment_id LIKE '%".$search."%'))";
 		}
 
         if(isset($_GET['filter_order']) && $_GET['filter_order']!=''){
@@ -166,6 +169,49 @@
     		$db->sql($sql);
     		$res[$i]['items'] = $db->getResult();
 	    }
+		// Fetch payment IDs for online orders in batch
+		$order_payment_ids = array();
+		if (!empty($res)) {
+			$all_oids = array_filter(array_map('intval', array_column($res, 'id')));
+			if (!empty($all_oids)) {
+				$oids_str = implode(',', $all_oids);
+				$db->sql("SELECT order_id, txn_id, payu_txn_id FROM transactions WHERE order_id IN ($oids_str) AND (txn_id != '' OR payu_txn_id != '') ORDER BY id DESC");
+				$txns_res = $db->getResult();
+				if (!empty($txns_res)) {
+					foreach ($txns_res as $tr) {
+						$oid = (int)$tr['order_id'];
+						if (!isset($order_payment_ids[$oid])) {
+							$tid = trim((string)$tr['txn_id']);
+							$ptid = trim((string)$tr['payu_txn_id']);
+							if (strpos($tid, 'pay_') === 0) {
+								$order_payment_ids[$oid] = $tid;
+							} elseif (strpos($ptid, 'pay_') === 0) {
+								$order_payment_ids[$oid] = $ptid;
+							} elseif (!empty($tid) && $tid !== '0') {
+								$order_payment_ids[$oid] = $tid;
+							} elseif (!empty($ptid) && $ptid !== '0') {
+								$order_payment_ids[$oid] = $ptid;
+							}
+						}
+					}
+				}
+				$missing_oids = array_diff($all_oids, array_keys($order_payment_ids));
+				if (!empty($missing_oids)) {
+					$missing_str = implode(',', $missing_oids);
+					$db->sql("SELECT local_order_id, payment_id FROM razorpay_orders WHERE local_order_id IN ($missing_str) AND payment_id != '' ORDER BY id DESC");
+				$rps_res = $db->getResult();
+				if (!empty($rps_res)) {
+					foreach ($rps_res as $rr) {
+						$oid = (int)$rr['local_order_id'];
+						if (!isset($order_payment_ids[$oid]) && !empty($rr['payment_id'])) {
+							$order_payment_ids[$oid] = trim((string)$rr['payment_id']);
+						}
+					}
+				}
+			}
+		}
+	}
+
 		$bulkData = array();
 		$bulkData['total'] = $total;
 		$rows = array();
@@ -254,10 +300,46 @@
 			$tempRow['tax'] = $row['tax_amount'].'('.$row['tax_percentage'].'%)';
 			$tempRow['promo_discount'] = $row['promo_discount'];
 			$tempRow['wallet_balance'] = $row['wallet_balance'];
-			$tempRow['final_total'] = ($row['final_total']);
+			$order_vt = 0.0;
+			if (!empty($row['items'])) {
+				foreach ($row['items'] as $it) {
+					$v_price = !empty($it['vendor_price']) ? (float)$it['vendor_price'] : (!empty($it['price']) ? (float)$it['price'] : 0);
+					$qty = !empty($it['quantity']) ? (int)$it['quantity'] : 1;
+					$order_vt += ($v_price * $qty);
+				}
+			}
+			$s_comm = (isset($row['seller_commission']) && $row['seller_commission'] !== '' && floatval($row['seller_commission']) > 0)
+				? floatval($row['seller_commission'])
+				: (isset($row['commission']) && $row['commission'] !== '' ? floatval($row['commission']) : 0.0);
+			$order_seller_recv = round($order_vt * (1 - ($s_comm / 100)), 2);
+
+			$tempRow['vendor_total'] = number_format($order_vt, 2, '.', '');
+			$tempRow['seller_received'] = number_format($order_seller_recv, 2, '.', '');
+
+			$is_admin_mode_ord = (isset($_SESSION['secretlogin']) && $_SESSION['secretlogin'] == 'yes') || (isset($_SESSION['role']) && in_array($_SESSION['role'], array('admin', 'super admin')));
+			$is_restricted_seller_ord = (isset($_SESSION['role']) && $_SESSION['role'] == 'seller' && !$is_admin_mode_ord);
+			if ($is_restricted_seller_ord) {
+				$tempRow['final_total'] = number_format($order_vt, 2, '.', '');
+			} else {
+				$tempRow['final_total'] = ($row['final_total']);
+			}
 			$tempRow['promo_code'] = !empty($row['promo_code']) ? $row['promo_code'] : '-';
 			$tempRow['deliver_by'] = !empty($row['delivery_boy_name']) ? $row['delivery_boy_name'] : (!empty($row['items'][0]['deliver_by']) ? $row['items'][0]['deliver_by'] : (!empty($row['delivery_boy_id']) ? $row['delivery_boy_id'] : '-'));
-			$tempRow['payment_method'] = strtoupper($row['payment_method']);
+			$raw_pm = strtolower(trim((string)$row['payment_method']));
+			$is_online_pm = (!empty($raw_pm) && !in_array($raw_pm, array('cod', 'cash on delivery', 'wallet')));
+			$pay_id = isset($order_payment_ids[(int)$row['id']]) ? $order_payment_ids[(int)$row['id']] : '';
+
+			$pm_text = strtoupper($row['payment_method']);
+			if (!empty($pay_id)) {
+				$tempRow['payment_method'] = $pm_text . '<br><small class="text-muted" style="font-family:monospace;font-size:10px;">' . htmlspecialchars($pay_id) . '</small>';
+				$tempRow['payment_id'] = '<code style="color:#0073b7;font-weight:bold;font-size:11px;">' . htmlspecialchars($pay_id) . '</code>';
+			} elseif ($is_online_pm) {
+				$tempRow['payment_method'] = $pm_text;
+				$tempRow['payment_id'] = '<span class="text-muted" style="font-size:11px;">-</span>';
+			} else {
+				$tempRow['payment_method'] = $pm_text;
+				$tempRow['payment_id'] = '<span class="text-muted">-</span>';
+			}
 			$tempRow['address'] = $row['address'];
 			$tempRow['delivery_time'] = $row['delivery_time'];
 			$tempRow['status'] = $status;
@@ -345,7 +427,21 @@
 				$tempRow['wallet_balance'] = 0;
 				$tempRow['final_total'] = !empty($row['grand_total']) ? $row['grand_total'] : $row['total_price'];
 				$tempRow['deliver_by'] = $row['boy_name'];
-				$tempRow['payment_method'] = $row['payment_method'];
+				$p_raw_pm = strtolower(trim((string)$row['payment_method']));
+				$p_is_online = (!empty($p_raw_pm) && !in_array($p_raw_pm, array('cod', 'cash on delivery', 'wallet')));
+				$p_pay_id = !empty($row['payment_id']) ? trim((string)$row['payment_id']) : '';
+
+				$p_pm_text = strtoupper($row['payment_method']);
+			if (!empty($p_pay_id)) {
+				$tempRow['payment_method'] = $p_pm_text . '<br><small class="text-muted" style="font-family:monospace;font-size:10px;">' . htmlspecialchars($p_pay_id) . '</small>';
+				$tempRow['payment_id'] = '<code style="color:#0073b7;font-weight:bold;font-size:11px;">' . htmlspecialchars($p_pay_id) . '</code>';
+			} elseif ($p_is_online) {
+				$tempRow['payment_method'] = $p_pm_text;
+				$tempRow['payment_id'] = '<span class="text-muted" style="font-size:11px;">-</span>';
+			} else {
+				$tempRow['payment_method'] = $p_pm_text;
+				$tempRow['payment_id'] = '<span class="text-muted">-</span>';
+			}
 				$tempRow['address'] = $row['drop_location'];
 				$tempRow['delivery_time'] = $row['pickup_time'];
 				$tempRow['status'] = '';
@@ -903,7 +999,7 @@
 		
 		$offset = 0; $limit = 10000;
 		$sort = 'id'; $order = 'ASC';
-		$where = "WHERE p.`seller_id` = $seller_id";
+		$where = "WHERE p.`seller_id` = $seller_id AND p.`is_active` = 1";
 		
 		if(isset($_GET['offset']))
 			$offset = $_GET['offset'];
@@ -995,7 +1091,17 @@
 		$offset = 0; $limit = 10;
 		$sort = 'id'; $order = 'ASC';
 		
-		$where = "WHERE p.`seller_id` = $seller_id";
+		$target_seller_id = !empty($seller_id) ? (int)$seller_id : 0;
+		if (isset($_SESSION['seller_id']) && !empty($_SESSION['seller_id'])) {
+			$target_seller_id = (int)$_SESSION['seller_id'];
+		}
+		if (isset($_GET['seller_id']) && !empty($_GET['seller_id'])) {
+			$target_seller_id = (int)$_GET['seller_id'];
+		}
+		$where = "WHERE p.`is_active` = 1";
+		if($target_seller_id > 0){
+			$where .= " AND p.`seller_id` = " . $target_seller_id;
+		}
 
 		if(isset($_GET['offset']))
 			$offset = (int)$_GET['offset'];
@@ -1078,6 +1184,88 @@
 			$tempRow['image'] = "<a data-lightbox='product' href='".$row['image']."' data-caption='".$row['name']."'><img src='".$row['image']."' title='".$row['name']."' style='height:50px !important' /></a>";
 			$tempRow['operate'] = $operate;
 			$rows[] = $tempRow;
+		}
+		$bulkData['rows'] = $rows;
+		print_r(json_encode($bulkData));
+	}
+
+	if(isset($_GET['table']) && $_GET['table'] == 'seller_products'){
+		$offset = 0; $limit = 20;
+		$sort = 'p.id'; $order = 'DESC';
+		
+		$target_seller_id = !empty($seller_id) ? (int)$seller_id : (isset($_SESSION['id']) ? (int)$_SESSION['id'] : 0);
+		if (isset($_SESSION['seller_id']) && !empty($_SESSION['seller_id'])) {
+			$target_seller_id = (int)$_SESSION['seller_id'];
+		}
+		if (isset($_GET['seller_id']) && !empty($_GET['seller_id'])) {
+			$target_seller_id = (int)$_GET['seller_id'];
+		}
+		$where = "WHERE p.`seller_id` = " . $target_seller_id . " AND p.`is_active` = 1";
+
+		if(isset($_GET['offset']))
+			$offset = (int)$_GET['offset'];
+
+		if(isset($_GET['limit']))
+			$limit = (int)$_GET['limit'];
+
+		if(isset($_GET['sort'])) {
+			if($_GET['sort'] == 'id') $sort = 'p.id';
+			else if($_GET['sort'] == 'name') $sort = 'p.name';
+			else if($_GET['sort'] == 'vendor_price') $sort = 'pv.vendor_price';
+			else $sort = 'p.id';
+		}
+
+		if(isset($_GET['order']))
+			$order = strtoupper($_GET['order']) === 'ASC' ? 'ASC' : 'DESC';
+
+		if(isset($_GET['search']) && $_GET['search'] != '') {
+			$search = $db->escapeString($_GET['search']);
+			$where .= " AND (p.`id` LIKE '%$search%' OR p.`name` LIKE '%$search%' OR pv.`vendor_price` LIKE '%$search%')";
+		}
+
+		$join = "JOIN `product_variant` pv ON pv.product_id = p.id
+				LEFT JOIN `unit` u ON u.id = pv.measurement_unit_id";
+		
+		$sql = "SELECT COUNT(pv.id) as `total` FROM `products` p $join ".$where;
+		$db->sql($sql);
+		$res = $db->getResult();
+		$total = isset($res[0]['total']) ? (int)$res[0]['total'] : 0;
+		
+        $sql = "SELECT p.id AS id, pv.id AS variant_id, p.name, pv.vendor_price, pv.measurement, pv.serve_for, u.short_code, p.status
+            FROM `products` p
+            $join 
+            $where ORDER BY $sort $order LIMIT $offset, $limit";
+		$db->sql($sql);
+		$res = $db->getResult();
+
+		$bulkData = array();
+		$bulkData['total'] = $total;
+		$rows = array();
+		
+		$currency = $fn->get_settings('currency', false);
+		if(empty($currency)) $currency = '₹';
+
+		if(!empty($res)){
+			foreach($res as $row){
+				$tempRow = array();
+				$tempRow['id'] = $row['id'];
+				$m_text = !empty($row['measurement']) ? trim($row['measurement'] . ' ' . $row['short_code']) : '';
+				$tempRow['name'] = htmlspecialchars($row['name']) . (!empty($m_text) ? ' <small class="text-muted">(' . htmlspecialchars($m_text) . ')</small>' : '');
+				
+				$v_price = (float)$row['vendor_price'];
+				$tempRow['vendor_price'] = $currency . ' ' . number_format($v_price, 2);
+
+				$serve_for = trim((string)$row['serve_for']);
+				$is_avail = (strcasecmp($serve_for, 'Sold Out') !== 0 && strcasecmp($serve_for, 'Sold') !== 0 && (int)$row['status'] == 1);
+
+				$action = '<div class="btn-group btn-group-xs">';
+				$action .= '<button type="button" class="btn btn-xs btn-avail ' . ($is_avail ? 'btn-success active' : 'btn-default') . ' btn-set-avail" data-id="'.$row['id'].'" data-variant-id="'.$row['variant_id'].'" data-status="Available" title="Mark as Available"><i class="fa fa-check"></i> Available</button>';
+				$action .= '<button type="button" class="btn btn-xs btn-sold ' . (!$is_avail ? 'btn-danger active' : 'btn-default') . ' btn-set-avail" data-id="'.$row['id'].'" data-variant-id="'.$row['variant_id'].'" data-status="Sold Out" title="Mark as Sold"><i class="fa fa-times"></i> Sold</button>';
+				$action .= '</div>';
+
+				$tempRow['action'] = $action;
+				$rows[] = $tempRow;
+			}
 		}
 		$bulkData['rows'] = $rows;
 		print_r(json_encode($bulkData));
@@ -3996,7 +4184,15 @@ if ($role === 'sub admin') {
                 : array('-');
      
             $tempRow['order_date']     = !empty($row['date_added']) ? date('d-m-Y H:i', strtotime($row['date_added'])) : '-';
-            $tempRow['final_total']    = $row['final_total'];
+            $is_admin_mode_sales = (isset($_SESSION['secretlogin']) && $_SESSION['secretlogin'] == 'yes') || (isset($_SESSION['role']) && in_array($_SESSION['role'], array('admin', 'super admin')));
+            $is_restricted_seller_sales = ($is_seller && !$is_admin_mode_sales);
+            if ($is_restricted_seller_sales) {
+                $vp_items = !empty($row['vendor_price_list']) ? explode('||', $row['vendor_price_list']) : array();
+                $order_vendor_total = array_sum(array_map('floatval', $vp_items));
+                $tempRow['final_total'] = number_format($order_vendor_total, 2, '.', '');
+            } else {
+                $tempRow['final_total']    = $row['final_total'];
+            }
             // Read from the order instead of a hardcoded 2, so a zone that
             // overrides the platform fee reports what was actually charged.
             $tempRow['platform_fee']   = !empty($row['platform_fee']) ? $row['platform_fee'] : '0';
@@ -4130,42 +4326,49 @@ if ($role === 'sub admin') {
                 $tempRow['refund_action'] = '';
             }
      
-            // Seller/Vendor-price/Discount fields only for non-seller roles
+            // Vendor price, Commission (%) to the seller, Commission amount per product, and what seller received
+            $tempRow['vendor_price'] = !empty($row['vendor_price_list'])
+                ? explode('||', $row['vendor_price_list'])
+                : array('0.00');
+
+            $comm_pct = (isset($row['seller_commission']) && $row['seller_commission'] !== '' && floatval($row['seller_commission']) > 0)
+                ? floatval($row['seller_commission'])
+                : $global_seller_comm;
+
+            $vp_list = !empty($row['vendor_price_list']) ? explode('||', $row['vendor_price_list']) : array();
+            $seller_received_list = array();
+            $commission_amount_list = array();
+            $total_comm_amt = 0.0;
+            $total_seller_recv = 0.0;
+
+            foreach ($vp_list as $vp_val) {
+                $vp_num = floatval($vp_val);
+                $comm_for_item = round(($vp_num * $comm_pct) / 100, 2);
+                $seller_recv = round($vp_num - $comm_for_item, 2);
+                if ($seller_recv < 0) { $seller_recv = 0.0; }
+                $seller_received_list[] = number_format($seller_recv, 2, '.', '');
+                $commission_amount_list[] = number_format($comm_for_item, 2, '.', '');
+                $total_comm_amt += $comm_for_item;
+                $total_seller_recv += $seller_recv;
+            }
+            if (empty($seller_received_list)) {
+                $seller_received_list = array('0.00');
+            }
+            if (empty($commission_amount_list)) {
+                $commission_amount_list = array('0.00');
+            }
+
+            $tempRow['commission_percent'] = $comm_pct . '%';
+            $tempRow['commission_amount']  = $commission_amount_list;
+            $tempRow['seller_received']    = $seller_received_list;
+            $tempRow['total_seller_received'] = number_format($total_seller_recv, 2, '.', '');
+
             if (!$is_seller) {
                 $tempRow['seller_name']   = !empty($row['seller_name']) ? $row['seller_name'] : '-';
                 $tempRow['seller_mobile'] = !empty($row['seller_mobile']) ? $row['seller_mobile'] : '-';
-     
-                $tempRow['vendor_price'] = !empty($row['vendor_price_list'])
-                    ? explode('||', $row['vendor_price_list'])
-                    : array('0');
-     
                 $tempRow['discounted_price'] = !empty($row['discounted_price_list'])
                     ? explode('||', $row['discounted_price_list'])
                     : array('0');
-
-                $comm_pct = (isset($row['seller_commission']) && $row['seller_commission'] !== '' && floatval($row['seller_commission']) > 0)
-                    ? floatval($row['seller_commission'])
-                    : $global_seller_comm;
-
-                $vp_list = !empty($row['vendor_price_list']) ? explode('||', $row['vendor_price_list']) : array();
-                $seller_received_list = array();
-                $total_comm_amt = 0.0;
-
-                foreach ($vp_list as $vp_val) {
-                    $vp_num = floatval($vp_val);
-                    $comm_for_item = round(($vp_num * $comm_pct) / 100, 2);
-                    $seller_recv = round($vp_num - $comm_for_item, 2);
-                    if ($seller_recv < 0) { $seller_recv = 0.0; }
-                    $seller_received_list[] = number_format($seller_recv, 2, '.', '');
-                    $total_comm_amt += $comm_for_item;
-                }
-                if (empty($seller_received_list)) {
-                    $seller_received_list = array('0.00');
-                }
-
-                $tempRow['commission_percent'] = $comm_pct . '%';
-                $tempRow['commission_amount']  = number_format($total_comm_amt, 2, '.', '');
-                $tempRow['seller_received']    = $seller_received_list;
             }
      
             $rows[] = $tempRow;

@@ -2,6 +2,10 @@
 $page="Home";
 include"header.php";
 
+$is_seller = (isset($_SESSION['role']) && $_SESSION['role'] == 'seller');
+$is_admin_mode = (isset($_SESSION['secretlogin']) && $_SESSION['secretlogin'] == 'yes') || (isset($_SESSION['role']) && in_array($_SESSION['role'], array('admin', 'super admin')));
+$is_restricted_seller = ($is_seller && !$is_admin_mode);
+
 /* ---------- Zone filter + zone wise data ---------- */
 $my_zone_scope = $fn->get_zone_scope($_SESSION['id']);
 $selected_zone = isset($_GET['zone_id']) ? (int)$_GET['zone_id'] : 0;
@@ -110,16 +114,19 @@ if($selected_zone > 0){
 }
 
 /* Customers KPI - distinct users having an address in the zone */
-if($selected_zone > 0){
-	$db->sql("SELECT COUNT(DISTINCT user_id) AS total FROM user_address WHERE zone_id='".$selected_zone."'");
-	$res_cus = $db->getResult();
-	$customers_kpi = isset($res_cus[0]['total']) ? $res_cus[0]['total'] : 0;
-} else if(!empty($my_zone_scope)){
-	$db->sql("SELECT COUNT(DISTINCT user_id) AS total FROM user_address WHERE zone_id".$scope_sql);
-	$res_cus = $db->getResult();
-	$customers_kpi = isset($res_cus[0]['total']) ? $res_cus[0]['total'] : 0;
-} else {
-	$customers_kpi = $function->rows_count('users');
+$customers_kpi = 0;
+if($_SESSION['role'] != 'seller'){
+	if($selected_zone > 0){
+		$db->sql("SELECT COUNT(DISTINCT user_id) AS total FROM user_address WHERE zone_id='".$selected_zone."'");
+		$res_cus = $db->getResult();
+		$customers_kpi = isset($res_cus[0]['total']) ? $res_cus[0]['total'] : 0;
+	} else if(!empty($my_zone_scope)){
+		$db->sql("SELECT COUNT(DISTINCT user_id) AS total FROM user_address WHERE zone_id".$scope_sql);
+		$res_cus = $db->getResult();
+		$customers_kpi = isset($res_cus[0]['total']) ? $res_cus[0]['total'] : 0;
+	} else {
+		$customers_kpi = $function->rows_count('users');
+	}
 }
 
 /* Parcel Orders KPI - zone filtered */
@@ -248,6 +255,7 @@ $boys_offline_kpi = isset($res_db_kpi[0]['offline_boys_kpi']) ? (int)$res_db_kpi
 				</div></a>
 				<!-- /.box-content -->
 			</div>
+			<?php if($_SESSION['role'] != 'seller'){ ?>
 			<div class="col-xs-6" style="flex:1 1 0;min-width:190px;">
 
 				<a href="customers.php"><div class="box-content">
@@ -260,7 +268,6 @@ $boys_offline_kpi = isset($res_db_kpi[0]['offline_boys_kpi']) ? (int)$res_db_kpi
 				</div></a>
 				<!-- /.box-content -->
 			</div>
-			<?php if($_SESSION['role'] != 'seller'){ ?>
 			<div class="col-xs-6" style="flex:1 1 0;min-width:190px;">
 				<a href="parcel-requests.php"><div class="box-content">
 					<div class="statistics-box with-icon">
@@ -343,26 +350,51 @@ $boys_offline_kpi = isset($res_db_kpi[0]['offline_boys_kpi']) ? (int)$res_db_kpi
 			<div class="col-lg-6 col-md-6 col-sm-12 col-xs-12">
 				<div class="box box-info">
 						<div class="box-header with-border">
-							<h3 class="box-title">Weekly Sales</h3>
+							<h3 class="box-title"><?=($is_seller ? 'Weekly Earnings' : 'Weekly Sales')?></h3>
 				
 							</div>
 					 <?php 
 					 $chart_where = '';
 					 $graph_where = '';
+					 $year = date("Y");
+					 $curdate = date('Y-m-d');
 					if($_SESSION['role'] == 'seller'){
 						$chart_where = "WHERE c.main_cat='$main_cat_id'";
-						$graph_where = "AND seller_id='$seller_id'";
+						$s_comm = 0.0;
+						$db->sql("SELECT commission FROM seller WHERE id = '$seller_id'");
+						$s_res = $db->getResult();
+						if(!empty($s_res) && isset($s_res[0]['commission']) && $s_res[0]['commission'] !== ''){
+							$s_comm = floatval($s_res[0]['commission']);
+						}
+						$sql = "SELECT 
+							DATE(o.date_added) AS order_date,
+							ROUND(SUM(
+								(COALESCE(NULLIF(oi.vendor_price, ''), NULLIF(pv.vendor_price, ''), oi.price, 0) * oi.quantity) * 
+								(1 - (COALESCE(o.seller_commission, $s_comm) / 100))
+							), 2) AS total_sale
+							FROM orders o
+							JOIN order_items oi ON oi.order_id = o.id
+							LEFT JOIN product_variant pv ON pv.id = oi.product_variant_id
+							WHERE o.active_status = 'delivered' 
+							  AND o.seller_id = '$seller_id' 
+							  AND YEAR(o.date_added) = '$year' 
+							  AND DATE(o.date_added) <= '$curdate'
+							GROUP BY DATE(o.date_added) 
+							ORDER BY DATE(o.date_added) DESC 
+							LIMIT 0, 7";
+					} else {
+						if($selected_zone > 0){
+							$graph_where .= " AND zone_id='".$selected_zone."'";
+						} else if(!empty($my_zone_scope)){
+							$graph_where .= " AND zone_id".$scope_sql;
+						}
+						$sql = "SELECT SUM(final_total) AS total_sale,DATE(date_added) AS order_date FROM orders WHERE active_status = 'delivered' AND YEAR(date_added) = '$year' AND DATE(date_added)<='$curdate' $graph_where GROUP BY DATE(date_added) ORDER BY DATE(date_added) DESC LIMIT 0,7";
 					}
-					if($selected_zone > 0){
-						$graph_where .= " AND zone_id='".$selected_zone."'";
-					} else if(!empty($my_zone_scope)){
-						$graph_where .= " AND zone_id".$scope_sql;
-					}
-					 $year = date("Y");
-						$curdate = date('Y-m-d');
-					  $sql = "SELECT SUM(final_total) AS total_sale,DATE(date_added) AS order_date FROM orders WHERE active_status = 'delivered' AND YEAR(date_added) = '$year' AND DATE(date_added)<'$curdate' $graph_where GROUP BY DATE(date_added) ORDER BY DATE(date_added) DESC  LIMIT 0,7";
-						$db->sql($sql);
-						$result_order = $db->getResult(); ?>
+					$db->sql($sql);
+					$result_order = $db->getResult();
+					if(!empty($result_order)){
+						$result_order = array_reverse($result_order);
+					} ?>
 						<div class="tile-stats" style="padding:10px;">
 							<div id="earning_chart" style="width:100%;height:350px;"></div>
 						</div>
@@ -593,11 +625,16 @@ $boys_offline_kpi = isset($res_db_kpi[0]['offline_boys_kpi']) ? (int)$res_db_kpi
 										<thead>
 											<tr>
 												<th data-field="id" data-sortable='true'>O.ID</th>
+												<th data-field="date_added" data-sortable='true' data-visible="true">Order Date</th>
 												<th data-field="user_id" data-sortable='true' data-visible="false">User ID</th>
-												 <th data-field="qty" data-sortable='true' data-visible="false">Qty</th>
-                                                <th data-field="name" data-sortable='true'>U.Name</th>
+												<th data-field="qty" data-sortable='true' data-visible="false">Qty</th>
+												<th data-field="name" data-sortable='true'>U.Name</th>
 												<th data-field="mobile" data-sortable='true' data-visible="true">Mob.</th>
-												<th data-field="items" data-sortable='true' data-visible="false">Items</th>
+												<th data-field="items" data-sortable='true' data-visible="true">Items</th>
+												<?php if($is_restricted_seller){ ?>
+												<th data-field="vendor_total" data-sortable='true' data-visible="true">Vendor Total(<?=$settings['currency']?>)</th>
+												<th data-field="seller_received" data-sortable='true' data-visible="true">Seller Received(<?=$settings['currency']?>)</th>
+												<?php } else { ?>
 												<th data-field="total" data-sortable='true' data-visible="true">Total(<?=$settings['currency']?>)</th>
 												<th data-field="delivery_charge" data-sortable='true'>D.Chrg</th>
 												<th data-field="tax" data-sortable='false'>Tax <?=$settings['currency']?>(%)</th>
@@ -606,16 +643,16 @@ $boys_offline_kpi = isset($res_db_kpi[0]['offline_boys_kpi']) ? (int)$res_db_kpi
 												<th data-field="promo_discount" data-sortable='true' data-visible="true">Promo Disc.(<?=$settings['currency']?>)</th>
 												<th data-field="wallet_balance" data-sortable='true' data-visible="true">Wallet Used(<?=$settings['currency']?>)</th>
 												<th data-field="final_total" data-sortable='true'>F.Total(<?=$settings['currency']?>)</th>
-												<th data-field="deliver_by" data-sortable='true' data-visible='false'>Deliver By</th>
+												<th data-field="vendor_total" data-sortable='true' data-visible="true">Vendor Total(<?=$settings['currency']?>)</th>
+												<th data-field="seller_received" data-sortable='true' data-visible="true">Seller Received(<?=$settings['currency']?>)</th>
 												<th data-field="payment_method" data-sortable='true' data-visible="true">P.Method</th>
+												<?php } ?>
+												<th data-field="deliver_by" data-sortable='true' data-visible='false'>Deliver By</th>
 												<th data-field="address" data-sortable='true' data-visible="false">Address</th>
 												<th data-field="delivery_time" data-sortable='true' data-visible='false'>D.Time</th>
 												<th data-field="status" data-sortable='true' data-visible='false'>Status</th>
 												<th data-field="active_status" data-sortable='true' data-visible='true'>A.Status</th>
-												<th data-field="date_added" data-sortable='true' data-visible="false">O.Date</th>
 												<th data-field="operate">Action</th>
-                                               
-												
 											</tr>
 										</thead>
 									</table>
@@ -691,12 +728,12 @@ function queryParams(p){
             return;
         }
         var data = google.visualization.arrayToDataTable([
-            ['Date', 'Total Sale In <?=$settings['currency']?>']
+            ['Date', '<?=($is_seller ? 'Net Earnings In ' : 'Total Sale In ')?><?=$settings['currency']?>']
         ].concat(rows));
         var options = {
             chart: {
-                title: 'Weekly Sale',
-                subtitle: 'Total Sale In Last Week (Month: <?php echo date("M"); ?>)',
+                title: '<?=($is_seller ? 'Weekly Earnings (Seller Received)' : 'Weekly Sale')?>',
+                subtitle: '<?=($is_seller ? 'Delivered Net Earnings In Last Week (Month: '.date("M").')' : 'Total Sale In Last Week (Month: '.date("M").')')?>',
 				fontName: 'Poppins'
             }
         };
