@@ -111,6 +111,7 @@ if ($event === 'payment.captured') {
 }
 
 http_response_code(200);
+log_razorpay_webhook("Webhook finished. Event: $event. Result: " . json_encode($result));
 echo json_encode(array('status' => 'success', 'result' => $result));
 $db->disconnect();
 ?>

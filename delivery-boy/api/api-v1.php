@@ -584,7 +584,7 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 		}
 	}
 
-	$sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $db->escapeString(trim($fn->xss_clean($_POST['sort']))) : 'id';
+	$sort = (isset($_POST['sort']) && !empty(trim($_POST['sort']))) ? $db->escapeString(trim($fn->xss_clean($_POST['sort']))) : 'o.id';
 	$order = (isset($_POST['order']) && !empty(trim($_POST['order']))) ? $db->escapeString(trim($fn->xss_clean($_POST['order']))) : 'DESC';
 	if (isset($_POST['search']) && !empty(trim($_POST['search']))) {
 		$search = $db->escapeString(trim($fn->xss_clean($_POST['search'])));
@@ -1126,6 +1126,7 @@ if (isset($_POST['get_orders_by_delivery_boy_id'])) {
 		$tempRow['active_status'] = $active_status;
 		$tempRow['wallet_balance'] = number_format((float) $row['wallet_balance'], 2, '.', '');
 		$tempRow['date_added'] = date('d-m-Y', strtotime($row['date_added']));
+		$tempRow['created_at'] = !empty($row['date_added']) ? $row['date_added'] : '';
 
 		$rows1[] = $tempRow;
 
@@ -1465,6 +1466,7 @@ if (isset($_POST['get_parcel_orders'])) {
 		$tempRow['order_date_time'] = !empty($row['created_at']) ? date('d-m-Y h:i A', strtotime($row['created_at'])) : '';
 		$tempRow['active_status'] = $row['status'];
 		$tempRow['date_added'] = date('d-m-Y', strtotime($row['created_at']));
+		$tempRow['created_at'] = !empty($row['created_at']) ? $row['created_at'] : '';
 
 		$rows1[] = $tempRow;
 	}

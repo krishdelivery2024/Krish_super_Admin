@@ -1,6 +1,6 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) {
-    session_start();
+	session_start();
 }
 // Suppress PHP warnings/notices - they must not corrupt the JSON response
 error_reporting(E_ERROR | E_PARSE);
@@ -14,23 +14,23 @@ include_once('../includes/variables.php');
 include_once('verify-token.php');
 include_once('../includes/fcm-helper.php');
 include_once('order-helper.php');
- 
+
 include_once('../api-dunzo/dunzo-api.php');
-$dunzo= new dunzo();
- 
+$dunzo = new dunzo();
+
 $db = new Database();
 $db->connect();
 $db->sql("SET NAMES utf8");
 $function = new custom_functions();
 $fn = new functions();
-$settings = $function->get_settings('system_timezone',true);
+$settings = $function->get_settings('system_timezone', true);
 $app_name = $settings['app_name'];
 $support_email = $settings['support_email'];
-	$config = $function->get_configurations();
-		if(isset($config['system_timezone']) && isset($config['system_timezone_gmt'])){
-			date_default_timezone_set($config['system_timezone']);
-			$db->sql("SET `time_zone` = '".$config['system_timezone_gmt']."'");
-		}else{
+$config = $function->get_configurations();
+if (isset($config['system_timezone']) && isset($config['system_timezone_gmt'])) {
+	date_default_timezone_set($config['system_timezone']);
+	$db->sql("SET `time_zone` = '" . $config['system_timezone_gmt'] . "'");
+} else {
 	date_default_timezone_set('Asia/Kolkata');
 	$db->sql("SET `time_zone` = '+05:30'");
 }
@@ -55,29 +55,29 @@ $support_email = $settings['support_email'];
  loyalty_Points=10
  status:[["received","11-06-2019 12:22:44pm"],["processed","13-06-2019 11:36:49am"],["shipped","13-06-2019 12:07:29pm"],["delivered","13-06-2019 01:57:00pm"]]
  */
- 
+
 $response = array();
- 
- 
-if(isset($_POST['ajaxCall']) && !empty($_POST['ajaxCall'])){
-    $request_type = 'webrequest';
-	$accesskey="90336";	
-}else{
-    $request_type = 'apprequest';
-	if(isset($_POST['accesskey']) && $_POST['accesskey'] != ''){
+
+
+if (isset($_POST['ajaxCall']) && !empty($_POST['ajaxCall'])) {
+	$request_type = 'webrequest';
+	$accesskey = "90336";
+} else {
+	$request_type = 'apprequest';
+	if (isset($_POST['accesskey']) && $_POST['accesskey'] != '') {
 		$accesskey = $db->escapeString($function->xss_clean($_POST['accesskey']));
-	}else{
+	} else {
 		// $response['error']= true;
 		// $response['message']="accesskey required";
 		// print_r(json_encode($response));
 		// return false;
 	}
-	
+
 }
- 
-if($access_key != $accesskey){
-	$response['error']= true;
-	$response['message']="invalid accesskey";
+
+if ($access_key != $accesskey) {
+	$response['error'] = true;
+	$response['message'] = "invalid accesskey";
 	print_r(json_encode($response));
 	return false;
 }
@@ -88,299 +88,332 @@ if($access_key != $accesskey){
 // }
 $myfile = @fopen("logs.txt", "a");
 if ($myfile) {
-    $txt = json_encode($_POST);
-    fwrite($myfile, "\n". $txt);
-    fclose($myfile);
+	$txt = json_encode($_POST);
+	fwrite($myfile, "\n" . $txt);
+	fclose($myfile);
 }
- 
+
 // if(isset($_POST['testing'])){
 //     $function->send_order_confirmation(1);
 // }
 
 if (!function_exists('log_order_debug')) {
-    function log_order_debug($message) {
-        $logPath = "order_debug.log";
-        $myfile = @fopen($logPath, "a");
-        if ($myfile) {
-            fwrite($myfile, date('Y-m-d H:i:s') . " - " . $message . "\n");
-            fclose($myfile);
-        } else {
-            error_log("Could not open order_debug.log at " . $logPath);
-        }
-    }
+	function log_order_debug($message)
+	{
+		$logPath = "order_debug.log";
+		$myfile = @fopen($logPath, "a");
+		if ($myfile) {
+			fwrite($myfile, date('Y-m-d H:i:s') . " - " . $message . "\n");
+			fclose($myfile);
+		} else {
+			error_log("Could not open order_debug.log at " . $logPath);
+		}
+	}
 }
 log_order_debug("Test log: log_order_debug function is accessible and writable");
 
 
 
-if(isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['product_variant_id'])){
-    log_order_debug("Incoming place_order condition met for user: " . $_POST['user_id']);
-    if(!verify_token()){
-        log_order_debug("verify_token failed!");
-        return false;
-    }
+if (isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['product_variant_id'])) {
+	log_order_debug("Incoming place_order condition met for user: " . $_POST['user_id']);
+	if (!verify_token()) {
+		log_order_debug("verify_token failed!");
+		return false;
+	}
 	// echo "test";
-    
-    log_order_debug("Start processing place_order request for user: " . $_POST['user_id']);
 
-    // If webhook already placed this order, return existing order_id
-    if (!empty($_POST['razorpay_order_id'])) {
-        init_razorpay_orders_table($db);
-        $check_rp_id = $db->escapeString($_POST['razorpay_order_id']);
-        $db->sql("SELECT local_order_id FROM razorpay_orders WHERE razorpay_order_id = '$check_rp_id' AND local_order_id > 0 LIMIT 1");
-        $chk_res = $db->getResult();
-        if (!empty($chk_res) && (int)$chk_res[0]['local_order_id'] > 0) {
-            $existing_order_id = (int)$chk_res[0]['local_order_id'];
-            log_order_debug("Order already placed via webhook. Returning existing order_id: " . $existing_order_id);
-            $response['error'] = "false";
-            $response['message'] = "Order placed successfully.";
-            $response['order_id'] = $existing_order_id;
-            print_r(json_encode($response));
-            return true;
-        }
-    }
+	log_order_debug("Start processing place_order request for user: " . $_POST['user_id']);
 
-    // $user_name = $db->escapeString($_POST['user_name']);
+	// If webhook or previous request already placed this order, return existing order_id to prevent duplicates
+	$rp_order_id = !empty($_POST['razorpay_order_id']) ? $db->escapeString($_POST['razorpay_order_id']) : '';
+	$rp_payment_id = !empty($_POST['razorpay_payment_id']) ? $db->escapeString($_POST['razorpay_payment_id']) : (!empty($_POST['payment_id']) ? $db->escapeString($_POST['payment_id']) : '');
+	$rp_lock_name = '';
+
+	if (!empty($rp_order_id) || !empty($rp_payment_id)) {
+		init_razorpay_orders_table($db);
+		$rp_lock_name = 'krish_rp_' . (!empty($rp_order_id) ? $rp_order_id : $rp_payment_id);
+		$db->sql("SELECT GET_LOCK('$rp_lock_name', 10) as lock_acquired");
+
+		// Check if local_order_id already exists in razorpay_orders
+		if (!empty($rp_order_id)) {
+			$db->sql("SELECT local_order_id FROM razorpay_orders WHERE razorpay_order_id = '$rp_order_id' AND local_order_id > 0 LIMIT 1");
+			$chk_res = $db->getResult();
+			if (!empty($chk_res) && (int) $chk_res[0]['local_order_id'] > 0) {
+				$existing_order_id = (int) $chk_res[0]['local_order_id'];
+				$db->sql("SELECT RELEASE_LOCK('$rp_lock_name')");
+				log_order_debug("Order already placed via webhook (rp_order_id: $rp_order_id). Returning existing order_id: " . $existing_order_id);
+				$response['error'] = "false";
+				$response['message'] = "Order placed successfully.";
+				$response['order_id'] = $existing_order_id;
+				print_r(json_encode($response));
+				return true;
+			}
+		}
+
+		// Check if payment_id already linked to an order in transactions
+		if (!empty($rp_payment_id)) {
+			$db->sql("SELECT order_id FROM transactions WHERE txn_id = '$rp_payment_id' AND order_id > 0 LIMIT 1");
+			$chk_tx = $db->getResult();
+			if (!empty($chk_tx) && (int) $chk_tx[0]['order_id'] > 0) {
+				$existing_order_id = (int) $chk_tx[0]['order_id'];
+				$db->sql("SELECT RELEASE_LOCK('$rp_lock_name')");
+				log_order_debug("Order already placed via webhook (rp_payment_id: $rp_payment_id). Returning existing order_id: " . $existing_order_id);
+				$response['error'] = "false";
+				$response['message'] = "Order placed successfully.";
+				$response['order_id'] = $existing_order_id;
+				print_r(json_encode($response));
+				return true;
+			}
+		}
+	}
+
+	// $user_name = $db->escapeString($_POST['user_name']);
 	$user_id = $db->escapeString($function->xss_clean($_POST['user_id']));
 	$seller_id = $db->escapeString($function->xss_clean($_POST['seller_id']));
 	$mobile = $db->escapeString($function->xss_clean($_POST['mobile']));
 	$alternate_mobile = (isset($_POST['alternate_mobile'])) ? $db->escapeString($function->xss_clean($_POST['alternate_mobile'])) : '';
-	if(empty($alternate_mobile) && !empty($user_id)){
+	if (empty($alternate_mobile) && !empty($user_id)) {
 		$db->sql("SELECT alternate_mobile FROM user_address WHERE user_id = '$user_id' AND alternate_mobile != '' ORDER BY is_default DESC LIMIT 1");
 		$alt_res = $db->getResult();
-		if(!empty($alt_res) && !empty($alt_res[0]['alternate_mobile'])){
+		if (!empty($alt_res) && !empty($alt_res[0]['alternate_mobile'])) {
 			$alternate_mobile = $alt_res[0]['alternate_mobile'];
 		}
 	}
 	$name = $db->escapeString($function->xss_clean($_POST['name']));
 	$email = $db->escapeString($function->xss_clean($_POST['email']));
-    $store_id = (isset($_POST['store_id']) && is_numeric($_POST['store_id'])) ? $db->escapeString($function->xss_clean($_POST['store_id'])) : 0;
-	$wallet_balance = (isset($_POST['wallet_balance']) && is_numeric($_POST['wallet_balance']))?$db->escapeString($function->xss_clean($_POST['wallet_balance'])):0;
-	$wallet_used = (isset($_POST['wallet_used']) && $function->xss_clean($_POST['wallet_used']) == 'true')?'true':'false';
+	$store_id = (isset($_POST['store_id']) && is_numeric($_POST['store_id'])) ? $db->escapeString($function->xss_clean($_POST['store_id'])) : 0;
+	$wallet_balance = (isset($_POST['wallet_balance']) && is_numeric($_POST['wallet_balance'])) ? $db->escapeString($function->xss_clean($_POST['wallet_balance'])) : 0;
+	$wallet_used = (isset($_POST['wallet_used']) && $function->xss_clean($_POST['wallet_used']) == 'true') ? 'true' : 'false';
 	$items = $db->escapeString(stripslashes($function->xss_clean($_POST['product_variant_id'])));
 	$total = $db->escapeString($function->xss_clean($_POST['total']));
 	$delivery_method = $db->escapeString($function->xss_clean($_POST['delivery_method']));
 	$delivery_charge = $db->escapeString($function->xss_clean($_POST['delivery_charge']));
-	$discount = (isset($_POST['discount']))?$db->escapeString($function->xss_clean($_POST['discount'])):0;
+	$discount = (isset($_POST['discount'])) ? $db->escapeString($function->xss_clean($_POST['discount'])) : 0;
 	//$tax_percentage = (isset($_POST['tax_percentage']) && is_numeric($_POST['tax_percentage']))?$db->escapeString($function->xss_clean($_POST['tax_percentage'])):'';
-	$tax_amount = (isset($_POST['tax_amount']) && is_numeric($_POST['tax_amount']))?$db->escapeString($function->xss_clean($_POST['tax_amount'])):'';
-	$wallet_balance = (isset($_POST['wallet_balance']) && is_numeric($_POST['wallet_balance']))?$db->escapeString($function->xss_clean($_POST['wallet_balance'])):0;
+	$tax_amount = (isset($_POST['tax_amount']) && is_numeric($_POST['tax_amount'])) ? $db->escapeString($function->xss_clean($_POST['tax_amount'])) : '';
+	$wallet_balance = (isset($_POST['wallet_balance']) && is_numeric($_POST['wallet_balance'])) ? $db->escapeString($function->xss_clean($_POST['wallet_balance'])) : 0;
 	$final_total = $db->escapeString($function->xss_clean($_POST['final_total']));
 	$payment_method = $db->escapeString($function->xss_clean($_POST['payment_method']));
 	$address = $db->escapeString($function->xss_clean($_POST['address']));
-	$delivery_city = (isset($_POST['delivery_city']) && is_numeric($_POST['delivery_city']))?$db->escapeString($function->xss_clean($_POST['delivery_city'])):'';
-    $delivery_state = $db->escapeString($function->xss_clean($_POST['delivery_state']));
-    $delivery_zone = (isset($_POST['delivery_zone']) && is_numeric($_POST['delivery_zone']))?$db->escapeString($function->xss_clean($_POST['delivery_zone'])):0;
-	$gst_no = (isset($_POST['gst_no']))?$db->escapeString($function->xss_clean($_POST['gst_no'])):"";
-	$delivery_time = (isset($_POST['delivery_time']))?$db->escapeString($function->xss_clean($_POST['delivery_time'])):"";
+	$delivery_city = (isset($_POST['delivery_city']) && is_numeric($_POST['delivery_city'])) ? $db->escapeString($function->xss_clean($_POST['delivery_city'])) : '';
+	$delivery_state = $db->escapeString($function->xss_clean($_POST['delivery_state']));
+	$delivery_zone = (isset($_POST['delivery_zone']) && is_numeric($_POST['delivery_zone'])) ? $db->escapeString($function->xss_clean($_POST['delivery_zone'])) : 0;
+	$gst_no = (isset($_POST['gst_no'])) ? $db->escapeString($function->xss_clean($_POST['gst_no'])) : "";
+	$delivery_time = (isset($_POST['delivery_time'])) ? $db->escapeString($function->xss_clean($_POST['delivery_time'])) : "";
 	$latitude = $db->escapeString($function->xss_clean($_POST['latitude']));
 	$longitude = $db->escapeString($function->xss_clean($_POST['longitude']));
-	$promo_code = (isset($_POST['promo_code'])&& !empty($_POST['promo_code']) )?$db->escapeString($function->xss_clean($_POST['promo_code'])):"-";
-	$promo_discount = (isset($_POST['promo_discount'])&& !empty($_POST['promo_discount']) )?$db->escapeString($function->xss_clean($_POST['promo_discount'])):0;
-	$status[] = array( 'received',date("d-m-Y h:i:sa") );
-	$quantity_arr=json_decode($function->xss_clean($_POST['quantity']),1);
-	$notes 	= (isset($_POST['notes']))?$db->escapeString($_POST['notes']):"";
-	
+	$promo_code = (isset($_POST['promo_code']) && !empty($_POST['promo_code'])) ? $db->escapeString($function->xss_clean($_POST['promo_code'])) : "-";
+	$promo_discount = (isset($_POST['promo_discount']) && !empty($_POST['promo_discount'])) ? $db->escapeString($function->xss_clean($_POST['promo_discount'])) : 0;
+	$status[] = array('received', date("d-m-Y h:i:sa"));
+	$quantity_arr = json_decode($function->xss_clean($_POST['quantity']), 1);
+	$notes = (isset($_POST['notes'])) ? $db->escapeString($_POST['notes']) : "";
+
 	// Zone-wise service validation: delivery is only possible when the delivery address
 	// falls inside one of the active zones and matches the seller's service zone.
 	$order_zone_id = null;
-	if(empty($delivery_method) || $delivery_method != 'storepickup'){
-	    $order_zone_id = $function->get_zone_id_from_latlng($latitude, $longitude);
-	    if($order_zone_id === null){
-	        $response['error'] = true;
-	        $response['message'] = "Delivery is not available to this address. This location is outside our service zones.";
-	        log_order_debug("Order rejected in place_order, address outside service zones. Lat: " . $latitude . ", Lng: " . $longitude);
-	        print_r(json_encode($response));
-	        return false;
-	    }
-	    if(!empty($seller_id) && !$function->is_address_in_seller_zone($order_zone_id, $function->get_seller_zone($seller_id))){
-	        $response['error'] = true;
-	        $response['message'] = "This restaurant does not deliver to your address. Please select an address inside the restaurant's service zone.";
-	        log_order_debug("Order rejected in place_order, address zone (" . $order_zone_id . ") does not match seller zone");
-	        print_r(json_encode($response));
-	        return false;
-	    }
+	if (empty($delivery_method) || $delivery_method != 'storepickup') {
+		$order_zone_id = $function->get_zone_id_from_latlng($latitude, $longitude);
+		if ($order_zone_id === null) {
+			$response['error'] = true;
+			$response['message'] = "Delivery is not available to this address. This location is outside our service zones.";
+			log_order_debug("Order rejected in place_order, address outside service zones. Lat: " . $latitude . ", Lng: " . $longitude);
+			print_r(json_encode($response));
+			return false;
+		}
+		if (!empty($seller_id) && !$function->is_address_in_seller_zone($order_zone_id, $function->get_seller_zone($seller_id))) {
+			$response['error'] = true;
+			$response['message'] = "This restaurant does not deliver to your address. Please select an address inside the restaurant's service zone.";
+			log_order_debug("Order rejected in place_order, address zone (" . $order_zone_id . ") does not match seller zone");
+			print_r(json_encode($response));
+			return false;
+		}
 	} else {
-	    $order_zone_id = $function->get_zone_id_from_latlng($latitude, $longitude);
+		$order_zone_id = $function->get_zone_id_from_latlng($latitude, $longitude);
 	}
 
 
-	$item_details=$function->get_product_by_variant_id($items);
-	
+	$item_details = $function->get_product_by_variant_id($items);
+
 	// Meal-time availability and offer limit check for every ordered item
-	if(!empty($item_details)){
-	    for($k=0; $k<count($item_details); $k++){
-	        $item = $item_details[$k];
-	        $avail_time = isset($item['available_time']) ? $item['available_time'] : '';
-	        $avail_info = $function->get_meal_availability_info($avail_time);
-	        if(!$avail_info['available_now']){
-	            $item_name = isset($item['name']) ? $item['name'] : 'an item';
-	            $avail_label = !empty($avail_info['label']) ? $avail_info['label'] : 'not available at this time';
-	            $response['error'] = true;
-	            $response['message'] = ucfirst($item_name).' is '.$avail_label.'. Please remove unavailable items and try again.';
-	            log_order_debug("Order rejected, item not available: " . $item_name);
-	            print_r(json_encode($response));
-	            return false;
-	        }
-	        $is_offer_item = isset($item['is_offer']) ? (int)$item['is_offer'] : 0;
-	        $offer_limit_check = isset($item['offer_limit_per_user']) ? (int)$item['offer_limit_per_user'] : 0;
-	        $ordered_qty = isset($quantity_arr[$k]) ? (int)$quantity_arr[$k] : 1;
-	        if($is_offer_item == 1 && $offer_limit_check > 0 && $ordered_qty > $offer_limit_check){
-	            $item_name = isset($item['name']) ? $item['name'] : 'this offer item';
-	            $response['error'] = true;
-	            $response['message'] = "Offer limit reached for $item_name! Maximum $offer_limit_check allowed per order.";
-	            log_order_debug("Order rejected, offer limit exceeded for: " . $item_name);
-	            print_r(json_encode($response));
-	            return false;
-	        }
-	    }
+	if (!empty($item_details)) {
+		for ($k = 0; $k < count($item_details); $k++) {
+			$item = $item_details[$k];
+			$avail_time = isset($item['available_time']) ? $item['available_time'] : '';
+			$avail_info = $function->get_meal_availability_info($avail_time);
+			if (!$avail_info['available_now']) {
+				$item_name = isset($item['name']) ? $item['name'] : 'an item';
+				$avail_label = !empty($avail_info['label']) ? $avail_info['label'] : 'not available at this time';
+				$response['error'] = true;
+				$response['message'] = ucfirst($item_name) . ' is ' . $avail_label . '. Please remove unavailable items and try again.';
+				log_order_debug("Order rejected, item not available: " . $item_name);
+				print_r(json_encode($response));
+				return false;
+			}
+			$is_offer_item = isset($item['is_offer']) ? (int) $item['is_offer'] : 0;
+			$offer_limit_check = isset($item['offer_limit_per_user']) ? (int) $item['offer_limit_per_user'] : 0;
+			$ordered_qty = isset($quantity_arr[$k]) ? (int) $quantity_arr[$k] : 1;
+			if ($is_offer_item == 1 && $offer_limit_check > 0 && $ordered_qty > $offer_limit_check) {
+				$item_name = isset($item['name']) ? $item['name'] : 'this offer item';
+				$response['error'] = true;
+				$response['message'] = "Offer limit reached for $item_name! Maximum $offer_limit_check allowed per order.";
+				log_order_debug("Order rejected, offer limit exceeded for: " . $item_name);
+				print_r(json_encode($response));
+				return false;
+			}
+		}
 	}
-	
+
 	// Store status & payment restrictions check for order placement
-	if(!empty($seller_id)){
-	    $sql_seller_status = "SELECT store_status, opening_time, closing_time, main_cat_id FROM seller WHERE id='$seller_id'";
-	    $db->sql($sql_seller_status);
-	    $seller_rows = $db->getResult();
-	    $is_shop_closed = false;
-	    if(!empty($seller_rows)){
-	        $shop = $seller_rows[0];
-	        $main_cat_id = isset($shop['main_cat_id']) ? $shop['main_cat_id'] : '';
-	        if(!empty($main_cat_id)){
-	            $sql_mcat = "SELECT status FROM main_category WHERE id='$main_cat_id'";
-	            $db->sql($sql_mcat);
-	            $mcat_res = $db->getResult();
-	            if(!empty($mcat_res) && isset($mcat_res[0]['status']) && $mcat_res[0]['status'] != 1){
-	                $response['error'] = true;
-	                $response['message'] = "This category is currently disabled. Orders cannot be placed for this store.";
-	                log_order_debug("Order rejected, seller main category disabled. Seller: " . $seller_id);
-	                print_r(json_encode($response));
-	                return false;
-	            }
-	        }
-	        if(isset($shop['store_status']) && $shop['store_status'] == 'false'){
-	            $is_shop_closed = true;
-	        }
-	        $open_time = isset($shop['opening_time']) ? $shop['opening_time'] : '';
-	        $close_time = isset($shop['closing_time']) ? $shop['closing_time'] : '';
-	        if(!empty($open_time) && !empty($close_time)){
-	            $parts_o = explode(':', $open_time);
-	            $open_min = ((isset($parts_o[0]) ? (int)$parts_o[0] : 0) * 60) + (isset($parts_o[1]) ? (int)$parts_o[1] : 0);
-	            $parts_c = explode(':', $close_time);
-	            $close_min = ((isset($parts_c[0]) ? (int)$parts_c[0] : 0) * 60) + (isset($parts_c[1]) ? (int)$parts_c[1] : 0);
-	            $now_min = ((int)date('G') * 60) + (int)date('i');
-	            if($now_min >= $close_min || $now_min < $open_min){
-	                $is_shop_closed = true;
-	            }
-	        }
-	    }
-	    if($is_shop_closed){
-	        $delivery_time_check = (isset($_POST['delivery_time'])) ? $_POST['delivery_time'] : '';
-	        if(strpos($delivery_time_check, 'Book for later') !== 0){
-	            $response['error'] = true;
-	            $response['message'] = "This store is currently closed. Please book this order for a later time.";
-	            log_order_debug("Order rejected, store closed for seller: " . $seller_id);
-	            print_r(json_encode($response));
-	            return false;
-	        }
-	    }
-	    // Store pickup orders cannot be paid via Cash on Delivery
-	    if($delivery_method == 'storepickup'){
-	        $pay_method_lower = strtolower((string)$payment_method);
-	        if($pay_method_lower == 'cod' || strpos($pay_method_lower, 'cash on delivery') !== false || strpos($pay_method_lower, 'cashondelivery') !== false){
-	            $response['error'] = true;
-	            $response['message'] = "Store pickup orders cannot be paid via Cash on Delivery. Please choose an online payment option.";
-	            log_order_debug("Order rejected, COD not allowed for store pickup. Seller: " . $seller_id);
-	            print_r(json_encode($response));
-	            return false;
-	        }
-	    }
+	if (!empty($seller_id)) {
+		$sql_seller_status = "SELECT store_status, opening_time, closing_time, main_cat_id FROM seller WHERE id='$seller_id'";
+		$db->sql($sql_seller_status);
+		$seller_rows = $db->getResult();
+		$is_shop_closed = false;
+		if (!empty($seller_rows)) {
+			$shop = $seller_rows[0];
+			$main_cat_id = isset($shop['main_cat_id']) ? $shop['main_cat_id'] : '';
+			if (!empty($main_cat_id)) {
+				$sql_mcat = "SELECT status FROM main_category WHERE id='$main_cat_id'";
+				$db->sql($sql_mcat);
+				$mcat_res = $db->getResult();
+				if (!empty($mcat_res) && isset($mcat_res[0]['status']) && $mcat_res[0]['status'] != 1) {
+					$response['error'] = true;
+					$response['message'] = "This category is currently disabled. Orders cannot be placed for this store.";
+					log_order_debug("Order rejected, seller main category disabled. Seller: " . $seller_id);
+					print_r(json_encode($response));
+					return false;
+				}
+			}
+			if (isset($shop['store_status']) && $shop['store_status'] == 'false') {
+				$is_shop_closed = true;
+			}
+			$open_time = isset($shop['opening_time']) ? $shop['opening_time'] : '';
+			$close_time = isset($shop['closing_time']) ? $shop['closing_time'] : '';
+			if (!empty($open_time) && !empty($close_time)) {
+				$parts_o = explode(':', $open_time);
+				$open_min = ((isset($parts_o[0]) ? (int) $parts_o[0] : 0) * 60) + (isset($parts_o[1]) ? (int) $parts_o[1] : 0);
+				$parts_c = explode(':', $close_time);
+				$close_min = ((isset($parts_c[0]) ? (int) $parts_c[0] : 0) * 60) + (isset($parts_c[1]) ? (int) $parts_c[1] : 0);
+				$now_min = ((int) date('G') * 60) + (int) date('i');
+				if ($now_min >= $close_min || $now_min < $open_min) {
+					$is_shop_closed = true;
+				}
+			}
+		}
+		if ($is_shop_closed) {
+			$delivery_time_check = (isset($_POST['delivery_time'])) ? $_POST['delivery_time'] : '';
+			if (strpos($delivery_time_check, 'Book for later') !== 0) {
+				$response['error'] = true;
+				$response['message'] = "This store is currently closed. Please book this order for a later time.";
+				log_order_debug("Order rejected, store closed for seller: " . $seller_id);
+				print_r(json_encode($response));
+				return false;
+			}
+		}
+		// Store pickup orders cannot be paid via Cash on Delivery
+		if ($delivery_method == 'storepickup') {
+			$pay_method_lower = strtolower((string) $payment_method);
+			if ($pay_method_lower == 'cod' || strpos($pay_method_lower, 'cash on delivery') !== false || strpos($pay_method_lower, 'cashondelivery') !== false) {
+				$response['error'] = true;
+				$response['message'] = "Store pickup orders cannot be paid via Cash on Delivery. Please choose an online payment option.";
+				log_order_debug("Order rejected, COD not allowed for store pickup. Seller: " . $seller_id);
+				print_r(json_encode($response));
+				return false;
+			}
+		}
 	}
-	
+
 	// Resolved up front because both the delivery charge and the platform /
-    // convenience fees depend on which zone the order is delivered to.
-	if($order_zone_id === null){
-	    $order_zone_id = $function->get_zone_id_from_latlng($latitude, $longitude);
+	// convenience fees depend on which zone the order is delivered to.
+	if ($order_zone_id === null) {
+		$order_zone_id = $function->get_zone_id_from_latlng($latitude, $longitude);
 	}
 
-	if($delivery_charge == 'Free'){
-	    $delivery_charge=0;
-	}elseif($delivery_method == 'storepickup'){
-	    // get_order_delivery_charge quotes store pickup as free, so the order has
-	    // to be free too, whatever the app posted. Leaving this to the client let
-	    // a tampered request store a pickup delivery fee.
-	    $delivery_charge=0;
-	}else{
-	    // The app sends delivery_charge as a plain number, so it is only ever a
-	    // preview. Recompute it from the store and the delivery coordinates so
-	    // the order is charged what the customer was quoted, and a tampered
-	    // client cannot post a smaller (or zero) amount. The branch order below
-	    // mirrors get_order_delivery_charge exactly: store pickup and the
-	    // admin's Free override are zero, Dunzo quotes itself, and everything
-	    // else uses the in-person per-km tariff.
-	    $db->sql("select value from `settings` where variable= 'system_timezone'");
-	    $dm_cfg = $db->getResult();
-	    $dm_settings = isset($dm_cfg[0]['value']) ? json_decode($dm_cfg[0]['value'], true) : array();
+	if ($delivery_charge == 'Free') {
+		$delivery_charge = 0;
+	} elseif ($delivery_method == 'storepickup') {
+		// get_order_delivery_charge quotes store pickup as free, so the order has
+		// to be free too, whatever the app posted. Leaving this to the client let
+		// a tampered request store a pickup delivery fee.
+		$delivery_charge = 0;
+	} else {
+		// The app sends delivery_charge as a plain number, so it is only ever a
+		// preview. Recompute it from the store and the delivery coordinates so
+		// the order is charged what the customer was quoted, and a tampered
+		// client cannot post a smaller (or zero) amount. The branch order below
+		// mirrors get_order_delivery_charge exactly: store pickup and the
+		// admin's Free override are zero, Dunzo quotes itself, and everything
+		// else uses the in-person per-km tariff.
+		$db->sql("select value from `settings` where variable= 'system_timezone'");
+		$dm_cfg = $db->getResult();
+		$dm_settings = isset($dm_cfg[0]['value']) ? json_decode($dm_cfg[0]['value'], true) : array();
 
-$db->sql("SELECT * FROM delivery_method WHERE id=1");
-    $dm_rows = $db->getResult();
-    $dm_row = $dm_rows[0];
-    $dm_dunzo_enable = isset($dm_row['dunzo']) ? $dm_row['dunzo'] : 0;
+		$db->sql("SELECT * FROM delivery_method WHERE id=1");
+		$dm_rows = $db->getResult();
+		$dm_row = $dm_rows[0];
+		$dm_dunzo_enable = isset($dm_row['dunzo']) ? $dm_row['dunzo'] : 0;
 
-    // The tariff has to be the one configured for the zone the order is actually
-    // delivered to, otherwise a zone rate entered by the admin would be charged
-    // at the global rate here. Reuses the zone resolved further down for fees.
-    $dm_zone_cfg = $function->get_zone_delivery_config($order_zone_id, $dm_row);
+		// The tariff has to be the one configured for the zone the order is actually
+		// delivered to, otherwise a zone rate entered by the admin would be charged
+		// at the global rate here. Reuses the zone resolved further down for fees.
+		$dm_zone_cfg = $function->get_zone_delivery_config($order_zone_id, $dm_row);
 
-    if($dm_dunzo_enable != '1' && $dm_zone_cfg['in_person_delivery']
-        && !empty($dm_zone_cfg['in_persion_data']) && $seller_id){
-	        $db->sql("select latitude,longitude from `seller` where id = '".$db->escapeString($seller_id)."' limit 1");
-	        $dm_seller_rows = $db->getResult();
-	        $dm_store_lat = !empty($dm_seller_rows[0]['latitude'])
-	            ? (float)$dm_seller_rows[0]['latitude']
-	            : (float)(isset($dm_settings['store_lattitude']) ? $dm_settings['store_lattitude'] : 0);
-	        $dm_store_long = !empty($dm_seller_rows[0]['longitude'])
-	            ? (float)$dm_seller_rows[0]['longitude']
-	            : (float)(isset($dm_settings['store_longitude']) ? $dm_settings['store_longitude'] : 0);
+		if (
+			$dm_dunzo_enable != '1' && $dm_zone_cfg['in_person_delivery']
+			&& !empty($dm_zone_cfg['in_persion_data']) && $seller_id
+		) {
+			$db->sql("select latitude,longitude from `seller` where id = '" . $db->escapeString($seller_id) . "' limit 1");
+			$dm_seller_rows = $db->getResult();
+			$dm_store_lat = !empty($dm_seller_rows[0]['latitude'])
+				? (float) $dm_seller_rows[0]['latitude']
+				: (float) (isset($dm_settings['store_lattitude']) ? $dm_settings['store_lattitude'] : 0);
+			$dm_store_long = !empty($dm_seller_rows[0]['longitude'])
+				? (float) $dm_seller_rows[0]['longitude']
+				: (float) (isset($dm_settings['store_longitude']) ? $dm_settings['store_longitude'] : 0);
 
-	        $dm_charge = $function->get_food_delivery_charge(
-	            $dm_store_lat , $dm_store_long , $latitude , $longitude , $dm_zone_cfg['in_persion_data']
-	        );
-	        if($dm_charge['error'] === ''){
-	            $delivery_charge = $dm_charge['delivery_charge'];
-	            if($dm_charge['distance_source'] == 'fallback'){
-	                log_order_debug("Delivery charge for order used the straight-line fallback (" .
-	                    $dm_charge['distance_km'] . " km) because the Maps API did not respond. Seller " . $seller_id);
-	            }
-	        }else{
-	            log_order_debug("Could not verify the delivery charge for this order: " . $dm_charge['error'] .
-	                ". Keeping the quoted amount " . $delivery_charge . ".");
-	        }
-	    }
+			$dm_charge = $function->get_food_delivery_charge(
+				$dm_store_lat,
+				$dm_store_long,
+				$latitude,
+				$longitude,
+				$dm_zone_cfg['in_persion_data']
+			);
+			if ($dm_charge['error'] === '') {
+				$delivery_charge = $dm_charge['delivery_charge'];
+				if ($dm_charge['distance_source'] == 'fallback') {
+					log_order_debug("Delivery charge for order used the straight-line fallback (" .
+						$dm_charge['distance_km'] . " km) because the Maps API did not respond. Seller " . $seller_id);
+				}
+			} else {
+				log_order_debug("Could not verify the delivery charge for this order: " . $dm_charge['error'] .
+					". Keeping the quoted amount " . $delivery_charge . ".");
+			}
+		}
 	}
-	$total_amount=$total+$delivery_charge-$discount;
-	
+	$total_amount = $total + $delivery_charge - $discount;
+
 	if (isset($_POST['promo_code']) && $_POST['promo_code'] != '') {
-	    $promo_code = $db->escapeString($function->xss_clean($_POST['promo_code']));
-	    $response=$function->validate_promo_code($user_id,$promo_code,$total,$seller_id);
-	    if($response['error']==true){
+		$promo_code = $db->escapeString($function->xss_clean($_POST['promo_code']));
+		$response = $function->validate_promo_code($user_id, $promo_code, $total, $seller_id);
+		if ($response['error'] == true) {
 			echo json_encode($response);
 			exit();
 		}
-	    
+
 	}
-	
+
 	$user_wallet_balance = $function->get_wallet_balance($user_id);
-	
-	if($user_wallet_balance >= $wallet_balance && $user_wallet_balance != 0 && $wallet_used=='true'){
-	    
-	   // $new_balance = ($user_wallet_balance - $final_total);
-	    $new_balance = $total_amount>$user_wallet_balance?0:$user_wallet_balance - $total_amount;
-	    $function->update_wallet_balance($new_balance,$user_id);
-		$wallet_txn_id = $function->add_wallet_transaction($user_id,'debit',$wallet_balance,'Used against Order Placement');
-	}else{
-	    $wallet_used = false;
+
+	if ($user_wallet_balance >= $wallet_balance && $user_wallet_balance != 0 && $wallet_used == 'true') {
+
+		// $new_balance = ($user_wallet_balance - $final_total);
+		$new_balance = $total_amount > $user_wallet_balance ? 0 : $user_wallet_balance - $total_amount;
+		$function->update_wallet_balance($new_balance, $user_id);
+		$wallet_txn_id = $function->add_wallet_transaction($user_id, 'debit', $wallet_balance, 'Used against Order Placement');
+	} else {
+		$wallet_used = false;
 	}
-	
+
 	// Platform and convenience fee come from the zone the order is delivered to.
 	// The app already previews these zone fees (returned by get_order_delivery_charge
 	// on address selection) and builds final_total from them. The zone fee values
@@ -392,14 +425,14 @@ $db->sql("SELECT * FROM delivery_method WHERE id=1");
 	$fee_cfg = $db->getResult();
 	$fee_settings = isset($fee_cfg[0]['value']) ? json_decode($fee_cfg[0]['value'], true) : array();
 
-	$order_zone_fees = $function->split_zone_fees((float)$total, $order_zone_id, $fee_settings);
+	$order_zone_fees = $function->split_zone_fees((float) $total, $order_zone_id, $fee_settings);
 	$order_platform_fee = $order_zone_fees['platform_fee'];
 	$order_convenience_fee = $order_zone_fees['convenience_fee'];
 
 	// Snapshot seller and delivery boy commission so future settings changes never affect this order
 	$order_seller_commission = 0.0;
 	if (!empty($seller_id)) {
-		$db->sql("SELECT commission FROM `seller` WHERE id = '" . (int)$seller_id . "' LIMIT 1");
+		$db->sql("SELECT commission FROM `seller` WHERE id = '" . (int) $seller_id . "' LIMIT 1");
 		$s_comm_res = $db->getResult();
 		if (!empty($s_comm_res) && isset($s_comm_res[0]['commission']) && $s_comm_res[0]['commission'] !== '' && floatval($s_comm_res[0]['commission']) > 0) {
 			$order_seller_commission = floatval($s_comm_res[0]['commission']);
@@ -409,37 +442,37 @@ $db->sql("SELECT * FROM delivery_method WHERE id=1");
 	}
 	$order_db_commission = isset($fee_settings['delivery_boy_commission']) && $fee_settings['delivery_boy_commission'] !== '' ? floatval($fee_settings['delivery_boy_commission']) : 5.0;
 	log_order_debug("Order delivered to zone " . var_export($order_zone_id, true) .
-	    " stores zone fees (platform " . $order_platform_fee .
-	    ", convenience " . $order_convenience_fee . "). App final_total kept: " . $final_total);
-	
+		" stores zone fees (platform " . $order_platform_fee .
+		", convenience " . $order_convenience_fee . "). App final_total kept: " . $final_total);
+
 	$data = array(
-		'user_id'=>$user_id,
-		'seller_id'=>$seller_id,
-		'store_id'=>$store_id,
-		'mobile'=>$mobile,
-		'alternate_mobile'=>$alternate_mobile,
-		'name'=>$name,
-		'email'=>$email,
-		'delivery_method'=>$delivery_method,
-		'delivery_charge'=>$delivery_charge,
-		'platform_fee'=>$order_platform_fee,
-		'convenience_fee'=>$order_convenience_fee,
-		'seller_commission'=>$order_seller_commission,
-		'delivery_boy_commission'=>$order_db_commission,
-		'wallet_balance' => ($wallet_used)?$wallet_balance:0,
+		'user_id' => $user_id,
+		'seller_id' => $seller_id,
+		'store_id' => $store_id,
+		'mobile' => $mobile,
+		'alternate_mobile' => $alternate_mobile,
+		'name' => $name,
+		'email' => $email,
+		'delivery_method' => $delivery_method,
+		'delivery_charge' => $delivery_charge,
+		'platform_fee' => $order_platform_fee,
+		'convenience_fee' => $order_convenience_fee,
+		'seller_commission' => $order_seller_commission,
+		'delivery_boy_commission' => $order_db_commission,
+		'wallet_balance' => ($wallet_used) ? $wallet_balance : 0,
 		'total' => $total,
 		//'tax_percentage' => $tax_percentage,
 		'tax_amount' => $tax_amount,
 		'final_total' => $final_total,
-		'payment_method'=>$payment_method,
-		'payment_status'=>1,
-		'address'=>$address,
-		'delivery_city'=>$delivery_city,
-        'delivery_state'=>$delivery_state,
-        'delivery_zone'=>$delivery_zone,
-        'zone_id' => $order_zone_id,
-		'gst_no'=>$gst_no,
-		'delivery_time'=>$delivery_time,
+		'payment_method' => $payment_method,
+		'payment_status' => 1,
+		'address' => $address,
+		'delivery_city' => $delivery_city,
+		'delivery_state' => $delivery_state,
+		'delivery_zone' => $delivery_zone,
+		'zone_id' => $order_zone_id,
+		'gst_no' => $gst_no,
+		'delivery_time' => $delivery_time,
 		'status' => $db->escapeString(json_encode($status)),
 		'latitude' => $latitude,
 		'longitude' => $longitude,
@@ -450,194 +483,213 @@ $db->sql("SELECT * FROM delivery_method WHERE id=1");
 		'active_status' => 'received',
 		'date_added' => date("Y-m-d H:i:s")
 	);
-	$db->insert('orders',$data);
+	$db->insert('orders', $data);
 	$order_id = $db->getResult()[0];
-    log_order_debug("Order inserted successfully. Order ID: " . $order_id);
-    if (!empty($_POST['razorpay_order_id'])) {
-        init_razorpay_orders_table($db);
-        $check_rp_id = $db->escapeString($_POST['razorpay_order_id']);
-        $db->sql("UPDATE razorpay_orders SET local_order_id = '$order_id', status = 'order_placed' WHERE razorpay_order_id = '$check_rp_id'");
-    }
+	log_order_debug("Order inserted successfully. Order ID: " . $order_id);
+	if (!empty($rp_order_id)) {
+		init_razorpay_orders_table($db);
+		$db->sql("UPDATE razorpay_orders SET local_order_id = '$order_id', status = 'order_placed'" . (!empty($rp_payment_id) ? ", payment_id = '$rp_payment_id'" : "") . " WHERE razorpay_order_id = '$rp_order_id'");
+	}
+	if (!empty($rp_payment_id)) {
+		$db->sql("SELECT id FROM transactions WHERE txn_id = '$rp_payment_id' LIMIT 1");
+		$chktx = $db->getResult();
+		if (empty($chktx)) {
+			$txn_data = array(
+				'user_id' => $user_id,
+				'order_id' => $order_id,
+				'type' => 'razorpay',
+				'txn_id' => $rp_payment_id,
+				'amount' => $final_total,
+				'status' => 'success',
+				'message' => 'Payment Success',
+				'transaction_date' => date('Y-m-d H:i:s')
+			);
+			$db->insert('transactions', $txn_data);
+		}
+	}
+	if (!empty($rp_lock_name)) {
+		$db->sql("SELECT RELEASE_LOCK('$rp_lock_name')");
+	}
 	//print_r($order_id);die;
-	
+
 	$sub_total = 0;
-	
-	for($i=0;$i<count($item_details);$i++){
+
+	for ($i = 0; $i < count($item_details); $i++) {
 		$product_id = $item_details[$i]['product_id'];
- 
+
 		$measurement = $item_details[$i]['measurement'];
 		$product_variant_id = $item_details[$i]['id'];
-	
+
 		$measurement_unit_id = $item_details[$i]['measurement_unit_id'];
 		$stock_unit_id = $item_details[$i]['stock_unit_id'];
 		$price = $item_details[$i]['price'];
 		$discounted_price = $item_details[$i]['discounted_price'];
 		$vendor_price = $item_details[$i]['vendor_price'];
-		$is_offer = isset($item_details[$i]['is_offer']) ? (int)$item_details[$i]['is_offer'] : 0;
-		$offer_price = isset($item_details[$i]['offer_price']) ? (float)$item_details[$i]['offer_price'] : 0;
-		
+		$is_offer = isset($item_details[$i]['is_offer']) ? (int) $item_details[$i]['is_offer'] : 0;
+		$offer_price = isset($item_details[$i]['offer_price']) ? (float) $item_details[$i]['offer_price'] : 0;
+
 		$sgstp = $item_details[$i]['sgst'];
 		$cgstp = $item_details[$i]['cgst'];
 		$igstp = $item_details[$i]['igst'];
-	
+
 		$type = $item_details[$i]['type'];
 		$total_stock = $item_details[$i]['stock'];
 		$quantity = $quantity_arr[$i];
-		
-		if($is_offer == 1 && $offer_price > 0){
+
+		if ($is_offer == 1 && $offer_price > 0) {
 			$unit_price_used = $offer_price;
-		}else{
+		} else {
 			$unit_price_used = ($discounted_price != 0) ? $discounted_price : $price;
 		}
 		$sub_total = $unit_price_used * $quantity;
- 
+
 		$data = array(
-		    'user_id'=>$user_id,
-		    'order_id'=>$db->escapeString($order_id),
-		    'product_variant_id'=>$db->escapeString($product_variant_id),
-		    'product_name'=>isset($item_details[$i]['name']) ? $db->escapeString($item_details[$i]['name']) : '',
-		    'measurement'=>isset($item_details[$i]['measurement']) ? $db->escapeString($item_details[$i]['measurement']) : '',
-		    'unit'=>isset($item_details[$i]['measurement_unit_name']) ? $db->escapeString($item_details[$i]['measurement_unit_name']) : '',
-		    'quantity'=>$db->escapeString($quantity),
-		    'price'=>$db->escapeString($price),
-		    'discounted_price'=>($is_offer == 1 && $offer_price > 0) ? $db->escapeString($offer_price) : $db->escapeString($discounted_price),
-		    'vendor_price'=>$db->escapeString($vendor_price),
-		    'discount'=>$discount,
-		    'sgst'=>$sgstp,
-		    'cgst'=>$cgstp,
-		    'igst'=>$igstp,
-		    'sub_total'=>$db->escapeString($sub_total),
-		    'status'=>$db->escapeString(json_encode($status)),
-		    'active_status' => 'received'
- 
+			'user_id' => $user_id,
+			'order_id' => $db->escapeString($order_id),
+			'product_variant_id' => $db->escapeString($product_variant_id),
+			'product_name' => isset($item_details[$i]['name']) ? $db->escapeString($item_details[$i]['name']) : '',
+			'measurement' => isset($item_details[$i]['measurement']) ? $db->escapeString($item_details[$i]['measurement']) : '',
+			'unit' => isset($item_details[$i]['measurement_unit_name']) ? $db->escapeString($item_details[$i]['measurement_unit_name']) : '',
+			'quantity' => $db->escapeString($quantity),
+			'price' => $db->escapeString($price),
+			'discounted_price' => ($is_offer == 1 && $offer_price > 0) ? $db->escapeString($offer_price) : $db->escapeString($discounted_price),
+			'vendor_price' => $db->escapeString($vendor_price),
+			'discount' => $discount,
+			'sgst' => $sgstp,
+			'cgst' => $cgstp,
+			'igst' => $igstp,
+			'sub_total' => $db->escapeString($sub_total),
+			'status' => $db->escapeString(json_encode($status)),
+			'active_status' => 'received'
+
 		);
-		$db->insert('order_items',$data);
+		$db->insert('order_items', $data);
 		$res = $db->getResult();
-        
-		$balance = $final_total/10;
-	
-			 if($type=='packet'){
-				 $stock = $total_stock-$quantity;
-			
-				 $sql = "update product_variant set stock = $stock where id = $product_variant_id";
-			
-				 $db->sql($sql);
-				 $res = $db->getResult();
-				 $sql = "select pv.stock,pv.product_id,p.name,p.min_stock,p.min_stock_notified from product_variant pv LEFT JOIN products p ON p.id=pv.product_id where pv.id=".$product_variant_id;
-				$db->sql($sql);
-			
-				 $variant_qty = $db->getResult();
-				 if($variant_qty[0]['min_stock_notified']==0){
-				     if($variant_qty[0]['stock']<=$variant_qty[0]['min_stock']){
-				         $subject = "Min Stock Reached!!!";
-            			$message = "Product Name:".$variant_qty[0]['name']." Has Reached min Stock. Please take note of it...";
-            			send_email($support_email,$subject,$message);
-            			$sql = "update products set min_stock_notified=1 where id=".$variant_qty[0]['product_id'];
-					   $db->sql($sql);
-				     }
-				 }
-				 if($variant_qty[0]['stock']<=0){
-					$data = array(
-						"serve_for"=> "Sold Out",
-					);
-					$db->update("product_variant",$data,"id=$product_variant_id");
-					$res = $db->getResult();
-				 }
-			 }elseif($type=='loose'){
-				 if($measurement_unit_id==$stock_unit_id){
-					 $stock = $quantity*$measurement;
-					}else{
-						$db->select('unit','*',null,'id='.$measurement_unit_id);
-						$unit = $db->getResult();
-					
-							$stock=$function->convert_to_parent(($measurement*$quantity),$unit[0]['id']);
-					}
- 
-					$sql = "update product_variant set stock = stock - $stock where product_id = $product_id AND type='loose'";
-				
-					$db->sql($sql);
-					$res = $db->getResult();
-			
-				 $sql = "select pv.stock,pv.product_id,p.name,p.min_stock,p.min_stock_notified from product_variant pv LEFT JOIN products p ON p.id=pv.product_id where pv.product_id=".$product_id;
-					$db->sql($sql);
-					$res_stck= $db->getResult();
-					 $variant_qty = $res_stck;
-    				 if($variant_qty[0]['min_stock_notified']==0){
-    				     if($variant_qty[0]['stock']<=$variant_qty[0]['min_stock']){
-    				         $subject = "Min Stock Reached!!!";
-                			$message = "Product Name:".$variant_qty[0]['name']." Has Reached min Stock. Please take note of it...";
-                			send_email($support_email,$subject,$message);
-                			$sql = "update products set min_stock_notified=1 where id=".$variant_qty[0]['product_id'];
-					        $db->sql($sql);
-    				     }
-    				 }
-				 
-					if($res_stck[0]['stock']<=0){
-					    $sql = "update product_variant set serve_for='Sold Out' where product_id=".$product_id;
-					    $db->sql($sql);
-					}
- 
-			 }
-		}
-		
-		
-		$data = array(
-	        'final_total'=>$final_total
-		);
- 
-		if($db->update('orders',$data,'id='.$order_id)){
-			$res = $db->getResult();
-			
-			
-			$sql = "delete from carts where user_id=".$user_id;
+
+		$balance = $final_total / 10;
+
+		if ($type == 'packet') {
+			$stock = $total_stock - $quantity;
+
+			$sql = "update product_variant set stock = $stock where id = $product_variant_id";
+
 			$db->sql($sql);
-			$response['error'] = "false";
-			$response['message'] = "Order placed successfully.";
-			$response['order_id'] = $order_id;
- 
-			$_SESSION['checkout']=$function->xss_clean_array($_POST);
-			$_SESSION['checkout']['order_id'] = $order_id;
- 
-			error_log('Order #' . $order_id . ' saved successfully. Raw payment_method received=' . var_export($payment_method, true));
- 
-			
-            // $message = "Hello, Dear ".ucwords($res[0]['name']).", We have received your order successfully. Your order is being processed. ";
-            $subject = "New order placed for $app_name";
-			$message = "New order ID : #".$response['order_id']." received please take note of it and proceed further";
-			//send_email($support_email,$subject,$message);
-			//$function->send_new_order_notification("New Order Received",$message,'order',$store_id);
-            log_order_debug("Attempting to send new order notification...");
-            try {
-			    $function->send_new_order_notification("New Order Received",$message,'order');
-                log_order_debug("Successfully sent new order notification.");
-            } catch (Exception $e) {
-                log_order_debug("Exception in send_new_order_notification: " . $e->getMessage());
-            } catch (Error $e) {
-                log_order_debug("Error in send_new_order_notification: " . $e->getMessage());
-            }
-            try {
-			    if(!empty($seller_id)){
-			        $function->send_notification_to_seller($seller_id,"New Order Received",$message,'order',$response['order_id']);
-			        log_order_debug("Successfully sent new order notification to seller ($seller_id).");
-			    }
-            } catch (Exception $e) {
-                log_order_debug("Exception in send_notification_to_seller: " . $e->getMessage());
-            } catch (Error $e) {
-                log_order_debug("Error in send_notification_to_seller: " . $e->getMessage());
-            }
-			// sendSms($mobile,$message,$country_code);
-            log_order_debug("Order placement finished. Sending response.");
-			print_r(json_encode($response));
-		}else{
-			$response['error'] = "true";
-			$response['message'] = "Could not place order. Try again!";
-			$response['order_id'] = 0;
-			$_SESSION['checkout']['order_id'] = 0;
-			print_r(json_encode($response));
+			$res = $db->getResult();
+			$sql = "select pv.stock,pv.product_id,p.name,p.min_stock,p.min_stock_notified from product_variant pv LEFT JOIN products p ON p.id=pv.product_id where pv.id=" . $product_variant_id;
+			$db->sql($sql);
+
+			$variant_qty = $db->getResult();
+			if ($variant_qty[0]['min_stock_notified'] == 0) {
+				if ($variant_qty[0]['stock'] <= $variant_qty[0]['min_stock']) {
+					$subject = "Min Stock Reached!!!";
+					$message = "Product Name:" . $variant_qty[0]['name'] . " Has Reached min Stock. Please take note of it...";
+					send_email($support_email, $subject, $message);
+					$sql = "update products set min_stock_notified=1 where id=" . $variant_qty[0]['product_id'];
+					$db->sql($sql);
+				}
+			}
+			if ($variant_qty[0]['stock'] <= 0) {
+				$data = array(
+					"serve_for" => "Sold Out",
+				);
+				$db->update("product_variant", $data, "id=$product_variant_id");
+				$res = $db->getResult();
+			}
+		} elseif ($type == 'loose') {
+			if ($measurement_unit_id == $stock_unit_id) {
+				$stock = $quantity * $measurement;
+			} else {
+				$db->select('unit', '*', null, 'id=' . $measurement_unit_id);
+				$unit = $db->getResult();
+
+				$stock = $function->convert_to_parent(($measurement * $quantity), $unit[0]['id']);
+			}
+
+			$sql = "update product_variant set stock = stock - $stock where product_id = $product_id AND type='loose'";
+
+			$db->sql($sql);
+			$res = $db->getResult();
+
+			$sql = "select pv.stock,pv.product_id,p.name,p.min_stock,p.min_stock_notified from product_variant pv LEFT JOIN products p ON p.id=pv.product_id where pv.product_id=" . $product_id;
+			$db->sql($sql);
+			$res_stck = $db->getResult();
+			$variant_qty = $res_stck;
+			if ($variant_qty[0]['min_stock_notified'] == 0) {
+				if ($variant_qty[0]['stock'] <= $variant_qty[0]['min_stock']) {
+					$subject = "Min Stock Reached!!!";
+					$message = "Product Name:" . $variant_qty[0]['name'] . " Has Reached min Stock. Please take note of it...";
+					send_email($support_email, $subject, $message);
+					$sql = "update products set min_stock_notified=1 where id=" . $variant_qty[0]['product_id'];
+					$db->sql($sql);
+				}
+			}
+
+			if ($res_stck[0]['stock'] <= 0) {
+				$sql = "update product_variant set serve_for='Sold Out' where product_id=" . $product_id;
+				$db->sql($sql);
+			}
+
 		}
- 
-}elseif(isset($_POST['place_order']) && isset($_POST['user_id']) && empty(json_decode($function->xss_clean($_POST['product_variant_id'])))){
-    log_order_debug("Incoming place_order condition met but product_variant_id is empty/invalid for user: " . $_POST['user_id']);
+	}
+
+
+	$data = array(
+		'final_total' => $final_total
+	);
+
+	if ($db->update('orders', $data, 'id=' . $order_id)) {
+		$res = $db->getResult();
+
+
+		$sql = "delete from carts where user_id=" . $user_id;
+		$db->sql($sql);
+		$response['error'] = "false";
+		$response['message'] = "Order placed successfully.";
+		$response['order_id'] = $order_id;
+
+		$_SESSION['checkout'] = $function->xss_clean_array($_POST);
+		$_SESSION['checkout']['order_id'] = $order_id;
+
+		error_log('Order #' . $order_id . ' saved successfully. Raw payment_method received=' . var_export($payment_method, true));
+
+
+		// $message = "Hello, Dear ".ucwords($res[0]['name']).", We have received your order successfully. Your order is being processed. ";
+		$subject = "New order placed for $app_name";
+		$message = "New order ID : #" . $response['order_id'] . " received please take note of it and proceed further";
+		//send_email($support_email,$subject,$message);
+		//$function->send_new_order_notification("New Order Received",$message,'order',$store_id);
+		log_order_debug("Attempting to send new order notification...");
+		try {
+			$function->send_new_order_notification("New Order Received", $message, 'order');
+			log_order_debug("Successfully sent new order notification.");
+		} catch (Exception $e) {
+			log_order_debug("Exception in send_new_order_notification: " . $e->getMessage());
+		} catch (Error $e) {
+			log_order_debug("Error in send_new_order_notification: " . $e->getMessage());
+		}
+		try {
+			if (!empty($seller_id)) {
+				$function->send_notification_to_seller($seller_id, "New Order Received", $message, 'order', $response['order_id']);
+				log_order_debug("Successfully sent new order notification to seller ($seller_id).");
+			}
+		} catch (Exception $e) {
+			log_order_debug("Exception in send_notification_to_seller: " . $e->getMessage());
+		} catch (Error $e) {
+			log_order_debug("Error in send_notification_to_seller: " . $e->getMessage());
+		}
+		// sendSms($mobile,$message,$country_code);
+		log_order_debug("Order placement finished. Sending response.");
+		print_r(json_encode($response));
+	} else {
+		$response['error'] = "true";
+		$response['message'] = "Could not place order. Try again!";
+		$response['order_id'] = 0;
+		$_SESSION['checkout']['order_id'] = 0;
+		print_r(json_encode($response));
+	}
+
+} elseif (isset($_POST['place_order']) && isset($_POST['user_id']) && empty(json_decode($function->xss_clean($_POST['product_variant_id'])))) {
+	log_order_debug("Incoming place_order condition met but product_variant_id is empty/invalid for user: " . $_POST['user_id']);
 	$response['error'] = "true";
 	$response['message'] = "Order without items in cart can not be placed!";
 	$response['order_id'] = 0;
@@ -645,707 +697,708 @@ $db->sql("SELECT * FROM delivery_method WHERE id=1");
 	print_r(json_encode($response));
 }
 
-if(isset($_POST['product_rating']) && isset($_POST['user_id']) && isset($_POST['order_id']) && isset($_POST['product_id'])){
-    if(!verify_token()){
-        return false;
-    }
-    if(isset($_POST['rating']) && isset($_POST['rating_desc'])){
-        $sql = "SELECT * FROM product_rating WHERE user_id=".$_POST['user_id']." AND order_id=".$_POST['order_id']." AND product_id=".$_POST['product_id'];
-        $db->sql($sql);
-        if($db->numRows()>0){
-            if($_POST['rating']==0 || $_POST['rating']==''){
-                $res1 = $db->getResult();
-                $rating=$res1[0]['rating'];
-            }else{
-                $rating=$_POST['rating'];
-            }
-            $sql = "update product_rating set rating='".$rating."',rating_desc='".$_POST['rating_desc']."' WHERE user_id=".$_POST['user_id']." AND order_id=".$_POST['order_id']." AND product_id=".$_POST['product_id'];
-		  //  echo $sql;
-		    $db->sql($sql);
-        }else{
-            $cdate=date("Y-m-d H:i:s");
-            $sql = "INSERT INTO product_rating (product_id,user_id,order_id,rating,rating_desc,created_at) VALUES('".$_POST['product_id']."','".$_POST['user_id']."','".$_POST['order_id']."','".$_POST['rating']."','".$_POST['rating_desc']."','".$cdate."')";
-		    $db->sql($sql);
-        }
-        $res['error'] = false;
-            $res['message'] = "Success";
-            print_r(json_encode($res));
-    }else{
-         $res['error'] = true;
-            $res['message'] = "Required All Parameters";
-            print_r(json_encode($res));
-    }
-}
-
-if(isset($_POST['get_orders']) && isset($_POST['user_id'])) {
-    if(!verify_token()){
-        return false;
-    }
-	$user_id = $db->escapeString($function->xss_clean($_POST['user_id']));
-	$limit = (isset($_POST['limit']) && !empty($_POST['limit']) && is_numeric($_POST['limit']))?$db->escapeString($function->xss_clean($_POST['limit'])):10;
-	$offset = (isset($_POST['offset']) && !empty($_POST['offset']) && is_numeric($_POST['offset']))?$db->escapeString($function->xss_clean($_POST['offset'])):0;
-	$where1="";
-	if(isset($_POST['status'])){
-	        $where1="AND o.active_status='".$_POST['status']."'";
+if (isset($_POST['product_rating']) && isset($_POST['user_id']) && isset($_POST['order_id']) && isset($_POST['product_id'])) {
+	if (!verify_token()) {
+		return false;
 	}
-    $sql = "select *,(select name from users u where u.id=o.user_id) as user_name,(select email from users u where u.id=o.user_id) as user_email, (SELECT s.company_name FROM seller s WHERE s.id = o.seller_id) AS company_name,(SELECT s.image FROM seller s WHERE s.id = o.seller_id) AS company_image, (SELECT name FROM delivery_boys db WHERE db.id = o.delivery_boy_id) AS delivery_boy_name, (SELECT mobile FROM delivery_boys db WHERE db.id = o.delivery_boy_id) AS delivery_boy_mobile, (SELECT profile FROM delivery_boys db WHERE db.id = o.delivery_boy_id) AS delivery_boy_image, (SELECT vehicle_number FROM delivery_boys db WHERE db.id = o.delivery_boy_id) AS delivery_boy_vehicle_number, (SELECT vehicle_type FROM delivery_boys db WHERE db.id = o.delivery_boy_id) AS delivery_boy_vehicle_type from orders o where user_id=".$user_id." ".$where1." ORDER BY date_added DESC LIMIT $offset,$limit";
-    $db->sql($sql);
-    $res = $db->getResult();
-    $i=0; $j=0;
-    foreach($res as $row){
-        if($row['discount']>0){
-            $discounted_amount = $row['total'] * $row['discount'] / 100; /*  */
-    	    $final_total = $row['total'] - $discounted_amount;
-            $discount_in_rupees = $row['total']-$final_total;
-            // echo $discount_in_rupees;
-        } else {
-            $discount_in_rupees = 0;
-        }
-		$res[$i]['company_image'] = (!empty($res[$i]['company_image'])) ? DOMAIN_URL . 'upload/sellers/' . $res[$i]['company_image'] : '';
-        // Delivery boy photo is sent as a path relative to the site root so the app
-        // can resolve it against its own base URL, which changes per environment.
-        $res[$i]['delivery_boy_image'] = !empty($res[$i]['delivery_boy_image']) ? $res[$i]['delivery_boy_image'] : '';
-        
-        $res[$i]['discount_rupees'] = "$discount_in_rupees";
-        $final_total = ($res[$i]['final_total']);
-        $res[$i]['final_total'] = "$final_total";
-        $res[$i]['date_added'] = date('d-m-Y h:i:sa', strtotime($res[$i]['date_added']));
-        $sql = "select oi.*,v.product_id AS product_id,p.name,p.image,v.measurement,(select short_code from unit u where u.id=v.measurement_unit_id) as unit from order_items oi join product_variant v on oi.product_variant_id=v.id join products p on p.id=v.product_id where order_id=".$row['id'];
-        $db->sql($sql);
-        $res[$i]['items'] = $db->getResult();
-        $res[$i]['status'] = json_decode($res[$i]['status']);
-            
-            for($j=0; $j < count($res[$i]['items']); $j++){
-                $sql = "select rating,rating_desc FROM product_rating WHERE order_id=".$row['id']." AND product_id=".$res[$i]['items'][$j]['product_id'];
-                $db->sql($sql);
-                $rating=$db->getResult();
-                $res[$i]['items'][$j]['rating']=!empty($rating[0]['rating']) ? $rating[0]['rating'] : '0';
-                $res[$i]['items'][$j]['rating_desc']=!empty($rating[0]['rating_desc']) ? $rating[0]['rating_desc'] : "";
-                $res[$i]['items'][$j]['status'] = (!empty($res[$i]['items'][$j]['status']))?json_decode($res[$i]['items'][$j]['status']):array();
-                // unset($res[$i]['items'][$j]['status']);
-                $res[$i]['items'][$j]['image'] = DOMAIN_URL.$res[$i]['items'][$j]['image'];
-            }
-        $i++;
-    }
-        $orders = $order = array();
-        
-        if(!empty($res)){
-            $orders['error'] = false;
-            $orders['message'] = "Orders found!";
-            $orders['data'] = array_values($res);
-            print_r(json_encode($orders));
-        }else{
-            $res['error'] = true;
-            $res['message'] = "No orders found!";
-            $res['data'] = array(); 
-            print_r(json_encode($res));
-            // return $res;
-        }
+	if (isset($_POST['rating']) && isset($_POST['rating_desc'])) {
+		$sql = "SELECT * FROM product_rating WHERE user_id=" . $_POST['user_id'] . " AND order_id=" . $_POST['order_id'] . " AND product_id=" . $_POST['product_id'];
+		$db->sql($sql);
+		if ($db->numRows() > 0) {
+			if ($_POST['rating'] == 0 || $_POST['rating'] == '') {
+				$res1 = $db->getResult();
+				$rating = $res1[0]['rating'];
+			} else {
+				$rating = $_POST['rating'];
+			}
+			$sql = "update product_rating set rating='" . $rating . "',rating_desc='" . $_POST['rating_desc'] . "' WHERE user_id=" . $_POST['user_id'] . " AND order_id=" . $_POST['order_id'] . " AND product_id=" . $_POST['product_id'];
+			//  echo $sql;
+			$db->sql($sql);
+		} else {
+			$cdate = date("Y-m-d H:i:s");
+			$sql = "INSERT INTO product_rating (product_id,user_id,order_id,rating,rating_desc,created_at) VALUES('" . $_POST['product_id'] . "','" . $_POST['user_id'] . "','" . $_POST['order_id'] . "','" . $_POST['rating'] . "','" . $_POST['rating_desc'] . "','" . $cdate . "')";
+			$db->sql($sql);
+		}
+		$res['error'] = false;
+		$res['message'] = "Success";
+		print_r(json_encode($res));
+	} else {
+		$res['error'] = true;
+		$res['message'] = "Required All Parameters";
+		print_r(json_encode($res));
+	}
 }
 
-if(isset($_POST['update_order_item_status']) && isset($_POST['order_item_id'])) {
-    if(!verify_token()){
-        return false;
-    }
-    $sql1 = "select value from `settings` where variable= 'system_timezone'";
-		    $db->sql($sql1);
-    $res1 = $db->getResult(); 
-    $settings =  json_decode($res1[0]['value'],true);
-    $store_state = $settings['store_state'];
-    
+if (isset($_POST['get_orders']) && isset($_POST['user_id'])) {
+	if (!verify_token()) {
+		return false;
+	}
+	$user_id = $db->escapeString($function->xss_clean($_POST['user_id']));
+	$limit = (isset($_POST['limit']) && !empty($_POST['limit']) && is_numeric($_POST['limit'])) ? $db->escapeString($function->xss_clean($_POST['limit'])) : 10;
+	$offset = (isset($_POST['offset']) && !empty($_POST['offset']) && is_numeric($_POST['offset'])) ? $db->escapeString($function->xss_clean($_POST['offset'])) : 0;
+	$where1 = "";
+	if (isset($_POST['status'])) {
+		$where1 = "AND o.active_status='" . $_POST['status'] . "'";
+	}
+	$sql = "select *,(select name from users u where u.id=o.user_id) as user_name,(select email from users u where u.id=o.user_id) as user_email, (SELECT s.company_name FROM seller s WHERE s.id = o.seller_id) AS company_name,(SELECT s.image FROM seller s WHERE s.id = o.seller_id) AS company_image, (SELECT name FROM delivery_boys db WHERE db.id = o.delivery_boy_id) AS delivery_boy_name, (SELECT mobile FROM delivery_boys db WHERE db.id = o.delivery_boy_id) AS delivery_boy_mobile, (SELECT profile FROM delivery_boys db WHERE db.id = o.delivery_boy_id) AS delivery_boy_image, (SELECT vehicle_number FROM delivery_boys db WHERE db.id = o.delivery_boy_id) AS delivery_boy_vehicle_number, (SELECT vehicle_type FROM delivery_boys db WHERE db.id = o.delivery_boy_id) AS delivery_boy_vehicle_type from orders o where user_id=" . $user_id . " " . $where1 . " ORDER BY date_added DESC LIMIT $offset,$limit";
+	$db->sql($sql);
+	$res = $db->getResult();
+	$i = 0;
+	$j = 0;
+	foreach ($res as $row) {
+		if ($row['discount'] > 0) {
+			$discounted_amount = $row['total'] * $row['discount'] / 100; /*  */
+			$final_total = $row['total'] - $discounted_amount;
+			$discount_in_rupees = $row['total'] - $final_total;
+			// echo $discount_in_rupees;
+		} else {
+			$discount_in_rupees = 0;
+		}
+		$res[$i]['company_image'] = (!empty($res[$i]['company_image'])) ? DOMAIN_URL . 'upload/sellers/' . $res[$i]['company_image'] : '';
+		// Delivery boy photo is sent as a path relative to the site root so the app
+		// can resolve it against its own base URL, which changes per environment.
+		$res[$i]['delivery_boy_image'] = !empty($res[$i]['delivery_boy_image']) ? $res[$i]['delivery_boy_image'] : '';
+
+		$res[$i]['discount_rupees'] = "$discount_in_rupees";
+		$final_total = ($res[$i]['final_total']);
+		$res[$i]['final_total'] = "$final_total";
+		$res[$i]['date_added'] = date('d-m-Y h:i:sa', strtotime($res[$i]['date_added']));
+		$sql = "select oi.*,v.product_id AS product_id,p.name,p.image,v.measurement,(select short_code from unit u where u.id=v.measurement_unit_id) as unit from order_items oi join product_variant v on oi.product_variant_id=v.id join products p on p.id=v.product_id where order_id=" . $row['id'];
+		$db->sql($sql);
+		$res[$i]['items'] = $db->getResult();
+		$res[$i]['status'] = json_decode($res[$i]['status']);
+
+		for ($j = 0; $j < count($res[$i]['items']); $j++) {
+			$sql = "select rating,rating_desc FROM product_rating WHERE order_id=" . $row['id'] . " AND product_id=" . $res[$i]['items'][$j]['product_id'];
+			$db->sql($sql);
+			$rating = $db->getResult();
+			$res[$i]['items'][$j]['rating'] = !empty($rating[0]['rating']) ? $rating[0]['rating'] : '0';
+			$res[$i]['items'][$j]['rating_desc'] = !empty($rating[0]['rating_desc']) ? $rating[0]['rating_desc'] : "";
+			$res[$i]['items'][$j]['status'] = (!empty($res[$i]['items'][$j]['status'])) ? json_decode($res[$i]['items'][$j]['status']) : array();
+			// unset($res[$i]['items'][$j]['status']);
+			$res[$i]['items'][$j]['image'] = DOMAIN_URL . $res[$i]['items'][$j]['image'];
+		}
+		$i++;
+	}
+	$orders = $order = array();
+
+	if (!empty($res)) {
+		$orders['error'] = false;
+		$orders['message'] = "Orders found!";
+		$orders['data'] = array_values($res);
+		print_r(json_encode($orders));
+	} else {
+		$res['error'] = true;
+		$res['message'] = "No orders found!";
+		$res['data'] = array();
+		print_r(json_encode($res));
+		// return $res;
+	}
+}
+
+if (isset($_POST['update_order_item_status']) && isset($_POST['order_item_id'])) {
+	if (!verify_token()) {
+		return false;
+	}
+	$sql1 = "select value from `settings` where variable= 'system_timezone'";
+	$db->sql($sql1);
+	$res1 = $db->getResult();
+	$settings = json_decode($res1[0]['value'], true);
+	$store_state = $settings['store_state'];
+
 	$order_item_id = $db->escapeString($function->xss_clean($_POST['order_item_id']));
 	$order_id = $db->escapeString($function->xss_clean($_POST['order_id']));
 	$postStatus = $db->escapeString($function->xss_clean($_POST['status']));
-	
-	$sql = "SELECT COUNT(id) as cancelled FROM `order_items` WHERE id=".$order_item_id." && status LIKE '%$postStatus%'";
+
+	$sql = "SELECT COUNT(id) as cancelled FROM `order_items` WHERE id=" . $order_item_id . " && status LIKE '%$postStatus%'";
 	$db->sql($sql);
 	$res_cancelled = $db->getResult();
-	if($res_cancelled[0]['cancelled']>0){
-    	$response['error'] = true;
-		$response['message'] = 'Could not update order status. Item is already '.ucwords($postStatus).'!';
+	if ($res_cancelled[0]['cancelled'] > 0) {
+		$response['error'] = true;
+		$response['message'] = 'Could not update order status. Item is already ' . ucwords($postStatus) . '!';
 		print_r(json_encode($response));
 		return false;
 	}
-	
-	$sql = "SELECT user_id,status,active_status,sub_total FROM order_items WHERE id =".$order_item_id;
-	$db->sql($sql);
-	$result=$db->getResult();
-	
-    if(!empty($result)){
-        
-    	$status = json_decode($result[0]['status']);
-    	
-    	$active_status=$result[0]['active_status'];
-    	
-        if($request_type == 'apprequest' && $postStatus == 'cancelled' && ($active_status == 'shipped' || $active_status=='delivered')){
-    	       $response['error'] = true;
-        	   $response['message'] = 'Item cancel Not Allowed After Shipped';
-        	   $response['subtotal'] = 0;
-        	   print_r(json_encode($response));
-        	   return false;
-    	}
-    	
-    	if($postStatus == 'cancelled'){
-    	    
-    	    $sql = 'SELECT final_total,total,user_id,payment_method,wallet_balance,delivery_charge,tax_amount,status FROM orders WHERE id='.$order_id;
-    	    $db->sql($sql);
-    	    $res_order = $db->getResult();
-    	    
-    	   // print_r($res_order[0]['total']);
-    	    $sql = 'SELECT oi.`product_variant_id`,oi.`quantity`,oi.`discounted_price`,oi.`price`,oi.`sgst`,oi.`cgst`,oi.`igst`,pv.`product_id`,pv.`type`,pv.`stock`,pv.`stock_unit_id`,pv.`measurement`,pv.`measurement_unit_id`,pv.`product_price` FROM `order_items` oi join `product_variant` pv on pv.id = oi.product_variant_id WHERE oi.`id`='.$order_item_id;
-    	    $db->sql($sql);
-    	    $res_oi = $db->getResult();
-    	   //echo '<pre>';print_r($res_oi);die;
-    	    $price = $res_oi[0]['discounted_price']==0?$res_oi[0]['price']:$res_oi[0]['discounted_price'];
-    	    $price = $price*$res_oi[0]['quantity'];
-    	    $total = $res_order[0]['total'];
-    	    $final_total = $res_order[0]['final_total'];
-    	    $tax_amount = $res_order[0]['tax_amount'];
-    	    $delivery_charge = $res_order[0]['delivery_charge'];
-    	    $product_id = $res_oi[0]['product_id'];
-    	    
-    	    $pro_sql = "select * from products where id=".$product_id;
-            $db->sql($pro_sql);
-            $products= $db->getResult();
-    	    
-    	   // echo $total - $price;
-    	    if($total - $price >= 0){
-    	        $sql_total = "update orders set total=$total-$price where id=".$order_id;
-    	        $db->sql($sql_total);
-    	    }
-    	    
-    	    $sql = "select total,delivery_state from orders where id=".$order_id;
-    	    $db->sql($sql);
-    	    $res_total=$db->getResult();
-    	    
-    	    $total = $res_total[0]['total'];
-    	    
-    	   // if($total<$config['min_amount']){
-    	   //     if($delivery_charge==0){
-    	   //         $dchrg = $config['delivery_charge'];
-    	   //         $sql_delivery_chrg = "update orders set delivery_charge=$dchrg where id=".$order_id;
-        //     	   // echo $sql_delivery_chrg;
-        //     	    $db->sql($sql_delivery_chrg);
-        //     	    $sql_final_total = "update orders set final_total=$final_total-$price+$dchrg where id=".$order_id;
-    	   //     }else{
-    	   //         $sql_final_total = "update orders set final_total=$final_total-$price where id=".$order_id;
-    	   //     }
-	       // }else{
-	       //     $sql_final_total = "update orders set final_total=$final_total-$price where id=".$order_id;
-	       // }
-	       
-	        $sql_final_total = "update orders set final_total=$final_total-$price where id=".$order_id;
-	        
-	       if($final_total>0){
-    	       $db->sql($sql_final_total);
-    	    }
-    	    
-    	    $product_price=!empty($res_oi[0]['product_price'])?$res_oi[0]['product_price']:0;
-            $sgstp=!empty($res_oi[0]['sgst'])?$res_oi[0]['sgst']:0;
-            $cgstp=!empty($res_oi[0]['cgst'])?$res_oi[0]['cgst']:0;
-            if($store_state == $res_total[0]['delivery_state']){
-                $gst=$sgstp+$cgstp;
-                $taxable_amount=round(($product_price*$res_oi[0]['quantity']),2);
-                $sgst=!empty($res_oi[0]['sgst'])?round(($taxable_amount*$res_oi[0]['sgst'])/100,2):0;
-                $cgst=!empty($res_oi[0]['cgst'])?round(($taxable_amount*$res_oi[0]['cgst'])/100,2):0;
-            }else{
-                $gst = $igstp;
-                $taxable_amount=round(($product_price*$res_oi[0]['quantity']),2);
-                $igst=!empty($res_oi[0]['igst'])?round(($taxable_amount*$res_oi[0]['igst'])/100,2):0;
-            }
-            $sgst=!empty($sgst)?$sgst:0;
-            $cgst=!empty($cgst)?$cgst:0;
-            $igst=!empty($igst)?$igst:0;
 
-            $tol_tax = $sgst+$cgst+$igst;
-            if(!empty($tol_tax)){
-				$sql_final_tax = "update orders set tax_amount=$tax_amount-$tol_tax where id=".$order_id;
+	$sql = "SELECT user_id,status,active_status,sub_total FROM order_items WHERE id =" . $order_item_id;
+	$db->sql($sql);
+	$result = $db->getResult();
+
+	if (!empty($result)) {
+
+		$status = json_decode($result[0]['status']);
+
+		$active_status = $result[0]['active_status'];
+
+		if ($request_type == 'apprequest' && $postStatus == 'cancelled' && ($active_status == 'shipped' || $active_status == 'delivered')) {
+			$response['error'] = true;
+			$response['message'] = 'Item cancel Not Allowed After Shipped';
+			$response['subtotal'] = 0;
+			print_r(json_encode($response));
+			return false;
+		}
+
+		if ($postStatus == 'cancelled') {
+
+			$sql = 'SELECT final_total,total,user_id,payment_method,wallet_balance,delivery_charge,tax_amount,status FROM orders WHERE id=' . $order_id;
+			$db->sql($sql);
+			$res_order = $db->getResult();
+
+			// print_r($res_order[0]['total']);
+			$sql = 'SELECT oi.`product_variant_id`,oi.`quantity`,oi.`discounted_price`,oi.`price`,oi.`sgst`,oi.`cgst`,oi.`igst`,pv.`product_id`,pv.`type`,pv.`stock`,pv.`stock_unit_id`,pv.`measurement`,pv.`measurement_unit_id`,pv.`product_price` FROM `order_items` oi join `product_variant` pv on pv.id = oi.product_variant_id WHERE oi.`id`=' . $order_item_id;
+			$db->sql($sql);
+			$res_oi = $db->getResult();
+			//echo '<pre>';print_r($res_oi);die;
+			$price = $res_oi[0]['discounted_price'] == 0 ? $res_oi[0]['price'] : $res_oi[0]['discounted_price'];
+			$price = $price * $res_oi[0]['quantity'];
+			$total = $res_order[0]['total'];
+			$final_total = $res_order[0]['final_total'];
+			$tax_amount = $res_order[0]['tax_amount'];
+			$delivery_charge = $res_order[0]['delivery_charge'];
+			$product_id = $res_oi[0]['product_id'];
+
+			$pro_sql = "select * from products where id=" . $product_id;
+			$db->sql($pro_sql);
+			$products = $db->getResult();
+
+			// echo $total - $price;
+			if ($total - $price >= 0) {
+				$sql_total = "update orders set total=$total-$price where id=" . $order_id;
+				$db->sql($sql_total);
+			}
+
+			$sql = "select total,delivery_state from orders where id=" . $order_id;
+			$db->sql($sql);
+			$res_total = $db->getResult();
+
+			$total = $res_total[0]['total'];
+
+			// if($total<$config['min_amount']){
+			//     if($delivery_charge==0){
+			//         $dchrg = $config['delivery_charge'];
+			//         $sql_delivery_chrg = "update orders set delivery_charge=$dchrg where id=".$order_id;
+			//     	   // echo $sql_delivery_chrg;
+			//     	    $db->sql($sql_delivery_chrg);
+			//     	    $sql_final_total = "update orders set final_total=$final_total-$price+$dchrg where id=".$order_id;
+			//     }else{
+			//         $sql_final_total = "update orders set final_total=$final_total-$price where id=".$order_id;
+			//     }
+			// }else{
+			//     $sql_final_total = "update orders set final_total=$final_total-$price where id=".$order_id;
+			// }
+
+			$sql_final_total = "update orders set final_total=$final_total-$price where id=" . $order_id;
+
+			if ($final_total > 0) {
+				$db->sql($sql_final_total);
+			}
+
+			$product_price = !empty($res_oi[0]['product_price']) ? $res_oi[0]['product_price'] : 0;
+			$sgstp = !empty($res_oi[0]['sgst']) ? $res_oi[0]['sgst'] : 0;
+			$cgstp = !empty($res_oi[0]['cgst']) ? $res_oi[0]['cgst'] : 0;
+			if ($store_state == $res_total[0]['delivery_state']) {
+				$gst = $sgstp + $cgstp;
+				$taxable_amount = round(($product_price * $res_oi[0]['quantity']), 2);
+				$sgst = !empty($res_oi[0]['sgst']) ? round(($taxable_amount * $res_oi[0]['sgst']) / 100, 2) : 0;
+				$cgst = !empty($res_oi[0]['cgst']) ? round(($taxable_amount * $res_oi[0]['cgst']) / 100, 2) : 0;
+			} else {
+				$gst = $igstp;
+				$taxable_amount = round(($product_price * $res_oi[0]['quantity']), 2);
+				$igst = !empty($res_oi[0]['igst']) ? round(($taxable_amount * $res_oi[0]['igst']) / 100, 2) : 0;
+			}
+			$sgst = !empty($sgst) ? $sgst : 0;
+			$cgst = !empty($cgst) ? $cgst : 0;
+			$igst = !empty($igst) ? $igst : 0;
+
+			$tol_tax = $sgst + $cgst + $igst;
+			if (!empty($tol_tax)) {
+				$sql_final_tax = "update orders set tax_amount=$tax_amount-$tol_tax where id=" . $order_id;
 				$db->sql($sql_final_tax);
 				$db->getResult();
-            }
-            
-	        if($total==0){
-    	        $sql = "update orders set delivery_charge=0,tax_amount=0,tax_percentage=0,final_total=0 where id=".$order_id;
-    	        $db->sql($sql);
-    	    }
+			}
+
+			if ($total == 0) {
+				$sql = "update orders set delivery_charge=0,tax_amount=0,tax_percentage=0,final_total=0 where id=" . $order_id;
+				$db->sql($sql);
+			}
 
 
 
-    	    if($res_oi[0]['type']=='packet'){
-    	        $sql = "UPDATE product_variant SET stock = stock + ".$res_oi[0]['quantity']." WHERE id='".$res_oi[0]['product_variant_id']."'";
-    			$db->sql($sql);
-    			
-    			$sql = "select stock from product_variant where id=".$res_oi[0]['product_variant_id'];
-    			$db->sql($sql);
-    			$res_stock = $db->getResult();
-    			if($res_stock[0]['stock']>0){
-        			$sql = "UPDATE product_variant set serve_for='Available' WHERE id='".$res_oi[0]['product_variant_id']."'";
-        			$db->sql($sql);
-    			}
-    			    
-    	    }else{
-    	        /* When product type is loose */
-    	        if($res_oi[0]['measurement_unit_id'] != $res_oi[0]['stock_unit_id']){
-    	            $stock = $function->convert_to_parent($res_oi[0]['measurement'],$res_oi[0]['measurement_unit_id']);
-    	            $stock = $stock * $res_oi[0]['quantity'];
-    	            $sql = "UPDATE product_variant SET stock = stock + ".$stock." WHERE product_id='".$res_oi[0]['product_id']."'";
-    			    $db->sql($sql);
-    	        }else{
-    	            $stock = $res_oi[0]['measurement'] * $res_oi[0]['quantity'];
-    	            $sql = "UPDATE product_variant SET stock = stock + ".$stock." WHERE product_id='".$res_oi[0]['product_id']."'";
-    			    $db->sql($sql);
-    	        }
-    	        $sql = "select stock from product_variant where product_id=".$res_oi[0]['product_id'];
-                $db->sql($sql);
-                $res_stck= $db->getResult();
-                if($res_stck[0]['stock']>0){
-                    $sql = "UPDATE product_variant set serve_for='Available' WHERE product_id='".$res_oi[0]['product_id']."'";
-        			$db->sql($sql);
-                }
-    	    }
-            // Resolve who is cancelling the item
-            $cancelled_by = '';
-            if (isset($_POST['cancelled_by']) && !empty($_POST['cancelled_by'])) {
-                $cancelled_by = trim($_POST['cancelled_by']);
-            } elseif (isset($_SESSION['role'])) {
-                $s_role = strtolower(trim($_SESSION['role']));
-                if ($s_role == 'seller') {
-                    $cancelled_by = 'Seller';
-                } elseif ($s_role == 'admin' || $s_role == 'super admin') {
-                    $cancelled_by = 'Admin';
-                } elseif ($s_role == 'delivery_boy') {
-                    $cancelled_by = 'Delivery Boy';
-                }
-            }
-            if (empty($cancelled_by)) {
-                $cancelled_by = ($request_type == 'apprequest') ? 'Customer' : 'Customer';
-            }
-            $cancelled_by = ucfirst(strtolower($cancelled_by));
+			if ($res_oi[0]['type'] == 'packet') {
+				$sql = "UPDATE product_variant SET stock = stock + " . $res_oi[0]['quantity'] . " WHERE id='" . $res_oi[0]['product_variant_id'] . "'";
+				$db->sql($sql);
 
-        	$status[] = array($postStatus, date("d-m-Y h:i:sa"), $cancelled_by);
-            $currentStatus = $postStatus;
-            $data = array(
-                'status' => $db->escapeString(json_encode($status)),
-                'active_status' => $currentStatus,
-                'cancelled_by' => $cancelled_by
-            );
-            
-            $db->update('order_items',$data,'id='.$order_item_id);
-            $db->getResult();
-            
-        	$sql = "SELECT id FROM order_items WHERE order_id=".$order_id;
-        	$db->sql($sql);
-        	$total = $db->numRows();
-        	
-        	$sql = "SELECT id FROM `order_items` WHERE order_id=".$order_id." && (`active_status` LIKE '%cancelled%' OR `active_status` LIKE '%returned%' )";
-        	$db->sql($sql);
-        	$cancelled = $db->numRows();
-        
-        	//echo $cancelled." - ".$total;die;
-        	
-        	if($cancelled == $total){
-        
-        	    if($res_order[0]['payment_method'] != 'cod' && $res_order[0]['payment_method'] !='COD'){
-                	/* update user's wallet */
-                    $user_id = $res_order[0]['user_id'];
-                    $total_amount = $result[0]['sub_total']+$res_order[0]['delivery_charge'];
-	                if(!empty($products)){
-	                	if($products[0]['price_type'] != 'including'){
-		                	$total_amount = $total_amount+$res_order[0]['tax_amount'];
-		                }
-	                }
-                    $user_wallet_balance = $function->get_wallet_balance($user_id);
-                    $new_balance = $user_wallet_balance + $total_amount;
-                    // return false;
-                     
-                    $function->update_wallet_balance($new_balance,$user_id);
-                    
-            	    $wallet_txn_id = $function->add_wallet_transaction($user_id,'credit',$total_amount,'Balance credited against item cancellation.');
-                }elseif($res_order[0]['wallet_balance']!=0){
-                    $user_id = $res_order[0]['user_id'];
-                    $user_wallet_balance = $function->get_wallet_balance($user_id);
-                    $new_balance = ($user_wallet_balance + $res_order[0]['wallet_balance']);
-                    $function->update_wallet_balance($new_balance,$user_id);
-        		    $wallet_txn_id = $function->add_wallet_transaction($user_id,'credit',$res_order[0]['wallet_balance'],'Balance credited against item cancellation.');
-                }
-        	    
-            	$data_order = array(
-            	    'status' => $db->escapeString(json_encode($status)),
-            		'active_status' => $currentStatus
-        	        );
-                if ($currentStatus == 'cancelled' && !empty($cancelled_by)) {
-                    $data_order['cancelled_by'] = $cancelled_by;
-                }
-                $db->update('orders',$data_order,'id='.$order_id);
-                $db->getResult();
-                
-        	}else{
-        	    
-        	    if($res_order[0]['payment_method'] != 'cod' && $res_order[0]['payment_method'] !='COD'){
-        	        $user_id = $res_order[0]['user_id'];
-        	        $user_wallet_balance = $function->get_wallet_balance($user_id);
-                    $new_balance = ($user_wallet_balance + $result[0]['sub_total']);
-                    $function->update_wallet_balance($new_balance,$user_id);
-        		    $wallet_txn_id = $function->add_wallet_transaction($user_id,'credit',$result[0]['sub_total'],'Balance credited against item cancellation.');
-        	    }elseif($res_order[0]['wallet_balance']!=0){
-                    $user_id = $res_order[0]['user_id'];
-                    $user_wallet_balance = $function->get_wallet_balance($user_id);
-                    $new_balance = ($user_wallet_balance + $res_order[0]['wallet_balance']);
-                    $function->update_wallet_balance($new_balance,$user_id);
-        		    $wallet_txn_id = $function->add_wallet_transaction($user_id,'credit',$res_order[0]['wallet_balance'],'Balance credited against item cancellation.');
-        	    }
-        	}
-		    
-        	$response['error'] = false;
-        	$response['message'] = 'Order item cancelled successfully!';
-        	$response['subtotal'] = $result[0]['sub_total'];
-        	print_r(json_encode($response));
-        	return false;
-    	}
-    	if($postStatus == 'returned'){
-    	    $reason = !empty($_POST['reason'])?$_POST['reason']:'';
-    	    $is_item_delivered = 0;
-    	    foreach($status as $each_status){
-        		if (in_array('delivered', $each_status)) {
-        			$is_item_delivered = 1;
-        			$config['max-product-return-days'];
-        			$now = time(); // or your date as well
-                    $status_date = strtotime($each_status[1]);
-                    $datediff = $now - $status_date;
-                    
-                    $no_of_days = round($datediff / (60 * 60 * 24));
-                    if($no_of_days > $config['max-product-return-days']){
-                        $response['error'] = true;
-            			$response['message'] = 'Oops! Sorry you cannot return the item now. You have crossed product\'s maximum return period';
-            			print_r(json_encode($response));
-            			return false;
-                    }
-        		}
-        	}
-        	if(!$is_item_delivered){
-        	    $response['error'] = true;
-    			$response['message'] = 'Cannot return item unless it is delivered!';
-    			print_r(json_encode($response));
-    			return false;
-        	}
-        	/* store return request */
-        	$function->store_return_request($result[0]['user_id'],$order_id,$order_item_id);
-        	/* if delivered take the item as returned */
-        	$status[] = array($postStatus,date("d-m-Y h:i:sa") );
-            $data = array(
-                'status' => $db->escapeString(json_encode($status)),
-                'active_status' => $postStatus
-            );
-            $db->update('order_items',$data,'id='.$order_item_id);
-            $db->getResult();
-            
-		    /* check for other item status and summery of order */
-		    $sql = "SELECT id FROM order_items WHERE order_id=".$order_id;
-        	$db->sql($sql);
-        	$total = $db->numRows();
-        	$sql = "SELECT id FROM `order_items` WHERE order_id=".$order_id." && (`active_status` LIKE '%cancelled%' OR `active_status` LIKE '%returned%' )";
-        	$db->sql($sql);
-        	$returned = $db->numRows();
-        	if($returned == $total){
-        	    $sql = "SELECT status FROM orders WHERE id =".$order_id;
-            	$db->sql($sql);
-            	$res = $db->getResult();
-            	$status_order=json_decode($res[0]['status']);
-            	$status_order[] = array($postStatus,date("d-m-Y h:i:sa") );
-            	$data_order = array(
-            	    'status' => $db->escapeString(json_encode($status)),
-            		'active_status' => $postStatus
-            	);
-                $db->update('orders',$data_order,'id='.$order_id);
-                $db->getResult();
-        	}
-        	$response['error'] = false;
-        	$response['message'] = 'Order item returned request received successfully! Amount will credited to your wallet once approved.';
-        	$response['subtotal'] = $result[0]['sub_total'];
-        	print_r(json_encode($response));
-        	return false;
-    	}
-    }else{
-	    $response['error'] = true;
-    	$response['message'] = 'Order item not found!';
-    	print_r(json_encode($response));
-    	return false;
-	}
-}
+				$sql = "select stock from product_variant where id=" . $res_oi[0]['product_variant_id'];
+				$db->sql($sql);
+				$res_stock = $db->getResult();
+				if ($res_stock[0]['stock'] > 0) {
+					$sql = "UPDATE product_variant set serve_for='Available' WHERE id='" . $res_oi[0]['product_variant_id'] . "'";
+					$db->sql($sql);
+				}
 
-if(isset($_POST['update_order_item_status1']) && isset($_POST['order_item_id'])) {
-    if(!verify_token()){
-        return false;
-    }
-	$order_item_id = $db->escapeString($function->xss_clean($_POST['order_item_id']));
-	$order_id = $db->escapeString($function->xss_clean($_POST['order_id']));
-	$postStatus = $db->escapeString($function->xss_clean($_POST['status']));
-	
-	$sql = "SELECT COUNT(id) as cancelled FROM `order_items` WHERE id=".$order_item_id." && status LIKE '%$postStatus%'";
-	$db->sql($sql);
-	$res_cancelled = $db->getResult();
-	if($res_cancelled[0]['cancelled']>0){
-    	$response['error'] = true;
-		$response['message'] = 'Could not update order status. Item is already '.ucwords($postStatus).'!';
+			} else {
+				/* When product type is loose */
+				if ($res_oi[0]['measurement_unit_id'] != $res_oi[0]['stock_unit_id']) {
+					$stock = $function->convert_to_parent($res_oi[0]['measurement'], $res_oi[0]['measurement_unit_id']);
+					$stock = $stock * $res_oi[0]['quantity'];
+					$sql = "UPDATE product_variant SET stock = stock + " . $stock . " WHERE product_id='" . $res_oi[0]['product_id'] . "'";
+					$db->sql($sql);
+				} else {
+					$stock = $res_oi[0]['measurement'] * $res_oi[0]['quantity'];
+					$sql = "UPDATE product_variant SET stock = stock + " . $stock . " WHERE product_id='" . $res_oi[0]['product_id'] . "'";
+					$db->sql($sql);
+				}
+				$sql = "select stock from product_variant where product_id=" . $res_oi[0]['product_id'];
+				$db->sql($sql);
+				$res_stck = $db->getResult();
+				if ($res_stck[0]['stock'] > 0) {
+					$sql = "UPDATE product_variant set serve_for='Available' WHERE product_id='" . $res_oi[0]['product_id'] . "'";
+					$db->sql($sql);
+				}
+			}
+			// Resolve who is cancelling the item
+			$cancelled_by = '';
+			if (isset($_POST['cancelled_by']) && !empty($_POST['cancelled_by'])) {
+				$cancelled_by = trim($_POST['cancelled_by']);
+			} elseif (isset($_SESSION['role'])) {
+				$s_role = strtolower(trim($_SESSION['role']));
+				if ($s_role == 'seller') {
+					$cancelled_by = 'Seller';
+				} elseif ($s_role == 'admin' || $s_role == 'super admin') {
+					$cancelled_by = 'Admin';
+				} elseif ($s_role == 'delivery_boy') {
+					$cancelled_by = 'Delivery Boy';
+				}
+			}
+			if (empty($cancelled_by)) {
+				$cancelled_by = ($request_type == 'apprequest') ? 'Customer' : 'Customer';
+			}
+			$cancelled_by = ucfirst(strtolower($cancelled_by));
+
+			$status[] = array($postStatus, date("d-m-Y h:i:sa"), $cancelled_by);
+			$currentStatus = $postStatus;
+			$data = array(
+				'status' => $db->escapeString(json_encode($status)),
+				'active_status' => $currentStatus,
+				'cancelled_by' => $cancelled_by
+			);
+
+			$db->update('order_items', $data, 'id=' . $order_item_id);
+			$db->getResult();
+
+			$sql = "SELECT id FROM order_items WHERE order_id=" . $order_id;
+			$db->sql($sql);
+			$total = $db->numRows();
+
+			$sql = "SELECT id FROM `order_items` WHERE order_id=" . $order_id . " && (`active_status` LIKE '%cancelled%' OR `active_status` LIKE '%returned%' )";
+			$db->sql($sql);
+			$cancelled = $db->numRows();
+
+			//echo $cancelled." - ".$total;die;
+
+			if ($cancelled == $total) {
+
+				if ($res_order[0]['payment_method'] != 'cod' && $res_order[0]['payment_method'] != 'COD') {
+					/* update user's wallet */
+					$user_id = $res_order[0]['user_id'];
+					$total_amount = $result[0]['sub_total'] + $res_order[0]['delivery_charge'];
+					if (!empty($products)) {
+						if ($products[0]['price_type'] != 'including') {
+							$total_amount = $total_amount + $res_order[0]['tax_amount'];
+						}
+					}
+					$user_wallet_balance = $function->get_wallet_balance($user_id);
+					$new_balance = $user_wallet_balance + $total_amount;
+					// return false;
+
+					$function->update_wallet_balance($new_balance, $user_id);
+
+					$wallet_txn_id = $function->add_wallet_transaction($user_id, 'credit', $total_amount, 'Balance credited against item cancellation.');
+				} elseif ($res_order[0]['wallet_balance'] != 0) {
+					$user_id = $res_order[0]['user_id'];
+					$user_wallet_balance = $function->get_wallet_balance($user_id);
+					$new_balance = ($user_wallet_balance + $res_order[0]['wallet_balance']);
+					$function->update_wallet_balance($new_balance, $user_id);
+					$wallet_txn_id = $function->add_wallet_transaction($user_id, 'credit', $res_order[0]['wallet_balance'], 'Balance credited against item cancellation.');
+				}
+
+				$data_order = array(
+					'status' => $db->escapeString(json_encode($status)),
+					'active_status' => $currentStatus
+				);
+				if ($currentStatus == 'cancelled' && !empty($cancelled_by)) {
+					$data_order['cancelled_by'] = $cancelled_by;
+				}
+				$db->update('orders', $data_order, 'id=' . $order_id);
+				$db->getResult();
+
+			} else {
+
+				if ($res_order[0]['payment_method'] != 'cod' && $res_order[0]['payment_method'] != 'COD') {
+					$user_id = $res_order[0]['user_id'];
+					$user_wallet_balance = $function->get_wallet_balance($user_id);
+					$new_balance = ($user_wallet_balance + $result[0]['sub_total']);
+					$function->update_wallet_balance($new_balance, $user_id);
+					$wallet_txn_id = $function->add_wallet_transaction($user_id, 'credit', $result[0]['sub_total'], 'Balance credited against item cancellation.');
+				} elseif ($res_order[0]['wallet_balance'] != 0) {
+					$user_id = $res_order[0]['user_id'];
+					$user_wallet_balance = $function->get_wallet_balance($user_id);
+					$new_balance = ($user_wallet_balance + $res_order[0]['wallet_balance']);
+					$function->update_wallet_balance($new_balance, $user_id);
+					$wallet_txn_id = $function->add_wallet_transaction($user_id, 'credit', $res_order[0]['wallet_balance'], 'Balance credited against item cancellation.');
+				}
+			}
+
+			$response['error'] = false;
+			$response['message'] = 'Order item cancelled successfully!';
+			$response['subtotal'] = $result[0]['sub_total'];
+			print_r(json_encode($response));
+			return false;
+		}
+		if ($postStatus == 'returned') {
+			$reason = !empty($_POST['reason']) ? $_POST['reason'] : '';
+			$is_item_delivered = 0;
+			foreach ($status as $each_status) {
+				if (in_array('delivered', $each_status)) {
+					$is_item_delivered = 1;
+					$config['max-product-return-days'];
+					$now = time(); // or your date as well
+					$status_date = strtotime($each_status[1]);
+					$datediff = $now - $status_date;
+
+					$no_of_days = round($datediff / (60 * 60 * 24));
+					if ($no_of_days > $config['max-product-return-days']) {
+						$response['error'] = true;
+						$response['message'] = 'Oops! Sorry you cannot return the item now. You have crossed product\'s maximum return period';
+						print_r(json_encode($response));
+						return false;
+					}
+				}
+			}
+			if (!$is_item_delivered) {
+				$response['error'] = true;
+				$response['message'] = 'Cannot return item unless it is delivered!';
+				print_r(json_encode($response));
+				return false;
+			}
+			/* store return request */
+			$function->store_return_request($result[0]['user_id'], $order_id, $order_item_id);
+			/* if delivered take the item as returned */
+			$status[] = array($postStatus, date("d-m-Y h:i:sa"));
+			$data = array(
+				'status' => $db->escapeString(json_encode($status)),
+				'active_status' => $postStatus
+			);
+			$db->update('order_items', $data, 'id=' . $order_item_id);
+			$db->getResult();
+
+			/* check for other item status and summery of order */
+			$sql = "SELECT id FROM order_items WHERE order_id=" . $order_id;
+			$db->sql($sql);
+			$total = $db->numRows();
+			$sql = "SELECT id FROM `order_items` WHERE order_id=" . $order_id . " && (`active_status` LIKE '%cancelled%' OR `active_status` LIKE '%returned%' )";
+			$db->sql($sql);
+			$returned = $db->numRows();
+			if ($returned == $total) {
+				$sql = "SELECT status FROM orders WHERE id =" . $order_id;
+				$db->sql($sql);
+				$res = $db->getResult();
+				$status_order = json_decode($res[0]['status']);
+				$status_order[] = array($postStatus, date("d-m-Y h:i:sa"));
+				$data_order = array(
+					'status' => $db->escapeString(json_encode($status)),
+					'active_status' => $postStatus
+				);
+				$db->update('orders', $data_order, 'id=' . $order_id);
+				$db->getResult();
+			}
+			$response['error'] = false;
+			$response['message'] = 'Order item returned request received successfully! Amount will credited to your wallet once approved.';
+			$response['subtotal'] = $result[0]['sub_total'];
+			print_r(json_encode($response));
+			return false;
+		}
+	} else {
+		$response['error'] = true;
+		$response['message'] = 'Order item not found!';
 		print_r(json_encode($response));
 		return false;
 	}
-	
-	$sql = "SELECT user_id,status,active_status,sub_total FROM order_items WHERE id =".$order_item_id;
+}
+
+if (isset($_POST['update_order_item_status1']) && isset($_POST['order_item_id'])) {
+	if (!verify_token()) {
+		return false;
+	}
+	$order_item_id = $db->escapeString($function->xss_clean($_POST['order_item_id']));
+	$order_id = $db->escapeString($function->xss_clean($_POST['order_id']));
+	$postStatus = $db->escapeString($function->xss_clean($_POST['status']));
+
+	$sql = "SELECT COUNT(id) as cancelled FROM `order_items` WHERE id=" . $order_item_id . " && status LIKE '%$postStatus%'";
 	$db->sql($sql);
-	$result=$db->getResult();
-	
-    if(!empty($result)){
-    	$status = json_decode($result[0]['status']);
-    	$active_status=$result[0]['active_status'];
-    	if(!isset($_POST['ajaxCall']) || $active_status=='shipped' || $active_status=='delivered'){
-    	    $response['error'] = true;
-        	$response['message'] = 'Order cancel Not Allowed After Shipped';
-        	$response['subtotal'] = 0;
-        	print_r(json_encode($response));
-        	return false;
-    	}
-    	if($postStatus == 'cancelled'){
-    	    $sql = 'SELECT final_total,total,user_id,payment_method,wallet_balance,delivery_charge,tax_amount,status FROM orders WHERE id='.$order_id;
-    	    $db->sql($sql);
-    	    $res_order = $db->getResult();
-    	   // print_r($res_order[0]['total']);
-    	    $sql = 'SELECT oi.`product_variant_id`,oi.`quantity`,oi.`discounted_price`,oi.`price`,pv.`product_id`,pv.`type`,pv.`stock`,pv.`stock_unit_id`,pv.`measurement`,pv.`measurement_unit_id` FROM `order_items` oi join `product_variant` pv on pv.id = oi.product_variant_id WHERE oi.`id`='.$order_item_id;
-    	    $db->sql($sql);
-    	    $res_oi = $db->getResult();
-    	    $price = $res_oi[0]['discounted_price']==0?$res_oi[0]['price']:$res_oi[0]['discounted_price'];
-    	    $price = $price*$res_oi[0]['quantity'];
-    	    $total = $res_order[0]['total'];
-    	    $final_total = $res_order[0]['final_total'];
-    	    $delivery_charge = $res_order[0]['delivery_charge'];
-    	   // echo $total - $price;
-    	    if($total - $price >= 0){
-    	        $sql_total = "update orders set total=$total-$price where id=".$order_id;
-    	        $db->sql($sql_total);
-    	    }
-    	    $sql = "select total from orders where id=".$order_id;
-    	    $db->sql($sql);
-    	    $res_total=$db->getResult();
-    	    $total = $res_total[0]['total'];
-    	    
-    	    if($total<$config['min_amount']){
-    	        if($delivery_charge==0){
-    	            $dchrg = $config['delivery_charge'];
-    	            $sql_delivery_chrg = "update orders set delivery_charge=$dchrg where id=".$order_id;
-            	   // echo $sql_delivery_chrg;
-            	    $db->sql($sql_delivery_chrg);
-            	    $sql_final_total = "update orders set final_total=$final_total-$price+$dchrg where id=".$order_id;
-    	        }else{
-    	            $sql_final_total = "update orders set final_total=$final_total-$price where id=".$order_id;
-    	        }
-	        }else{
-	            $sql_final_total = "update orders set final_total=$final_total-$price where id=".$order_id;
-	        }
-	        if($final_total>0){
-    	       $db->sql($sql_final_total);
-    	    }
-	        if($total==0){
-    	        $sql = "update orders set delivery_charge=0,tax_amount=0,tax_percentage=0,final_total=0 where id=".$order_id;
-    	        $db->sql($sql);
-    	    }
+	$res_cancelled = $db->getResult();
+	if ($res_cancelled[0]['cancelled'] > 0) {
+		$response['error'] = true;
+		$response['message'] = 'Could not update order status. Item is already ' . ucwords($postStatus) . '!';
+		print_r(json_encode($response));
+		return false;
+	}
+
+	$sql = "SELECT user_id,status,active_status,sub_total FROM order_items WHERE id =" . $order_item_id;
+	$db->sql($sql);
+	$result = $db->getResult();
+
+	if (!empty($result)) {
+		$status = json_decode($result[0]['status']);
+		$active_status = $result[0]['active_status'];
+		if (!isset($_POST['ajaxCall']) || $active_status == 'shipped' || $active_status == 'delivered') {
+			$response['error'] = true;
+			$response['message'] = 'Order cancel Not Allowed After Shipped';
+			$response['subtotal'] = 0;
+			print_r(json_encode($response));
+			return false;
+		}
+		if ($postStatus == 'cancelled') {
+			$sql = 'SELECT final_total,total,user_id,payment_method,wallet_balance,delivery_charge,tax_amount,status FROM orders WHERE id=' . $order_id;
+			$db->sql($sql);
+			$res_order = $db->getResult();
+			// print_r($res_order[0]['total']);
+			$sql = 'SELECT oi.`product_variant_id`,oi.`quantity`,oi.`discounted_price`,oi.`price`,pv.`product_id`,pv.`type`,pv.`stock`,pv.`stock_unit_id`,pv.`measurement`,pv.`measurement_unit_id` FROM `order_items` oi join `product_variant` pv on pv.id = oi.product_variant_id WHERE oi.`id`=' . $order_item_id;
+			$db->sql($sql);
+			$res_oi = $db->getResult();
+			$price = $res_oi[0]['discounted_price'] == 0 ? $res_oi[0]['price'] : $res_oi[0]['discounted_price'];
+			$price = $price * $res_oi[0]['quantity'];
+			$total = $res_order[0]['total'];
+			$final_total = $res_order[0]['final_total'];
+			$delivery_charge = $res_order[0]['delivery_charge'];
+			// echo $total - $price;
+			if ($total - $price >= 0) {
+				$sql_total = "update orders set total=$total-$price where id=" . $order_id;
+				$db->sql($sql_total);
+			}
+			$sql = "select total from orders where id=" . $order_id;
+			$db->sql($sql);
+			$res_total = $db->getResult();
+			$total = $res_total[0]['total'];
+
+			if ($total < $config['min_amount']) {
+				if ($delivery_charge == 0) {
+					$dchrg = $config['delivery_charge'];
+					$sql_delivery_chrg = "update orders set delivery_charge=$dchrg where id=" . $order_id;
+					// echo $sql_delivery_chrg;
+					$db->sql($sql_delivery_chrg);
+					$sql_final_total = "update orders set final_total=$final_total-$price+$dchrg where id=" . $order_id;
+				} else {
+					$sql_final_total = "update orders set final_total=$final_total-$price where id=" . $order_id;
+				}
+			} else {
+				$sql_final_total = "update orders set final_total=$final_total-$price where id=" . $order_id;
+			}
+			if ($final_total > 0) {
+				$db->sql($sql_final_total);
+			}
+			if ($total == 0) {
+				$sql = "update orders set delivery_charge=0,tax_amount=0,tax_percentage=0,final_total=0 where id=" . $order_id;
+				$db->sql($sql);
+			}
 
 
 
-    	    if($res_oi[0]['type']=='packet'){
-    	        $sql = "UPDATE product_variant SET stock = stock + ".$res_oi[0]['quantity']." WHERE id='".$res_oi[0]['product_variant_id']."'";
-    			$db->sql($sql);
-    			
-    			$sql = "select stock from product_variant where id=".$res_oi[0]['product_variant_id'];
-    			$db->sql($sql);
-    			$res_stock = $db->getResult();
-    			if($res_stock[0]['stock']>0){
-        			$sql = "UPDATE product_variant set serve_for='Available' WHERE id='".$res_oi[0]['product_variant_id']."'";
-        			$db->sql($sql);
-    			}
-    			    
-    	    }else{
-    	        /* When product type is loose */
-    	        if($res_oi[0]['measurement_unit_id'] != $res_oi[0]['stock_unit_id']){
-    	            $stock = $function->convert_to_parent($res_oi[0]['measurement'],$res_oi[0]['measurement_unit_id']);
-    	            $stock = $stock * $res_oi[0]['quantity'];
-    	            $sql = "UPDATE product_variant SET stock = stock + ".$stock." WHERE product_id='".$res_oi[0]['product_id']."'";
-    			    $db->sql($sql);
-    	        }else{
-    	            $stock = $res_oi[0]['measurement'] * $res_oi[0]['quantity'];
-    	            $sql = "UPDATE product_variant SET stock = stock + ".$stock." WHERE product_id='".$res_oi[0]['product_id']."'";
-    			    $db->sql($sql);
-    	        }
-    	        $sql = "select stock from product_variant where product_id=".$res_oi[0]['product_id'];
-                $db->sql($sql);
-                $res_stck= $db->getResult();
-                if($res_stck[0]['stock']>0){
-                    $sql = "UPDATE product_variant set serve_for='Available' WHERE product_id='".$res_oi[0]['product_id']."'";
-        			$db->sql($sql);
-                }
-    	    }
-            // Resolve who is cancelling the item
-            $cancelled_by = '';
-            if (isset($_POST['cancelled_by']) && !empty($_POST['cancelled_by'])) {
-                $cancelled_by = trim($_POST['cancelled_by']);
-            } elseif (isset($_SESSION['role'])) {
-                $s_role = strtolower(trim($_SESSION['role']));
-                if ($s_role == 'seller') {
-                    $cancelled_by = 'Seller';
-                } elseif ($s_role == 'admin' || $s_role == 'super admin') {
-                    $cancelled_by = 'Admin';
-                } elseif ($s_role == 'delivery_boy') {
-                    $cancelled_by = 'Delivery Boy';
-                }
-            }
-            if (empty($cancelled_by)) {
-                $cancelled_by = ($request_type == 'apprequest') ? 'Customer' : 'Customer';
-            }
-            $cancelled_by = ucfirst(strtolower($cancelled_by));
+			if ($res_oi[0]['type'] == 'packet') {
+				$sql = "UPDATE product_variant SET stock = stock + " . $res_oi[0]['quantity'] . " WHERE id='" . $res_oi[0]['product_variant_id'] . "'";
+				$db->sql($sql);
 
-        	$status[] = array($postStatus, date("d-m-Y h:i:sa"), $cancelled_by);
-            $currentStatus = $postStatus;
-            $data = array(
-                'status' => $db->escapeString(json_encode($status)),
-                'active_status' => $currentStatus,
-                'cancelled_by' => $cancelled_by
-            );
-            $db->update('order_items',$data,'id='.$order_item_id);
-            $db->getResult();
-            
-        	$sql = "SELECT id FROM order_items WHERE order_id=".$order_id;
-        	$db->sql($sql);
-        	$total = $db->numRows();
-        	$sql = "SELECT id FROM `order_items` WHERE order_id=".$order_id." && (`active_status` LIKE '%cancelled%' OR `active_status` LIKE '%returned%' )";
-        	$db->sql($sql);
-        	$cancelled = $db->numRows();
-        	if($cancelled==$total){
-        	   // print_r($res_order);
-        	    if($res_order[0]['payment_method'] != 'cod' && $res_order[0]['payment_method'] !='COD'){
-                	/* update user's wallet */
-                    $user_id = $res_order[0]['user_id'];
-                    $total_amount = $res_order[0]['total']+$res_order[0]['delivery_charge']+$res_order[0]['tax_amount'];
-                    $user_wallet_balance = $function->get_wallet_balance($user_id);
-                    $new_balance = $user_wallet_balance + $total_amount;
-                    // return false;
-                    $function->update_wallet_balance($new_balance,$user_id);
-                    /* add wallet transaction */
-            	    $wallet_txn_id = $function->add_wallet_transaction($user_id,'credit',$total_amount,'Balance credited against item cancellation.');
-                }else{
-                if($res_order[0]['wallet_balance']!=0){
-                    /* update user's wallet */
-                    $user_id = $res_order[0]['user_id'];
-                    // $total = $res[0]['total'];
-                    $user_wallet_balance = $function->get_wallet_balance($user_id);
-                    $new_balance = ($user_wallet_balance + $res_order[0]['wallet_balance']);
-                    // echo $new_balance;
-                    $function->update_wallet_balance($new_balance,$user_id);
-        	        /* add wallet transaction */
-        		    $wallet_txn_id = $function->add_wallet_transaction($user_id,'credit',$res_order[0]['wallet_balance'],'Balance credited against item cancellation.');
-                }
-                    
-           }
-        	    
-            	$data_order = array(
-            	    'status' => $db->escapeString(json_encode($status)),
-            		'active_status' => $currentStatus
-        	        );
-                if ($currentStatus == 'cancelled' && !empty($cancelled_by)) {
-                    $data_order['cancelled_by'] = $cancelled_by;
-                }
-                $db->update('orders',$data_order,'id='.$order_id);
-                $db->getResult();
-        	}else{
-        	    $user_id = $res_order[0]['user_id'];
-        	    $user_wallet_balance = $function->get_wallet_balance($user_id);
-                    $new_balance = ($user_wallet_balance + $result[0]['sub_total']);
-                    // echo $new_balance." - ".$user_id;die;
-                    $function->update_wallet_balance($new_balance,$user_id);
-        	        /* add wallet transaction */
-        		    $wallet_txn_id = $function->add_wallet_transaction($user_id,'credit',$result[0]['sub_total'],'Balance credited against item cancellation.');
-        	}
-		    
-        	$response['error'] = false;
-        	$response['message'] = 'Order cancelled successfully!';
-        	$response['subtotal'] = $result[0]['sub_total'];
-        	print_r(json_encode($response));
-        	return false;
-    	}
-    	if($postStatus == 'returned'){
-    	    $is_item_delivered = 0;
-    	    foreach($status as $each_status){
-        		if (in_array('delivered', $each_status)) {
-        			$is_item_delivered = 1;
-        			$config['max-product-return-days'];
-        			$now = time(); // or your date as well
-                    $status_date = strtotime($each_status[1]);
-                    $datediff = $now - $status_date;
-                    
-                    $no_of_days = round($datediff / (60 * 60 * 24));
-                    if($no_of_days > $config['max-product-return-days']){
-                        $response['error'] = true;
-            			$response['message'] = 'Oops! Sorry you cannot return the item now. You have crossed product\'s maximum return period';
-            			print_r(json_encode($response));
-            			return false;
-                    }
-        		}
-        	}
-        	if(!$is_item_delivered){
-        	    $response['error'] = true;
-    			$response['message'] = 'Cannot return item unless it is delivered!';
-    			print_r(json_encode($response));
-    			return false;
-        	}
-        	/* store return request */
-        	$function->store_return_request($result[0]['user_id'],$order_id,$order_item_id);
-        	/* if delivered take the item as returned */
-        	$status[] = array($postStatus,date("d-m-Y h:i:sa") );
-            $data = array(
-                'status' => $db->escapeString(json_encode($status)),
-                'active_status' => $postStatus
-            );
-            $db->update('order_items',$data,'id='.$order_item_id);
-            $db->getResult();
-            
-		    /* check for other item status and summery of order */
-		    $sql = "SELECT id FROM order_items WHERE order_id=".$order_id;
-        	$db->sql($sql);
-        	$total = $db->numRows();
-        	$sql = "SELECT id FROM `order_items` WHERE order_id=".$order_id." && (`active_status` LIKE '%cancelled%' OR `active_status` LIKE '%returned%' )";
-        	$db->sql($sql);
-        	$returned = $db->numRows();
-        	if($returned == $total){
-        	    $sql = "SELECT status FROM orders WHERE id =".$order_id;
-            	$db->sql($sql);
-            	$res = $db->getResult();
-            	$status_order=json_decode($res[0]['status']);
-            	$status_order[] = array($postStatus,date("d-m-Y h:i:sa") );
-            	$data_order = array(
-            	    'status' => $db->escapeString(json_encode($status)),
-            		'active_status' => $postStatus
-            	);
-                $db->update('orders',$data_order,'id='.$order_id);
-                $db->getResult();
-        	}
-        	$response['error'] = false;
-        	$response['message'] = 'Order item returned request received successfully! Amount will credited to your wallet once approved.';
-        	$response['subtotal'] = $result[0]['sub_total'];
-        	print_r(json_encode($response));
-        	return false;
-    	}
-    }else{
-	    $response['error'] = true;
-    	$response['message'] = 'Order item not found!';
-    	print_r(json_encode($response));
-    	return false;
+				$sql = "select stock from product_variant where id=" . $res_oi[0]['product_variant_id'];
+				$db->sql($sql);
+				$res_stock = $db->getResult();
+				if ($res_stock[0]['stock'] > 0) {
+					$sql = "UPDATE product_variant set serve_for='Available' WHERE id='" . $res_oi[0]['product_variant_id'] . "'";
+					$db->sql($sql);
+				}
+
+			} else {
+				/* When product type is loose */
+				if ($res_oi[0]['measurement_unit_id'] != $res_oi[0]['stock_unit_id']) {
+					$stock = $function->convert_to_parent($res_oi[0]['measurement'], $res_oi[0]['measurement_unit_id']);
+					$stock = $stock * $res_oi[0]['quantity'];
+					$sql = "UPDATE product_variant SET stock = stock + " . $stock . " WHERE product_id='" . $res_oi[0]['product_id'] . "'";
+					$db->sql($sql);
+				} else {
+					$stock = $res_oi[0]['measurement'] * $res_oi[0]['quantity'];
+					$sql = "UPDATE product_variant SET stock = stock + " . $stock . " WHERE product_id='" . $res_oi[0]['product_id'] . "'";
+					$db->sql($sql);
+				}
+				$sql = "select stock from product_variant where product_id=" . $res_oi[0]['product_id'];
+				$db->sql($sql);
+				$res_stck = $db->getResult();
+				if ($res_stck[0]['stock'] > 0) {
+					$sql = "UPDATE product_variant set serve_for='Available' WHERE product_id='" . $res_oi[0]['product_id'] . "'";
+					$db->sql($sql);
+				}
+			}
+			// Resolve who is cancelling the item
+			$cancelled_by = '';
+			if (isset($_POST['cancelled_by']) && !empty($_POST['cancelled_by'])) {
+				$cancelled_by = trim($_POST['cancelled_by']);
+			} elseif (isset($_SESSION['role'])) {
+				$s_role = strtolower(trim($_SESSION['role']));
+				if ($s_role == 'seller') {
+					$cancelled_by = 'Seller';
+				} elseif ($s_role == 'admin' || $s_role == 'super admin') {
+					$cancelled_by = 'Admin';
+				} elseif ($s_role == 'delivery_boy') {
+					$cancelled_by = 'Delivery Boy';
+				}
+			}
+			if (empty($cancelled_by)) {
+				$cancelled_by = ($request_type == 'apprequest') ? 'Customer' : 'Customer';
+			}
+			$cancelled_by = ucfirst(strtolower($cancelled_by));
+
+			$status[] = array($postStatus, date("d-m-Y h:i:sa"), $cancelled_by);
+			$currentStatus = $postStatus;
+			$data = array(
+				'status' => $db->escapeString(json_encode($status)),
+				'active_status' => $currentStatus,
+				'cancelled_by' => $cancelled_by
+			);
+			$db->update('order_items', $data, 'id=' . $order_item_id);
+			$db->getResult();
+
+			$sql = "SELECT id FROM order_items WHERE order_id=" . $order_id;
+			$db->sql($sql);
+			$total = $db->numRows();
+			$sql = "SELECT id FROM `order_items` WHERE order_id=" . $order_id . " && (`active_status` LIKE '%cancelled%' OR `active_status` LIKE '%returned%' )";
+			$db->sql($sql);
+			$cancelled = $db->numRows();
+			if ($cancelled == $total) {
+				// print_r($res_order);
+				if ($res_order[0]['payment_method'] != 'cod' && $res_order[0]['payment_method'] != 'COD') {
+					/* update user's wallet */
+					$user_id = $res_order[0]['user_id'];
+					$total_amount = $res_order[0]['total'] + $res_order[0]['delivery_charge'] + $res_order[0]['tax_amount'];
+					$user_wallet_balance = $function->get_wallet_balance($user_id);
+					$new_balance = $user_wallet_balance + $total_amount;
+					// return false;
+					$function->update_wallet_balance($new_balance, $user_id);
+					/* add wallet transaction */
+					$wallet_txn_id = $function->add_wallet_transaction($user_id, 'credit', $total_amount, 'Balance credited against item cancellation.');
+				} else {
+					if ($res_order[0]['wallet_balance'] != 0) {
+						/* update user's wallet */
+						$user_id = $res_order[0]['user_id'];
+						// $total = $res[0]['total'];
+						$user_wallet_balance = $function->get_wallet_balance($user_id);
+						$new_balance = ($user_wallet_balance + $res_order[0]['wallet_balance']);
+						// echo $new_balance;
+						$function->update_wallet_balance($new_balance, $user_id);
+						/* add wallet transaction */
+						$wallet_txn_id = $function->add_wallet_transaction($user_id, 'credit', $res_order[0]['wallet_balance'], 'Balance credited against item cancellation.');
+					}
+
+				}
+
+				$data_order = array(
+					'status' => $db->escapeString(json_encode($status)),
+					'active_status' => $currentStatus
+				);
+				if ($currentStatus == 'cancelled' && !empty($cancelled_by)) {
+					$data_order['cancelled_by'] = $cancelled_by;
+				}
+				$db->update('orders', $data_order, 'id=' . $order_id);
+				$db->getResult();
+			} else {
+				$user_id = $res_order[0]['user_id'];
+				$user_wallet_balance = $function->get_wallet_balance($user_id);
+				$new_balance = ($user_wallet_balance + $result[0]['sub_total']);
+				// echo $new_balance." - ".$user_id;die;
+				$function->update_wallet_balance($new_balance, $user_id);
+				/* add wallet transaction */
+				$wallet_txn_id = $function->add_wallet_transaction($user_id, 'credit', $result[0]['sub_total'], 'Balance credited against item cancellation.');
+			}
+
+			$response['error'] = false;
+			$response['message'] = 'Order cancelled successfully!';
+			$response['subtotal'] = $result[0]['sub_total'];
+			print_r(json_encode($response));
+			return false;
+		}
+		if ($postStatus == 'returned') {
+			$is_item_delivered = 0;
+			foreach ($status as $each_status) {
+				if (in_array('delivered', $each_status)) {
+					$is_item_delivered = 1;
+					$config['max-product-return-days'];
+					$now = time(); // or your date as well
+					$status_date = strtotime($each_status[1]);
+					$datediff = $now - $status_date;
+
+					$no_of_days = round($datediff / (60 * 60 * 24));
+					if ($no_of_days > $config['max-product-return-days']) {
+						$response['error'] = true;
+						$response['message'] = 'Oops! Sorry you cannot return the item now. You have crossed product\'s maximum return period';
+						print_r(json_encode($response));
+						return false;
+					}
+				}
+			}
+			if (!$is_item_delivered) {
+				$response['error'] = true;
+				$response['message'] = 'Cannot return item unless it is delivered!';
+				print_r(json_encode($response));
+				return false;
+			}
+			/* store return request */
+			$function->store_return_request($result[0]['user_id'], $order_id, $order_item_id);
+			/* if delivered take the item as returned */
+			$status[] = array($postStatus, date("d-m-Y h:i:sa"));
+			$data = array(
+				'status' => $db->escapeString(json_encode($status)),
+				'active_status' => $postStatus
+			);
+			$db->update('order_items', $data, 'id=' . $order_item_id);
+			$db->getResult();
+
+			/* check for other item status and summery of order */
+			$sql = "SELECT id FROM order_items WHERE order_id=" . $order_id;
+			$db->sql($sql);
+			$total = $db->numRows();
+			$sql = "SELECT id FROM `order_items` WHERE order_id=" . $order_id . " && (`active_status` LIKE '%cancelled%' OR `active_status` LIKE '%returned%' )";
+			$db->sql($sql);
+			$returned = $db->numRows();
+			if ($returned == $total) {
+				$sql = "SELECT status FROM orders WHERE id =" . $order_id;
+				$db->sql($sql);
+				$res = $db->getResult();
+				$status_order = json_decode($res[0]['status']);
+				$status_order[] = array($postStatus, date("d-m-Y h:i:sa"));
+				$data_order = array(
+					'status' => $db->escapeString(json_encode($status)),
+					'active_status' => $postStatus
+				);
+				$db->update('orders', $data_order, 'id=' . $order_id);
+				$db->getResult();
+			}
+			$response['error'] = false;
+			$response['message'] = 'Order item returned request received successfully! Amount will credited to your wallet once approved.';
+			$response['subtotal'] = $result[0]['sub_total'];
+			print_r(json_encode($response));
+			return false;
+		}
+	} else {
+		$response['error'] = true;
+		$response['message'] = 'Order item not found!';
+		print_r(json_encode($response));
+		return false;
 	}
 }
 
-if(isset($_POST['update_order_status']) && isset($_POST['id'])) {
+if (isset($_POST['update_order_status']) && isset($_POST['id'])) {
 	$id = $db->escapeString($function->xss_clean($_POST['id']));
 	$postStatus = $db->escapeString($function->xss_clean($_POST['status']));
-	
+
 	$sub_total = 0;
-	
+
 	$is_seller_sess = (isset($_SESSION['role']) && $_SESSION['role'] == 'seller');
 	$is_admin_mode_sess = (isset($_SESSION['secretlogin']) && $_SESSION['secretlogin'] == 'yes') || (isset($_SESSION['role']) && in_array($_SESSION['role'], array('admin', 'super admin')));
 	$is_restricted_seller_sess = ($is_seller_sess && !$is_admin_mode_sess);
@@ -1360,814 +1413,815 @@ if(isset($_POST['update_order_status']) && isset($_POST['id'])) {
 			return false;
 		}
 	}
-	
-	if(isset($_POST['delivery_boy_id']) && $_POST['delivery_boy_id'] != ''){
-	    $delivery_boy_id = $db->escapeString($function->xss_clean($_POST['delivery_boy_id']));
-	    $sql = "SELECT user_id,delivery_boy_id,status FROM `orders` where id=$id";
-    	$db->sql($sql);	
-	    $res_delivery_boy_id = $db->getResult();
-    	
-    		if( ($res_delivery_boy_id[0]['delivery_boy_id'] == 0) || ( $res_delivery_boy_id[0]['delivery_boy_id'] != $delivery_boy_id && $res_delivery_boy_id[0]['status'] != 'cancelled')){
-            $sql_get_name="select name,mobile from delivery_boys where id='$delivery_boy_id'";
-    		$db->sql($sql_get_name);
-    		$delivery_boy_name = $db->getResult();
 
-    		
-    		if($delivery_boy_name[0]['name']=='dunzo'){
-    		        
-    		        $result_set=$dunzo->create_task_line($id);
-    		        if(!empty($result_set->task_id)){
-    		            $ref_id=$result_set->drop_ids;
-    		            $db->sql("INSERT INTO dunzo_task(order_id,task_id,reference_id,status,created_at)values('$id','$result_set->task_id','$ref_id[0]','$result_set->state','".date('Y-m-d H:i:s')."')");
-    		            
-    		        }else{
-    		            $response['error'] = true;
-                		$response['message'] = 'Dunzo could not create order at the movement!';
-                		print_r(json_encode($response));
-                		return false;
-    		        }
-    		        
-    		}else{
-    		    $message_delivery_boy = "Hello, Dear ".ucwords($delivery_boy_name[0]['name']).", You have new order to deliver. Here is your order ID : #".$id.". Please take a note of it.";
-    		    $function->send_notification_to_delivery_boy($delivery_boy_id,"Your new order with ID : #$id has been ".ucwords($postStatus),$message_delivery_boy,'delivery_boys',$id); 
-            
-    		}
-    		// $function->store_delivery_boy_notification($delivery_boy_id,$id,"Your new order with ID : #$id  has been ".ucwords($postStatus),$message_delivery_boy,'order_reward');
-			
-			$sqlme = "select name,email,mobile,country_code from `users` where id=".$res_delivery_boy_id[0]['user_id'];
-    		$db->sql($sqlme);
-    		$res_useraa = $db->getResult();
-    		
-    		$to = $res_useraa[0]['email'];
-			$subject = "Delivery Person Assigned for Your Order";
-			if($delivery_boy_name[0]['name']=='dunzo'){
-			    $message= "Hello, Dear, Your Order Is assigned to delivery Partner  ".ucwords($delivery_boy_name[0]['name']).". Here is your order ID : #".$id;
-			}else{
-			    $message= "Hello, Dear, Your Order Is assigned to delivery Person  ".ucwords($delivery_boy_name[0]['name']).". Here is your order ID : #".$id.". Contact Number For the Delivery Person is ".$delivery_boy_name[0]['mobile']."";
+	if (isset($_POST['delivery_boy_id']) && $_POST['delivery_boy_id'] != '') {
+		$delivery_boy_id = $db->escapeString($function->xss_clean($_POST['delivery_boy_id']));
+		$sql = "SELECT user_id,delivery_boy_id,status FROM `orders` where id=$id";
+		$db->sql($sql);
+		$res_delivery_boy_id = $db->getResult();
+
+		if (($res_delivery_boy_id[0]['delivery_boy_id'] == 0) || ($res_delivery_boy_id[0]['delivery_boy_id'] != $delivery_boy_id && $res_delivery_boy_id[0]['status'] != 'cancelled')) {
+			$sql_get_name = "select name,mobile from delivery_boys where id='$delivery_boy_id'";
+			$db->sql($sql_get_name);
+			$delivery_boy_name = $db->getResult();
+
+
+			if ($delivery_boy_name[0]['name'] == 'dunzo') {
+
+				$result_set = $dunzo->create_task_line($id);
+				if (!empty($result_set->task_id)) {
+					$ref_id = $result_set->drop_ids;
+					$db->sql("INSERT INTO dunzo_task(order_id,task_id,reference_id,status,created_at)values('$id','$result_set->task_id','$ref_id[0]','$result_set->state','" . date('Y-m-d H:i:s') . "')");
+
+				} else {
+					$response['error'] = true;
+					$response['message'] = 'Dunzo could not create order at the movement!';
+					print_r(json_encode($response));
+					return false;
+				}
+
+			} else {
+				$message_delivery_boy = "Hello, Dear " . ucwords($delivery_boy_name[0]['name']) . ", You have new order to deliver. Here is your order ID : #" . $id . ". Please take a note of it.";
+				$function->send_notification_to_delivery_boy($delivery_boy_id, "Your new order with ID : #$id has been " . ucwords($postStatus), $message_delivery_boy, 'delivery_boys', $id);
+
 			}
-			send_email($to,$subject,$message);
+			// $function->store_delivery_boy_notification($delivery_boy_id,$id,"Your new order with ID : #$id  has been ".ucwords($postStatus),$message_delivery_boy,'order_reward');
+
+			$sqlme = "select name,email,mobile,country_code from `users` where id=" . $res_delivery_boy_id[0]['user_id'];
+			$db->sql($sqlme);
+			$res_useraa = $db->getResult();
+
+			$to = $res_useraa[0]['email'];
+			$subject = "Delivery Person Assigned for Your Order";
+			if ($delivery_boy_name[0]['name'] == 'dunzo') {
+				$message = "Hello, Dear, Your Order Is assigned to delivery Partner  " . ucwords($delivery_boy_name[0]['name']) . ". Here is your order ID : #" . $id;
+			} else {
+				$message = "Hello, Dear, Your Order Is assigned to delivery Person  " . ucwords($delivery_boy_name[0]['name']) . ". Here is your order ID : #" . $id . ". Contact Number For the Delivery Person is " . $delivery_boy_name[0]['mobile'] . "";
+			}
+			send_email($to, $subject, $message);
 		}
-    		
-    	//	$message_delivery_boy = "Hello, Dear ".ucwords($delivery_boy_name[0]['name']).", You have new order to deliver. Here is your order ID : #".$id.". Please take a note of it.";
-    	//	$function->send_notification_to_delivery_boy($delivery_boy_id,"Your new order with ID : #$id has been ".ucwords($postStatus),$message_delivery_boy,'delivery_boys',$id); 
-         //   $function->store_delivery_boy_notification($delivery_boy_id,$id,"Your new order with ID : #$id  has been ".ucwords($postStatus),$message_delivery_boy,'order_reward');
-			
+
+		//	$message_delivery_boy = "Hello, Dear ".ucwords($delivery_boy_name[0]['name']).", You have new order to deliver. Here is your order ID : #".$id.". Please take a note of it.";
+		//	$function->send_notification_to_delivery_boy($delivery_boy_id,"Your new order with ID : #$id has been ".ucwords($postStatus),$message_delivery_boy,'delivery_boys',$id); 
+		//   $function->store_delivery_boy_notification($delivery_boy_id,$id,"Your new order with ID : #$id  has been ".ucwords($postStatus),$message_delivery_boy,'order_reward');
+
 		//	$sqlme = "select name,email,mobile,country_code from `users` where id=".$res_delivery_boy_id[0]['user_id'];
-    	//	$db->sql($sqlme);
-    	//	$res_useraa = $db->getResult();
-    		
-    	//	$to = $res_useraa[0]['email'];
+		//	$db->sql($sqlme);
+		//	$res_useraa = $db->getResult();
+
+		//	$to = $res_useraa[0]['email'];
 		//	$subject = "Delivery Person Assigned for Your Order";
 		//	$message= "Hello, Dear, Your Order Is assigned to delivery Person  ".ucwords($delivery_boy_name[0]['name']).". Here is your order ID : #".$id.". Contact Number For the Delivery Person is ".$delivery_boy_name[0]['mobile']."";
 		//	send_email($to,$subject,$message);
 		//}
 		$assigned_db_comm = "";
 		if (!empty($delivery_boy_id) && $delivery_boy_id > 0) {
-			$db->sql("SELECT commission FROM delivery_boys WHERE id = '".(int)$delivery_boy_id."' LIMIT 1");
+			$db->sql("SELECT commission FROM delivery_boys WHERE id = '" . (int) $delivery_boy_id . "' LIMIT 1");
 			$db_c_r = $db->getResult();
 			if (!empty($db_c_r) && isset($db_c_r[0]['commission']) && $db_c_r[0]['commission'] !== '' && floatval($db_c_r[0]['commission']) > 0) {
-				$assigned_db_comm = ", `delivery_boy_commission` = '".floatval($db_c_r[0]['commission'])."'";
+				$assigned_db_comm = ", `delivery_boy_commission` = '" . floatval($db_c_r[0]['commission']) . "'";
 			}
 		}
-		$sql="UPDATE orders SET `delivery_boy_id`='".$delivery_boy_id."'" . $assigned_db_comm . " WHERE id=".$id;
-		$db->sql($sql);	
+		$sql = "UPDATE orders SET `delivery_boy_id`='" . $delivery_boy_id . "'" . $assigned_db_comm . " WHERE id=" . $id;
+		$db->sql($sql);
 	}
-	
-	
-	$sql = "SELECT COUNT(id) as cancelled FROM `orders` WHERE id=".$id." && (active_status LIKE '%cancelled%' OR active_status LIKE '%returned%')";
+
+
+	$sql = "SELECT COUNT(id) as cancelled FROM `orders` WHERE id=" . $id . " && (active_status LIKE '%cancelled%' OR active_status LIKE '%returned%')";
 	$db->sql($sql);
 	$res_cancelled = $db->getResult();
-	if($res_cancelled[0]['cancelled']>0){
-    	$response['error'] = true;
+	if ($res_cancelled[0]['cancelled'] > 0) {
+		$response['error'] = true;
 		$response['message'] = 'Could not update order status once cancelled or returned!';
 		print_r(json_encode($response));
 		return false;
 	}
-	
 
-	$sql="select user_id,payment_method,delivery_method,wallet_balance,total,delivery_charge,tax_amount,status,active_status,delivery_boy_id,order_ready from orders where id=".$id;
+
+	$sql = "select user_id,payment_method,delivery_method,wallet_balance,total,delivery_charge,tax_amount,status,active_status,delivery_boy_id,order_ready from orders where id=" . $id;
 	$db->sql($sql); // Table name, Column Names, JOIN, WHERE conditions, ORDER BY conditions
 	$res = $db->getResult();
-	$order_user_id=$res[0]['user_id'];
-	if($res[0]['active_status']!='delivered' && $postStatus=='returned'){
-	    $response['error'] = true;
+	$order_user_id = $res[0]['user_id'];
+	if ($res[0]['active_status'] != 'delivered' && $postStatus == 'returned') {
+		$response['error'] = true;
 		$response['message'] = 'Cannot return order unless it is delivered!';
 		print_r(json_encode($response));
 		return false;
 	}
-	
-	$sql = "SELECT sub_total FROM order_items WHERE order_id=".$id;
+
+	$sql = "SELECT sub_total FROM order_items WHERE order_id=" . $id;
 	$db->sql($sql);
 	$res_query = $db->getResult();
-	$sql = "SELECT COUNT(id) as total FROM `orders` WHERE user_id=".$res[0]['user_id']." && status LIKE '%delivered%'";
+	$sql = "SELECT COUNT(id) as total FROM `orders` WHERE user_id=" . $res[0]['user_id'] . " && status LIKE '%delivered%'";
 	$db->sql($sql);
 	$res_count = $db->getResult();
-	$sql = "SELECT * FROM `users` WHERE id=".$res[0]['user_id'];
+	$sql = "SELECT * FROM `users` WHERE id=" . $res[0]['user_id'];
 	$db->sql($sql);
 	$res_user = $db->getResult();
-    if(!empty($res)){
-    	$status = json_decode($res[0]['status']);
-    	$user_id =  $res[0]['user_id'];
-    	foreach($status as $each){
-    		if (in_array($postStatus, $each)) {
-                if ($postStatus == 'ready' && isset($res[0]['order_ready']) && (int)$res[0]['order_ready'] == 1) {
-                    $response['error'] = true;
-                    $response['message'] = 'Order already marked as Ready for Pickup!';
-                    print_r(json_encode($response));
-                    return false;
-                }
-                if ($postStatus != 'ready') {
-                    $response['error'] = true;
-                    $response['message'] = isset($_POST['delivery_boy_id']) && $_POST['delivery_boy_id'] != '' && ($res[0]['delivery_boy_id']!=0)?'Delivery Boy updated, Order already '.$postStatus:'Order already '.$postStatus;
-                    print_r(json_encode($response));
-                    return false;
-                }
-    		}
-    	}
-    	
-    	if($postStatus=='cancelled' || $postStatus=='returned'){
-    	    
-    	    $active_status=$res[0]['active_status'];
-    	    
-    	    if($request_type == 'apprequest' && ( $active_status == 'processed' || $active_status == 'shipped' || $active_status=='delivered')){
-               
-    	       $response['error'] = true;
-        	   $response['message'] = 'Order cancel Not Allowed After confirmed';
-        	   $response['subtotal'] = 0;
-        	   print_r(json_encode($response));
-        	   return false;
-    	    }
-    	    
-	        $sql = 'SELECT oi.`product_variant_id`,oi.`quantity`,pv.`product_id`,pv.`type`,pv.`stock`,pv.`stock_unit_id`,pv.`measurement`,pv.`measurement_unit_id` FROM `order_items` oi join `product_variant` pv on pv.id = oi.product_variant_id WHERE `order_id`='.$id;
-    	    $db->sql($sql);
-    	    $res_oi = $db->getResult();
-    	    
-    	    for($i=0;$i<count($res_oi);$i++){
-        	    if($res_oi[$i]['type']=='packet'){
-        	        $sql = "UPDATE product_variant SET stock = stock + ".$res_oi[$i]['quantity']." WHERE id='".$res_oi[$i]['product_variant_id']."'";
-        			$db->sql($sql);
-        			$sql = "select stock from product_variant where id=".$res_oi[0]['product_variant_id'];
-        			$db->sql($sql);
-        			$res_stock = $db->getResult();
-        			if($res_stock[0]['stock']>0){
-            			$sql = "UPDATE product_variant set serve_for='Available' WHERE id='".$res_oi[0]['product_variant_id']."'";
-            			$db->sql($sql);
-        			}
-        	    }else{
-        	        /* When product type is loose */
-        	        if($res_oi[$i]['measurement_unit_id'] != $res_oi[$i]['stock_unit_id']){
-        	            $stock = $function->convert_to_parent($res_oi[$i]['measurement'],$res_oi[$i]['measurement_unit_id']);
-        	            $stock = $stock * $res_oi[$i]['quantity'];
-        	            $sql = "UPDATE product_variant SET stock = stock + ".$stock." WHERE product_id='".$res_oi[$i]['product_id']."'";
-        	            //echo $sql;
-        			    $db->sql($sql);
-        	        }else{
-        	            $stock = $res_oi[$i]['measurement'] * $res_oi[$i]['quantity'];
-        	            $sql = "UPDATE product_variant SET stock = stock + ".$stock." WHERE product_id='".$res_oi[$i]['product_id']."'";
-        			    $db->sql($sql);
-        	        }
-        	        $sql = "select stock from product_variant where product_id=".$res_oi[0]['product_id'];
-                    $db->sql($sql);
-                    $res_stck= $db->getResult();
-                    if($res_stck[0]['stock']>0){
-                        $sql = "UPDATE product_variant set serve_for='Available' WHERE product_id='".$res_oi[0]['product_id']."'";
-            			$db->sql($sql);
-                    }
-        	    }
-    	    }
-    	    
-    	    // Payment Refund:
-    	    // - If online payment via Razorpay: refund back to user's original payment method
-    	    // - If COD: no online refund needed
-    	    // - Any wallet balance used is credited back to wallet
-    	    $refund_info = $function->refund_order_payment($id);
-        }
-    	
-    	if($postStatus=='delivered'){
-    		$sql = "SELECT delivery_boy_id,final_total,total FROM orders WHERE id=".$id;
-    		$db->sql($sql);
-    		$res_boy = $db->getResult();
-    		
-    		
-    		//invoice auto generate-start
-    		$sql_outer="SELECT oi.*,u.*,p.*,v.*,o.*,u.name as uname,d.name as delivery_boy,o.status as order_status,oi.active_status as order_item_status,p.name as pname,(SELECT short_code FROM unit un where un.id=v.measurement_unit_id)as mesurement_unit_name FROM `order_items` oi JOIN users u ON u.id=oi.user_id JOIN product_variant v ON oi.product_variant_id=v.id JOIN products p ON p.id=v.product_id JOIN orders o ON o.id=oi.order_id LEFT JOIN delivery_boys d ON o.delivery_boy_id=d.id WHERE o.id=".$id;
-            // Execute query
-            $db->sql($sql_outer);
-            // store result 
-            $res_outer=$db->getResult();
-     
-              $items=[];
-            foreach($res_outer as $row){
-                    $data=array($row['product_id'],$row['pname'],$row['quantity'],$row['measurement'],$row['mesurement_unit_name'],$row['discounted_price']*$row['quantity'],$row['discount'],$row['sub_total'],$row['order_item_status']);
-                    array_push($items, $data);
-            }
-             // print_r($items);
-            $encoded_items=$db->escapeString(json_encode($items));
-            $id = $res_outer[0]['id'];
-            $sql = "SELECT COUNT(id) as total FROM `invoice` where order_id=".$id;
-            $db->sql($sql);
-            $res=$db->getResult();
-            $total=$res[0]['total'];
-            
-            if ($total == 0) {
+	if (!empty($res)) {
+		$status = json_decode($res[0]['status']);
+		$user_id = $res[0]['user_id'];
+		foreach ($status as $each) {
+			if (in_array($postStatus, $each)) {
+				if ($postStatus == 'ready' && isset($res[0]['order_ready']) && (int) $res[0]['order_ready'] == 1) {
+					$response['error'] = true;
+					$response['message'] = 'Order already marked as Ready for Pickup!';
+					print_r(json_encode($response));
+					return false;
+				}
+				if ($postStatus != 'ready') {
+					$response['error'] = true;
+					$response['message'] = isset($_POST['delivery_boy_id']) && $_POST['delivery_boy_id'] != '' && ($res[0]['delivery_boy_id'] != 0) ? 'Delivery Boy updated, Order already ' . $postStatus : 'Order already ' . $postStatus;
+					print_r(json_encode($response));
+					return false;
+				}
+			}
+		}
 
-                $invoicedate = date('Y-m-d');
-                $id = $res_outer[0]['id'];
-                $name=$res_outer[0]['uname'];
-                $email=$res_outer[0]['email'];
-                $address = $res_outer[0]['address'];
-                $phone = $res_outer[0]['mobile'];
-                $orderdate = $res_outer[0]['date_added'];
-                $order_list = $encoded_items;
-                $discount = $res_outer[0]['discount'];
-                $final_total=$res_outer[0]['final_total'];
-                $total_payble = $res_outer[0]['price'];
-                $shipping_charge=$res_outer[0]['delivery_charge'];
-                $payment = $res_outer[0]['final_total'];
-                $data = array(
-                    'invoice_date' => $invoicedate,
-                    'order_id' => $id,
-                    'name' => $name,
-                    'address' => $address,
-                    'order_date' => $orderdate,
-                    'phone_number' => $phone,
-                    'order_list' => $encoded_items,
-                    'email' => $email,
-                    'discount' => $discount,
-                    'total_sale' => $total_payble,
-                    'shipping_charge' => $shipping_charge,
-                    'payment' => $payment,
-                );
-                // print_r($data);
-                $db->insert('invoice',$data);
-                $res=$db->getResult();
-                $subject = "Order Delivered Successfully. Your invoice is here";
-                
-                $sql_invoice = "SELECT * FROM invoice WHERE order_id =" . $id;
+		if ($postStatus == 'cancelled' || $postStatus == 'returned') {
 
-                // Execute query
-                $db->sql($sql_invoice);
-                // store result 
-                $res_invoice=$db->getResult();
-            			$message = "<div><h2 style='text-align:left;float:left;'>".$settings['app_name']."</h2><h2 style='text-align:right;float:right;'>Mo. +91 ".$settings['support_number']."</h2><hr style='clear:both;'/></div>";
-            			$message .= "<div style='width:33%;display:inline-block;text-align:left;'>From<address><strong>".$settings['app_name']."</strong><br>Email: ".$settings['support_email']."<br>Customer Care : +91 ".$settings['support_number']."<br>Delivery By: &nbsp; ".$res_outer[0]['delivery_boy']."</address><br></div><!-- /.col -->";
-            			$message .="<div  style='width:33%;display:inline-block;'><br>To<address><strong>".$res_outer[0]['uname']."</strong><br>".$res_outer[0]['address']."<br><strong>".$res_outer[0]['mobile']."</strong><br><strong>".$res_outer[0]['email']."</strong><br></address></div>";
-            			$message .="<div style='width:33%;display:inline-block;text-align:right;'>Retail Invoice<br><b>No : </b>#".$res_invoice[0]['id']."<br><b>Date: </b>".date('d-m-Y',strtotime($res_invoice[0]['invoice_date']))."<br><b>Order ID: </b>#".$res_outer[0]['id']."<br><b>Date: </b>".date('d-m-Y h:i A',strtotime($res_outer[0]['date_added']))."<br><br></div>";
-            			$message .="<div style='margin:5px'></div><hr>";
-            			$decoded_items=json_decode(stripSlashes($encoded_items));
-            			$message .="<table style=' line-height:20px;width:100% !important ' width:'500'; align='center'  cellpadding='5' cellspacing='1'>
+			$active_status = $res[0]['active_status'];
+
+			if ($request_type == 'apprequest' && ($active_status == 'processed' || $active_status == 'shipped' || $active_status == 'delivered')) {
+
+				$response['error'] = true;
+				$response['message'] = 'Order cancel Not Allowed After confirmed';
+				$response['subtotal'] = 0;
+				print_r(json_encode($response));
+				return false;
+			}
+
+			$sql = 'SELECT oi.`product_variant_id`,oi.`quantity`,pv.`product_id`,pv.`type`,pv.`stock`,pv.`stock_unit_id`,pv.`measurement`,pv.`measurement_unit_id` FROM `order_items` oi join `product_variant` pv on pv.id = oi.product_variant_id WHERE `order_id`=' . $id;
+			$db->sql($sql);
+			$res_oi = $db->getResult();
+
+			for ($i = 0; $i < count($res_oi); $i++) {
+				if ($res_oi[$i]['type'] == 'packet') {
+					$sql = "UPDATE product_variant SET stock = stock + " . $res_oi[$i]['quantity'] . " WHERE id='" . $res_oi[$i]['product_variant_id'] . "'";
+					$db->sql($sql);
+					$sql = "select stock from product_variant where id=" . $res_oi[0]['product_variant_id'];
+					$db->sql($sql);
+					$res_stock = $db->getResult();
+					if ($res_stock[0]['stock'] > 0) {
+						$sql = "UPDATE product_variant set serve_for='Available' WHERE id='" . $res_oi[0]['product_variant_id'] . "'";
+						$db->sql($sql);
+					}
+				} else {
+					/* When product type is loose */
+					if ($res_oi[$i]['measurement_unit_id'] != $res_oi[$i]['stock_unit_id']) {
+						$stock = $function->convert_to_parent($res_oi[$i]['measurement'], $res_oi[$i]['measurement_unit_id']);
+						$stock = $stock * $res_oi[$i]['quantity'];
+						$sql = "UPDATE product_variant SET stock = stock + " . $stock . " WHERE product_id='" . $res_oi[$i]['product_id'] . "'";
+						//echo $sql;
+						$db->sql($sql);
+					} else {
+						$stock = $res_oi[$i]['measurement'] * $res_oi[$i]['quantity'];
+						$sql = "UPDATE product_variant SET stock = stock + " . $stock . " WHERE product_id='" . $res_oi[$i]['product_id'] . "'";
+						$db->sql($sql);
+					}
+					$sql = "select stock from product_variant where product_id=" . $res_oi[0]['product_id'];
+					$db->sql($sql);
+					$res_stck = $db->getResult();
+					if ($res_stck[0]['stock'] > 0) {
+						$sql = "UPDATE product_variant set serve_for='Available' WHERE product_id='" . $res_oi[0]['product_id'] . "'";
+						$db->sql($sql);
+					}
+				}
+			}
+
+			// Payment Refund:
+			// - If online payment via Razorpay: refund back to user's original payment method
+			// - If COD: no online refund needed
+			// - Any wallet balance used is credited back to wallet
+			$refund_info = $function->refund_order_payment($id);
+		}
+
+		if ($postStatus == 'delivered') {
+			$sql = "SELECT delivery_boy_id,final_total,total FROM orders WHERE id=" . $id;
+			$db->sql($sql);
+			$res_boy = $db->getResult();
+
+
+			//invoice auto generate-start
+			$sql_outer = "SELECT oi.*,u.*,p.*,v.*,o.*,u.name as uname,d.name as delivery_boy,o.status as order_status,oi.active_status as order_item_status,p.name as pname,(SELECT short_code FROM unit un where un.id=v.measurement_unit_id)as mesurement_unit_name FROM `order_items` oi JOIN users u ON u.id=oi.user_id JOIN product_variant v ON oi.product_variant_id=v.id JOIN products p ON p.id=v.product_id JOIN orders o ON o.id=oi.order_id LEFT JOIN delivery_boys d ON o.delivery_boy_id=d.id WHERE o.id=" . $id;
+			// Execute query
+			$db->sql($sql_outer);
+			// store result 
+			$res_outer = $db->getResult();
+
+			$items = [];
+			foreach ($res_outer as $row) {
+				$data = array($row['product_id'], $row['pname'], $row['quantity'], $row['measurement'], $row['mesurement_unit_name'], $row['discounted_price'] * $row['quantity'], $row['discount'], $row['sub_total'], $row['order_item_status']);
+				array_push($items, $data);
+			}
+			// print_r($items);
+			$encoded_items = $db->escapeString(json_encode($items));
+			$id = $res_outer[0]['id'];
+			$sql = "SELECT COUNT(id) as total FROM `invoice` where order_id=" . $id;
+			$db->sql($sql);
+			$res = $db->getResult();
+			$total = $res[0]['total'];
+
+			if ($total == 0) {
+
+				$invoicedate = date('Y-m-d');
+				$id = $res_outer[0]['id'];
+				$name = $res_outer[0]['uname'];
+				$email = $res_outer[0]['email'];
+				$address = $res_outer[0]['address'];
+				$phone = $res_outer[0]['mobile'];
+				$orderdate = $res_outer[0]['date_added'];
+				$order_list = $encoded_items;
+				$discount = $res_outer[0]['discount'];
+				$final_total = $res_outer[0]['final_total'];
+				$total_payble = $res_outer[0]['price'];
+				$shipping_charge = $res_outer[0]['delivery_charge'];
+				$payment = $res_outer[0]['final_total'];
+				$data = array(
+					'invoice_date' => $invoicedate,
+					'order_id' => $id,
+					'name' => $name,
+					'address' => $address,
+					'order_date' => $orderdate,
+					'phone_number' => $phone,
+					'order_list' => $encoded_items,
+					'email' => $email,
+					'discount' => $discount,
+					'total_sale' => $total_payble,
+					'shipping_charge' => $shipping_charge,
+					'payment' => $payment,
+				);
+				// print_r($data);
+				$db->insert('invoice', $data);
+				$res = $db->getResult();
+				$subject = "Order Delivered Successfully. Your invoice is here";
+
+				$sql_invoice = "SELECT * FROM invoice WHERE order_id =" . $id;
+
+				// Execute query
+				$db->sql($sql_invoice);
+				// store result 
+				$res_invoice = $db->getResult();
+				$message = "<div><h2 style='text-align:left;float:left;'>" . $settings['app_name'] . "</h2><h2 style='text-align:right;float:right;'>Mo. +91 " . $settings['support_number'] . "</h2><hr style='clear:both;'/></div>";
+				$message .= "<div style='width:33%;display:inline-block;text-align:left;'>From<address><strong>" . $settings['app_name'] . "</strong><br>Email: " . $settings['support_email'] . "<br>Customer Care : +91 " . $settings['support_number'] . "<br>Delivery By: &nbsp; " . $res_outer[0]['delivery_boy'] . "</address><br></div><!-- /.col -->";
+				$message .= "<div  style='width:33%;display:inline-block;'><br>To<address><strong>" . $res_outer[0]['uname'] . "</strong><br>" . $res_outer[0]['address'] . "<br><strong>" . $res_outer[0]['mobile'] . "</strong><br><strong>" . $res_outer[0]['email'] . "</strong><br></address></div>";
+				$message .= "<div style='width:33%;display:inline-block;text-align:right;'>Retail Invoice<br><b>No : </b>#" . $res_invoice[0]['id'] . "<br><b>Date: </b>" . date('d-m-Y', strtotime($res_invoice[0]['invoice_date'])) . "<br><b>Order ID: </b>#" . $res_outer[0]['id'] . "<br><b>Date: </b>" . date('d-m-Y h:i A', strtotime($res_outer[0]['date_added'])) . "<br><br></div>";
+				$message .= "<div style='margin:5px'></div><hr>";
+				$decoded_items = json_decode(stripSlashes($encoded_items));
+				$message .= "<table style=' line-height:20px;width:100% !important ' width:'500'; align='center'  cellpadding='5' cellspacing='1'>
             					<thead><tr style='border-top:10px solid black;border-bottom:10px solid black;'><th width='10%'>Sr No.</th><th width='15%'>Product Code</th><th width='30%'>Product Name</th><th width='15%'>Unit</th><th width='15%'>Qty</th><th align='right' width='15%'>SubTotal (₹)</th></tr></thead>";
-    					$qty = 0;
-                        $i=1;
-                        $total=0;
-                        foreach ($decoded_items as $item) {
-                            if($item[8]!='cancelled' && $item[8]!='returned'){
-                               $message .= "<tr><td width='10%'  align='center' >".$i."</td>
-                        					<td width='15%' align='center'>".$item[0]."</td>
-                        					<td width='30%' align='center'>".$item[1]."</td>
-                        					<td width='15%' align='center'>".$item[3]." ".$item[4]."</td>
-                        					<td width='15%' align='center'>".$item[2]."</td>
-                        					<td width='15%' align='right'>".$item[7]."</td></tr>";
-            					$qty = $qty+$item[2];
-                                $i++;
-                                $total+=$item[7];
-                            }
-                        }
-                        $sql_total = 'select total from orders where id='.$id;
-                                        $db->sql($sql_total);
-                                        $res_total = $db->getResult();                        
-					
-					
-					    $message .= "<tr style='line-height:50px;padding-bottom: 1em;'>
+				$qty = 0;
+				$i = 1;
+				$total = 0;
+				foreach ($decoded_items as $item) {
+					if ($item[8] != 'cancelled' && $item[8] != 'returned') {
+						$message .= "<tr><td width='10%'  align='center' >" . $i . "</td>
+                        					<td width='15%' align='center'>" . $item[0] . "</td>
+                        					<td width='30%' align='center'>" . $item[1] . "</td>
+                        					<td width='15%' align='center'>" . $item[3] . " " . $item[4] . "</td>
+                        					<td width='15%' align='center'>" . $item[2] . "</td>
+                        					<td width='15%' align='right'>" . $item[7] . "</td></tr>";
+						$qty = $qty + $item[2];
+						$i++;
+						$total += $item[7];
+					}
+				}
+				$sql_total = 'select total from orders where id=' . $id;
+				$db->sql($sql_total);
+				$res_total = $db->getResult();
+
+
+				$message .= "<tr style='line-height:50px;padding-bottom: 1em;'>
                                             <td style='font-weight:bold' colspan='4' align='right'>Total</td>
-                                           <td align='center'>".$qty."</td>
-                                           <td align='right'>".$res_total[0]['total']."</td>
+                                           <td align='center'>" . $qty . "</td>
+                                           <td align='right'>" . $res_total[0]['total'] . "</td>
                                         </tr>";
-                                        if($res_outer[0]['discount']>0){
-                                            $discounted_amount = $res_total[0]['total'] * $res_outer[0]['discount'] / 100; /*  */
-                                    	    $final_total = $res_total[0]['total'] - $discounted_amount;
-                                            $discount_in_rupees = $res_total[0]['total']-$final_total;
-                                            $discount_in_rupees = $discount_in_rupees;
-                                            // echo $discount_in_rupees;
-                                        } else {
-                                            $discount_in_rupees = 0;
-                                        }
-                                      $message .= "<tr style='padding-top:30px;border-spacing: 15px;margin-top:30px'>
+				if ($res_outer[0]['discount'] > 0) {
+					$discounted_amount = $res_total[0]['total'] * $res_outer[0]['discount'] / 100; /*  */
+					$final_total = $res_total[0]['total'] - $discounted_amount;
+					$discount_in_rupees = $res_total[0]['total'] - $final_total;
+					$discount_in_rupees = $discount_in_rupees;
+					// echo $discount_in_rupees;
+				} else {
+					$discount_in_rupees = 0;
+				}
+				$message .= "<tr style='padding-top:30px;border-spacing: 15px;margin-top:30px'>
                                                         <td style='font-weight:bold' colspan='4' align='right'>Total Order Price (₹)</td>
                                                         <td align='right'></td>
-                                                        <td align='right'>&nbsp;+ ".$res_total[0]['total']."</td>
+                                                        <td align='right'>&nbsp;+ " . $res_total[0]['total'] . "</td>
                                                     </tr>
                                                     <tr>
                                                         <td style='font-weight:bold' colspan='4' align='right'>Delivery Charge (₹)</td>
                                                         <td align='right'></td>
-                                                        <td align='right'>&nbsp;+ ".$res_outer[0]['delivery_charge']."</td>
+                                                        <td align='right'>&nbsp;+ " . $res_outer[0]['delivery_charge'] . "</td>
                                                     </tr>
                                                     <tr>
                                                         <td style='font-weight:bold' colspan='4' align='right'>Tax ₹(%)</td>
                                                         <td align='right'></td>
-                                                        <td align='right'>&nbsp;+ ".$res_outer[0]['tax_amount']." (".$res_outer[0]['tax_percentage']."%)</td>
+                                                        <td align='right'>&nbsp;+ " . $res_outer[0]['tax_amount'] . " (" . $res_outer[0]['tax_percentage'] . "%)</td>
                                                     </tr>
                                                     <tr>
                                                         <td style='font-weight:bold' colspan='4' align='right'>Discount ₹(%)</td>
                                                         <td align='right'></td>
-                                                        <td align='right'>&nbsp;- ".$discount_in_rupees." (".$res_outer[0]['discount']."%)</td>
+                                                        <td align='right'>&nbsp;- " . $discount_in_rupees . " (" . $res_outer[0]['discount'] . "%)</td>
                                                     </tr>
                                                     <tr>
                                                         <td style='font-weight:bold' colspan='4' align='right'>Promo (-) Discount (₹)</td>
                                                         <td align='right'></td>
-                                                        <td align='right'>&nbsp;- ".$res_outer[0]['promo_discount']."</td>
+                                                        <td align='right'>&nbsp;- " . $res_outer[0]['promo_discount'] . "</td>
                                                     </tr>
                                                     <tr>
                                                         <td style='font-weight:bold' colspan='4' align='right'>Wallet Used (₹)</td>
                                                         <td align='right'></td>
-                                                        <td align='right'>&nbsp;- ".$res_outer[0]['wallet_balance']."</td>
+                                                        <td align='right'>&nbsp;- " . $res_outer[0]['wallet_balance'] . "</td>
                                                     </tr>";
-                                                     $total = $res_total[0]['total'];
-                                                        $delivery_charge = $res_outer[0]['delivery_charge'];
-                                                        $tax_amount = $res_outer[0]['tax_amount'];
-                                                        $promo_discount = $res_outer[0]['promo_discount'];
-                                                        $wallet = $res_outer[0]['wallet_balance'];
-                                                        $final_total = $total+$delivery_charge-$discount_in_rupees-$promo_discount-$wallet;
-                                                    $message .= "<tr><td style='font-weight:bold' colspan='4' align='right'>Final Total (₹)</td>
+				$total = $res_total[0]['total'];
+				$delivery_charge = $res_outer[0]['delivery_charge'];
+				$tax_amount = $res_outer[0]['tax_amount'];
+				$promo_discount = $res_outer[0]['promo_discount'];
+				$wallet = $res_outer[0]['wallet_balance'];
+				$final_total = $total + $delivery_charge - $discount_in_rupees - $promo_discount - $wallet;
+				$message .= "<tr><td style='font-weight:bold' colspan='4' align='right'>Final Total (₹)</td>
                                                     <td align='right'></td>
-                                                                            <td align='right'>&nbsp;= ".($final_total)."</td>
+                                                                            <td align='right'>&nbsp;= " . ($final_total) . "</td>
                                                     </tr></table>";
-			                                        //send_email($email,$subject,$message);
-            }
-            //invoice auto generate-end		
-    
-    		if($res_boy[0]['delivery_boy_id']!=0){
-    			$sql = "SELECT bonus,name FROM delivery_boys WHERE id=".$res_boy[0]['delivery_boy_id'];
-    			$db->sql($sql);
-    			$res_bonus = $db->getResult();
-    			$reward = $res_boy[0]['total']/100*$res_bonus[0]['bonus'];
-    	    	$sql = "UPDATE delivery_boys SET balance = balance + ceil($reward) WHERE id=".$res_boy[0]['delivery_boy_id'];
-    			$db->sql($sql);
-    			$comission = $function->add_delivery_boy_commission($delivery_boy_id,'credit',$reward,'Order Delivery Commission.');
-    			
-    			$sql = "SELECT value FROM `settings` WHERE variable='currency'";
-    			$db->sql($sql);
-    			$currency = $db->getResult();
-    		    $message_delivery_boy = "Hello, Dear ".ucwords($res_bonus[0]['name']).", Here is the new update on your order for the order ID : #".$id.". Your Commission of".$reward." is credited. Please take a note of it.";
-    			// Delivery boy no need to receive delivered notification
-    			// $function->send_notification_to_delivery_boy($delivery_boy_id,"Your commission ".$reward." ".$currency[0]['value']." has been credited","$message_delivery_boy",'delivery_boys',$id);
-    			$function->store_delivery_boy_notification($delivery_boy_id,$id,"Your commission ".$reward." ".$currency[0]['value']." has been credited",$message_delivery_boy,'order_reward');
-    		}
-    		
-    		if($config['is-refer-earn-on']==1){ 
-    			if($res_boy[0]['total']>=$config['min-refer-earn-order-amount']){ 
-    				if($res_count[0]['total']==0){ 
-    					if($res_user[0]['friends_code'] != ''){ 
-    						if($config['refer-earn-method']=='percentage'){  
-    							$percentage = $config['refer-earn-bonus'];
-    							$bonus_amount = $res_boy[0]['total']/100*$percentage;
-    							if($bonus_amount>$config['max-refer-earn-amount']){
-    								$bonus_amount = $config['max-refer-earn-amount'];
-    							}
-    						}else{ 
-    							$bonus_amount = $config['refer-earn-bonus'];
-    						}
-    						
-    						$sql  = "SELECT name,friends_code FROM users WHERE id=".$order_user_id;
-    						$db->sql($sql);
-    						$res_data = $db->getResult();
-    						
-    						$sql = " select id from `users` where `referral_code` = '".$res_data[0]['friends_code']."'";
-    						$db->sql($sql);
-    						$friend_user = $db->getResult();
-    						
-    						if(!empty($friend_user))
-    						    $function->add_wallet_transaction($friend_user[0]['id'],'credit',floor($bonus_amount),'Refer & Earn Bonus on first order by '.ucwords($res_data[0]['name']));
-    						
-    						$sql = "UPDATE users SET balance = balance + floor($bonus_amount) WHERE referral_code='".$res_data[0]['friends_code']."'";
-    						$db->sql($sql);
-    						
-    					}
-    
-    				}
-    
-    			}
-    		}
-    		
-    	}
-    	$temp=[];
-    	foreach($status as $s){
-    	    array_push($temp,$s[0]);
-    	}
-    	$sql = "SELECT id,active_status FROM order_items WHERE order_id=".$id;
-        $db->sql($sql);
-        $result = $db->getResult();
-        
-    	if($postStatus=='cancelled'){
-    	    
-	        $result_set=$dunzo->cancel_task_line($id);
-        	if(!empty($result_set)){
-        	    $response['error'] = true;
-        		$response['message'] = 'Dunzo could not cancel order at the movement!';
-        		print_r(json_encode($response));
-        		return false;
-        	}
+				//send_email($email,$subject,$message);
+			}
+			//invoice auto generate-end		
 
-            // Resolve who is cancelling the order
-            $cancelled_by = '';
-            if (isset($_POST['cancelled_by']) && !empty($_POST['cancelled_by'])) {
-                $cancelled_by = trim($_POST['cancelled_by']);
-            } elseif (isset($_SESSION['role'])) {
-                $s_role = strtolower(trim($_SESSION['role']));
-                if ($s_role == 'seller') {
-                    $cancelled_by = 'Seller';
-                } elseif ($s_role == 'admin' || $s_role == 'super admin') {
-                    $cancelled_by = 'Admin';
-                } elseif ($s_role == 'delivery_boy') {
-                    $cancelled_by = 'Delivery Boy';
-                }
-            }
-            if (empty($cancelled_by)) {
-                $cancelled_by = ($request_type == 'apprequest') ? 'Customer' : 'Customer';
-            }
-            $cancelled_by = ucfirst(strtolower($cancelled_by));
+			if ($res_boy[0]['delivery_boy_id'] != 0) {
+				$sql = "SELECT bonus,name FROM delivery_boys WHERE id=" . $res_boy[0]['delivery_boy_id'];
+				$db->sql($sql);
+				$res_bonus = $db->getResult();
+				$reward = $res_boy[0]['total'] / 100 * $res_bonus[0]['bonus'];
+				$sql = "UPDATE delivery_boys SET balance = balance + ceil($reward) WHERE id=" . $res_boy[0]['delivery_boy_id'];
+				$db->sql($sql);
+				$comission = $function->add_delivery_boy_commission($delivery_boy_id, 'credit', $reward, 'Order Delivery Commission.');
 
-    	    if (!in_array('cancelled', $temp)) {
-    	        $status[] = array('cancelled', date("d-m-Y h:i:sa"), $cancelled_by);
-    	        $data = array(
-    	            'status' => $db->escapeString(json_encode($status)),
-                    'cancelled_by' => $cancelled_by,
-    	        );
-    	    } else {
-                $data = array('cancelled_by' => $cancelled_by);
-            }
-    	    $db->update('orders',$data,'id='.$id);
-    	    $db->getResult();
-    
-    	    foreach($result as $item){
-    	        if($item['active_status'] != 'cancelled'){
-    	            $item_data = array(
-    	                'status' => $db->escapeString(json_encode($status)),
-        	            'active_status' => 'cancelled',
-                        'cancelled_by' => $cancelled_by,
-    	            );
-    	            $db->update('order_items',$item_data,'id='.$item['id']);
-    	            $db->getResult();
-    	        }
-    	    }
-    	}
-    	
-    	if($postStatus=='processed'){
-    	    if (!in_array('processed', $temp)) {
-    	        $status[] = array('processed',date("d-m-Y h:i:sa") );
-    	        $data = array(
-    	            'status' => $db->escapeString(json_encode($status))
-    	       );
-    	    }
-    	    $db->update('orders',$data,'id='.$id);
-    	    foreach($result as $item){
-    	        $item_data = array(
-    	            'status' => $db->escapeString(json_encode($status)),
-        	        'active_status' => 'processed'
-    	            );
-    	        if($item['active_status'] != 'cancelled'){
-    	             $db->update('order_items',$item_data,'id='.$item['id']);
-    	             $db->getResult();
-    	        }
-    	    }
-    	}
-    	
-    	if($postStatus=='shipped'){
-    	    if (!in_array('processed', $temp)) {
-    	        $status[] = array('processed',date("d-m-Y h:i:sa") );
-    	        $data = array('status' => $db->escapeString(json_encode($status)));
-    	    }
-    	    if (!in_array('shipped', $temp)) {
-    	        $status[] = array('shipped',date("d-m-Y h:i:sa") );
-    	        $data = array('status' => $db->escapeString(json_encode($status)));
-    	    }
-    	    $db->update('orders',$data,'id='.$id);
-    	    foreach($result as $item){
-    	        $item_data = array(
-                'status' => $db->escapeString(json_encode($status)),
-    	        'active_status' => 'shipped'
-    	            );
-    	        if($item['active_status'] != 'cancelled'){
-    	             $db->update('order_items',$item_data,'id='.$item['id']);
-    	             $db->getResult();
-    	        }
-    	    }
-    	}
-    	
-    	if($postStatus=='delivered'){
-    	    if (!in_array('processed', $temp)) {
-    	        $status[] = array('processed',date("d-m-Y h:i:sa") );
-    	        $data = array('status' => $db->escapeString(json_encode($status)));
-    	    }
-    	    if (!in_array('shipped', $temp)) {
-    	        $status[] = array('shipped',date("d-m-Y h:i:sa") );
-    	        $data = array('status' => $db->escapeString(json_encode($status)));
-    	    
-    	    }
-    	    if (!in_array('delivered', $temp)) {
-    	        $status[] = array('delivered',date("d-m-Y h:i:sa") );
-    	        $data = array('status' => $db->escapeString(json_encode($status)));
-    	    
-    	    }
-    	    $db->update('orders',$data,'id='.$id);
-    	    $db->getResult();
-        	 $item_data = array(
-                'status' => $db->escapeString(json_encode($status)),
-                'active_status' => 'delivered'
-             );
-    	    foreach($result as $item){
-    	        
-    	        if($item['active_status'] != 'cancelled'){
-    	             $db->update('order_items',$item_data,'id='.$item['id']);
-    	             $db->getResult();
-    	        }
-    	    } 
-    	}
-    	
-    	if($postStatus=='returned'){
-             $status[] = array('returned',date("d-m-Y h:i:sa") );
-             $data = array('status' => $db->escapeString(json_encode($status)));
-    	     $db->update('orders',$data,'id='.$id);
-    	     $db->getResult();
-        	 $item_data = array(
-                'status' => $db->escapeString(json_encode($status)),
-                'active_status' => 'returned'
-             );
-    	    foreach($result as $item){
-    	        
-    	        if($item['active_status'] != 'cancelled' && $item['active_status']=='delivered'){
-    	             $db->update('order_items',$item_data,'id='.$item['id']);
-    	             $db->getResult();
-    	        }
-    	    } 
-    	}
-    	
-    	if($postStatus=='ready'){
-    	    $data = array('order_ready' => '1');
-    	    $already_ready = false;
-    	    if (!empty($status) && is_array($status)) {
-    	        foreach($status as $each_st){
-    	            if (is_array($each_st) && (in_array('ready', $each_st) || in_array('ready for pickup', $each_st))) {
-    	                $already_ready = true;
-    	                break;
-    	            }
-    	        }
-    	    }
-    	    if (!$already_ready) {
-    	        $status[] = array('ready for pickup', date("d-m-Y h:i:sa"));
-    	        $data['status'] = $db->escapeString(json_encode($status));
-    	    }
-    	    $db->update('orders', $data, 'id='.$id);
-    	    $db->getResult();
+				$sql = "SELECT value FROM `settings` WHERE variable='currency'";
+				$db->sql($sql);
+				$currency = $db->getResult();
+				$message_delivery_boy = "Hello, Dear " . ucwords($res_bonus[0]['name']) . ", Here is the new update on your order for the order ID : #" . $id . ". Your Commission of" . $reward . " is credited. Please take a note of it.";
+				// Delivery boy no need to receive delivered notification
+				// $function->send_notification_to_delivery_boy($delivery_boy_id,"Your commission ".$reward." ".$currency[0]['value']." has been credited","$message_delivery_boy",'delivery_boys',$id);
+				$function->store_delivery_boy_notification($delivery_boy_id, $id, "Your commission " . $reward . " " . $currency[0]['value'] . " has been credited", $message_delivery_boy, 'order_reward');
+			}
 
-    	    $sql = "select name,email,mobile,country_code from `users` where id=".$user_id;
-    		$db->sql($sql);
-    		$res_user = $db->getResult();
+			if ($config['is-refer-earn-on'] == 1) {
+				if ($res_boy[0]['total'] >= $config['min-refer-earn-order-amount']) {
+					if ($res_count[0]['total'] == 0) {
+						if ($res_user[0]['friends_code'] != '') {
+							if ($config['refer-earn-method'] == 'percentage') {
+								$percentage = $config['refer-earn-bonus'];
+								$bonus_amount = $res_boy[0]['total'] / 100 * $percentage;
+								if ($bonus_amount > $config['max-refer-earn-amount']) {
+									$bonus_amount = $config['max-refer-earn-amount'];
+								}
+							} else {
+								$bonus_amount = $config['refer-earn-bonus'];
+							}
 
-    		$is_store_pickup = (isset($res[0]['delivery_method']) && strtolower(trim($res[0]['delivery_method'])) == 'storepickup');
-    	    if($is_store_pickup){
-        		$message_ready = "Hello, Dear ".ucwords($res_user[0]['name']).", Your order ID : #".$id." is now ready. Please visit the store to collect your order.";
-        		$function->send_order_update_notification($user_id,"Your order is ready for pickup!",$message_ready,'order');
-            	$response['error'] = false;
-            	$response['message'] = "Order marked as ready for pickup!";
-            	print_r(json_encode($response));
-            	return false;
-    	    } else {
-    	        // Food delivery: order is prepared, notify customer and dispatch to delivery boys
-        		$message_ready = "Hello, Dear ".ucwords($res_user[0]['name']).", Your order ID : #".$id." is ready and being assigned to a delivery partner.";
-        		$function->send_order_update_notification($user_id,"Your order is ready for delivery!",$message_ready,'order');
+							$sql = "SELECT name,friends_code FROM users WHERE id=" . $order_user_id;
+							$db->sql($sql);
+							$res_data = $db->getResult();
 
-        		$dboy_id = isset($res[0]['delivery_boy_id']) ? (int)$res[0]['delivery_boy_id'] : 0;
-        		if ($dboy_id == 0) {
-        		    $message_delivery_boy = "Hello, A new order (ID : #".$id.") is ready for delivery. Please check your app to accept it.";
-        		    $function->dispatch_new_order(
-        		        'food',
-        		        $id,
-        		        'New Order Ready for Delivery',
-        		        $message_delivery_boy
-        		    );
-        		}
+							$sql = " select id from `users` where `referral_code` = '" . $res_data[0]['friends_code'] . "'";
+							$db->sql($sql);
+							$friend_user = $db->getResult();
 
-            	$response['error'] = false;
-            	$response['message'] = "Order marked as ready for pickup! Delivery partners notified.";
-            	print_r(json_encode($response));
-            	return false;
-    	    }
-    	}
-    	
-    	$i = sizeof($status);
-        $currentStatus = $status[$i-1][0];
-        $final_status = array(
-        	'active_status' => $currentStatus
-    	);
-        if ($currentStatus == 'cancelled' && !empty($cancelled_by)) {
-            $final_status['cancelled_by'] = $cancelled_by;
-        }
-    	//$db->update('order_items',$final_status,'order_id='.$id);
-     	if($db->update('orders',$final_status,'id='.$id)){// Table name, column names and respective values
-     	$db->getResult();
-    		$response['error'] = false;
-    		if ($postStatus == 'cancelled') {
-                $response['message'] = "Order has been cancelled!";
-                if (isset($refund_info) && $refund_info['status'] == 'success') {
-                    $response['message'] = "Order has been cancelled! Refund of Rs. " . number_format($refund_info['amount'], 2) . " has been initiated to your payment account.";
-                    $response['refund_status'] = 'success';
-                    $response['refund_id'] = $refund_info['refund_id'];
-                    $response['refund_amount'] = $refund_info['amount'];
-                } elseif (isset($refund_info) && $refund_info['status'] == 'already_refunded') {
-                    $response['message'] = "Order has been cancelled! Payment was already refunded.";
-                    $response['refund_status'] = 'already_refunded';
-                    $response['refund_amount'] = isset($refund_info['amount']) ? $refund_info['amount'] : 0;
-                } elseif (isset($refund_info) && $refund_info['status'] == 'failed' && !empty($refund_info['is_online'])) {
-                    $response['message'] = "Order has been cancelled! (Note: Online refund could not be completed automatically: " . $refund_info['message'] . ")";
-                    $response['refund_status'] = 'failed';
-                    $response['refund_message'] = $refund_info['message'];
-                } elseif (isset($refund_info) && $refund_info['status'] == 'skipped') {
-                    $response['refund_status'] = 'skipped';
-                }
-                $response['order_id'] = $id;
-            }
+							if (!empty($friend_user))
+								$function->add_wallet_transaction($friend_user[0]['id'], 'credit', floor($bonus_amount), 'Refer & Earn Bonus on first order by ' . ucwords($res_data[0]['name']));
 
-    		elseif($postStatus=='returned'){$response['message'] = "Order has been returned!";}
-    		else{$response['message'] = "Order updated successfully.";}
-    		    
-    		$res = $db->getResult();
-    		/* send email notification for the order received */
-    		$sql = "select name,email,mobile,country_code from `users` where id=".$user_id;
-            // 		echo $sql;
-    		$db->sql($sql);
-    		$res_user = $db->getResult();
-    		
-    		$to = $res_user[0]['email'];
-    		$mobile = $res_user[0]['mobile'];
-    		$country_code = $res_user[0]['country_code'];
-            // 		echo $country_code;
-    		$subject = "Your order has been ".ucwords($postStatus);
-    		$message = "Hello, Dear ".ucwords($res_user[0]['name']).", Here is the new update on your order for the order ID : #".$id.". Your order has been ".ucwords($postStatus).". Please take a note of it.";
-    		$message .= "Thank you for using our services!You will receive future updates on your order via Email!";
-    		$function->send_order_update_notification($user_id,"Your order has been ".ucwords($postStatus),$message,'order');
-    		
-    		/* notify the seller about this order update */
-    		try {
-        		$sql = "select seller_id from orders where id=".$id;
-        		$db->sql($sql);
-        		$res_seller = $db->getResult();
-        		if(!empty($res_seller) && !empty($res_seller[0]['seller_id'])){
-        		    // Seller does not need to receive completed or delivered notifications
-        		    if (!in_array(strtolower($postStatus), ['delivered', 'completed'])) {
-        		        $seller_message = "Your order with ID : #".$id." has been ".ucwords($postStatus).". Please take a note of it.";
-        		        $function->send_notification_to_seller($res_seller[0]['seller_id'],"Order ".ucwords($postStatus),$seller_message,'order',$id);
-        		    }
-        		}
-            } catch (Exception $e) {
-                log_order_debug("Exception in send_notification_to_seller (status update): " . $e->getMessage());
-            } catch (Error $e) {
-                log_order_debug("Error in send_notification_to_seller (status update): " . $e->getMessage());
-            }
+							$sql = "UPDATE users SET balance = balance + floor($bonus_amount) WHERE referral_code='" . $res_data[0]['friends_code'] . "'";
+							$db->sql($sql);
 
-        	// 	if(isset($_POST['delivery_boy_id']) && $_POST['delivery_boy_id'] != ''){
-            // 		$sql1 = "select name from `delivery_boys` where id=".$delivery_boy_id;
-            // // 		echo $sql;
-            // 		$db->sql($sql1);
-            // 		$res_delivery_boy = $db->getResult();
-            // 		$message_delivery_boy = "Hello, Dear ".ucwords($res_delivery_boy[0]['name']).", Here is the new update on your order for the order ID : #".$id.". Your order has been ".ucwords($postStatus).". Please take a note of it.";
-         
-            // 		$function->send_notification_to_delivery_boy($delivery_boy_id,"Your order has been ".ucwords($postStatus),"$message_delivery_boy",'delivery_boys',$id); 
-            // 		$function->store_delivery_boy_notification($delivery_boy_id,$id,"Your order has been ".ucwords($postStatus),$message_delivery_boy,'order_status');
-        	// 	}
-    		send_email($to,$subject,$message);
-    		$message = "Hello, Dear ".ucwords($res_user[0]['name']).", Here is the new update on your order for the order ID : #".$id.". Your order has been ".ucwords($postStatus).". Please take a note of it.";
-    		$message .= "Thank you for using our services! Contact us for more information";
-    		// sendSms($mobile,$message,$country_code);
-    		
-    		print_r(json_encode($response));
-    	} else {
-    		$response['error'] = true;
-    		$response['message'] = isset($_POST['delivery_boy_id']) && $_POST['delivery_boy_id'] != ''?'Delivery Boy updated, But could not update order status try again!':'Could not update order status try again!';
-    		print_r(json_encode($response));
-    	}
-    }else{
+						}
+
+					}
+
+				}
+			}
+
+		}
+		$temp = [];
+		foreach ($status as $s) {
+			array_push($temp, $s[0]);
+		}
+		$sql = "SELECT id,active_status FROM order_items WHERE order_id=" . $id;
+		$db->sql($sql);
+		$result = $db->getResult();
+
+		if ($postStatus == 'cancelled') {
+
+			$result_set = $dunzo->cancel_task_line($id);
+			if (!empty($result_set)) {
+				$response['error'] = true;
+				$response['message'] = 'Dunzo could not cancel order at the movement!';
+				print_r(json_encode($response));
+				return false;
+			}
+
+			// Resolve who is cancelling the order
+			$cancelled_by = '';
+			if (isset($_POST['cancelled_by']) && !empty($_POST['cancelled_by'])) {
+				$cancelled_by = trim($_POST['cancelled_by']);
+			} elseif (isset($_SESSION['role'])) {
+				$s_role = strtolower(trim($_SESSION['role']));
+				if ($s_role == 'seller') {
+					$cancelled_by = 'Seller';
+				} elseif ($s_role == 'admin' || $s_role == 'super admin') {
+					$cancelled_by = 'Admin';
+				} elseif ($s_role == 'delivery_boy') {
+					$cancelled_by = 'Delivery Boy';
+				}
+			}
+			if (empty($cancelled_by)) {
+				$cancelled_by = ($request_type == 'apprequest') ? 'Customer' : 'Customer';
+			}
+			$cancelled_by = ucfirst(strtolower($cancelled_by));
+
+			if (!in_array('cancelled', $temp)) {
+				$status[] = array('cancelled', date("d-m-Y h:i:sa"), $cancelled_by);
+				$data = array(
+					'status' => $db->escapeString(json_encode($status)),
+					'cancelled_by' => $cancelled_by,
+				);
+			} else {
+				$data = array('cancelled_by' => $cancelled_by);
+			}
+			$db->update('orders', $data, 'id=' . $id);
+			$db->getResult();
+
+			foreach ($result as $item) {
+				if ($item['active_status'] != 'cancelled') {
+					$item_data = array(
+						'status' => $db->escapeString(json_encode($status)),
+						'active_status' => 'cancelled',
+						'cancelled_by' => $cancelled_by,
+					);
+					$db->update('order_items', $item_data, 'id=' . $item['id']);
+					$db->getResult();
+				}
+			}
+		}
+
+		if ($postStatus == 'processed') {
+			if (!in_array('processed', $temp)) {
+				$status[] = array('processed', date("d-m-Y h:i:sa"));
+				$data = array(
+					'status' => $db->escapeString(json_encode($status))
+				);
+			}
+			$db->update('orders', $data, 'id=' . $id);
+			foreach ($result as $item) {
+				$item_data = array(
+					'status' => $db->escapeString(json_encode($status)),
+					'active_status' => 'processed'
+				);
+				if ($item['active_status'] != 'cancelled') {
+					$db->update('order_items', $item_data, 'id=' . $item['id']);
+					$db->getResult();
+				}
+			}
+		}
+
+		if ($postStatus == 'shipped') {
+			if (!in_array('processed', $temp)) {
+				$status[] = array('processed', date("d-m-Y h:i:sa"));
+				$data = array('status' => $db->escapeString(json_encode($status)));
+			}
+			if (!in_array('shipped', $temp)) {
+				$status[] = array('shipped', date("d-m-Y h:i:sa"));
+				$data = array('status' => $db->escapeString(json_encode($status)));
+			}
+			$db->update('orders', $data, 'id=' . $id);
+			foreach ($result as $item) {
+				$item_data = array(
+					'status' => $db->escapeString(json_encode($status)),
+					'active_status' => 'shipped'
+				);
+				if ($item['active_status'] != 'cancelled') {
+					$db->update('order_items', $item_data, 'id=' . $item['id']);
+					$db->getResult();
+				}
+			}
+		}
+
+		if ($postStatus == 'delivered') {
+			if (!in_array('processed', $temp)) {
+				$status[] = array('processed', date("d-m-Y h:i:sa"));
+				$data = array('status' => $db->escapeString(json_encode($status)));
+			}
+			if (!in_array('shipped', $temp)) {
+				$status[] = array('shipped', date("d-m-Y h:i:sa"));
+				$data = array('status' => $db->escapeString(json_encode($status)));
+
+			}
+			if (!in_array('delivered', $temp)) {
+				$status[] = array('delivered', date("d-m-Y h:i:sa"));
+				$data = array('status' => $db->escapeString(json_encode($status)));
+
+			}
+			$db->update('orders', $data, 'id=' . $id);
+			$db->getResult();
+			$item_data = array(
+				'status' => $db->escapeString(json_encode($status)),
+				'active_status' => 'delivered'
+			);
+			foreach ($result as $item) {
+
+				if ($item['active_status'] != 'cancelled') {
+					$db->update('order_items', $item_data, 'id=' . $item['id']);
+					$db->getResult();
+				}
+			}
+		}
+
+		if ($postStatus == 'returned') {
+			$status[] = array('returned', date("d-m-Y h:i:sa"));
+			$data = array('status' => $db->escapeString(json_encode($status)));
+			$db->update('orders', $data, 'id=' . $id);
+			$db->getResult();
+			$item_data = array(
+				'status' => $db->escapeString(json_encode($status)),
+				'active_status' => 'returned'
+			);
+			foreach ($result as $item) {
+
+				if ($item['active_status'] != 'cancelled' && $item['active_status'] == 'delivered') {
+					$db->update('order_items', $item_data, 'id=' . $item['id']);
+					$db->getResult();
+				}
+			}
+		}
+
+		if ($postStatus == 'ready') {
+			$data = array('order_ready' => '1');
+			$already_ready = false;
+			if (!empty($status) && is_array($status)) {
+				foreach ($status as $each_st) {
+					if (is_array($each_st) && (in_array('ready', $each_st) || in_array('ready for pickup', $each_st))) {
+						$already_ready = true;
+						break;
+					}
+				}
+			}
+			if (!$already_ready) {
+				$status[] = array('ready for pickup', date("d-m-Y h:i:sa"));
+				$data['status'] = $db->escapeString(json_encode($status));
+			}
+			$db->update('orders', $data, 'id=' . $id);
+			$db->getResult();
+
+			$sql = "select name,email,mobile,country_code from `users` where id=" . $user_id;
+			$db->sql($sql);
+			$res_user = $db->getResult();
+
+			$is_store_pickup = (isset($res[0]['delivery_method']) && strtolower(trim($res[0]['delivery_method'])) == 'storepickup');
+			if ($is_store_pickup) {
+				$message_ready = "Hello, Dear " . ucwords($res_user[0]['name']) . ", Your order ID : #" . $id . " is now ready. Please visit the store to collect your order.";
+				$function->send_order_update_notification($user_id, "Your order is ready for pickup!", $message_ready, 'order');
+				$response['error'] = false;
+				$response['message'] = "Order marked as ready for pickup!";
+				print_r(json_encode($response));
+				return false;
+			} else {
+				// Food delivery: order is prepared, notify customer and dispatch to delivery boys
+				$message_ready = "Hello, Dear " . ucwords($res_user[0]['name']) . ", Your order ID : #" . $id . " is ready and being assigned to a delivery partner.";
+				$function->send_order_update_notification($user_id, "Your order is ready for delivery!", $message_ready, 'order');
+
+				$dboy_id = isset($res[0]['delivery_boy_id']) ? (int) $res[0]['delivery_boy_id'] : 0;
+				if ($dboy_id == 0) {
+					$message_delivery_boy = "Hello, A new order (ID : #" . $id . ") is ready for delivery. Please check your app to accept it.";
+					$function->dispatch_new_order(
+						'food',
+						$id,
+						'New Order Ready for Delivery',
+						$message_delivery_boy
+					);
+				}
+
+				$response['error'] = false;
+				$response['message'] = "Order marked as ready for pickup! Delivery partners notified.";
+				print_r(json_encode($response));
+				return false;
+			}
+		}
+
+		$i = sizeof($status);
+		$currentStatus = $status[$i - 1][0];
+		$final_status = array(
+			'active_status' => $currentStatus
+		);
+		if ($currentStatus == 'cancelled' && !empty($cancelled_by)) {
+			$final_status['cancelled_by'] = $cancelled_by;
+		}
+		//$db->update('order_items',$final_status,'order_id='.$id);
+		if ($db->update('orders', $final_status, 'id=' . $id)) {// Table name, column names and respective values
+			$db->getResult();
+			$response['error'] = false;
+			if ($postStatus == 'cancelled') {
+				$response['message'] = "Order has been cancelled!";
+				if (isset($refund_info) && $refund_info['status'] == 'success') {
+					$response['message'] = "Order has been cancelled! Refund of Rs. " . number_format($refund_info['amount'], 2) . " has been initiated to your payment account.";
+					$response['refund_status'] = 'success';
+					$response['refund_id'] = $refund_info['refund_id'];
+					$response['refund_amount'] = $refund_info['amount'];
+				} elseif (isset($refund_info) && $refund_info['status'] == 'already_refunded') {
+					$response['message'] = "Order has been cancelled! Payment was already refunded.";
+					$response['refund_status'] = 'already_refunded';
+					$response['refund_amount'] = isset($refund_info['amount']) ? $refund_info['amount'] : 0;
+				} elseif (isset($refund_info) && $refund_info['status'] == 'failed' && !empty($refund_info['is_online'])) {
+					$response['message'] = "Order has been cancelled! (Note: Online refund could not be completed automatically: " . $refund_info['message'] . ")";
+					$response['refund_status'] = 'failed';
+					$response['refund_message'] = $refund_info['message'];
+				} elseif (isset($refund_info) && $refund_info['status'] == 'skipped') {
+					$response['refund_status'] = 'skipped';
+				}
+				$response['order_id'] = $id;
+			} elseif ($postStatus == 'returned') {
+				$response['message'] = "Order has been returned!";
+			} else {
+				$response['message'] = "Order updated successfully.";
+			}
+
+			$res = $db->getResult();
+			/* send email notification for the order received */
+			$sql = "select name,email,mobile,country_code from `users` where id=" . $user_id;
+			// 		echo $sql;
+			$db->sql($sql);
+			$res_user = $db->getResult();
+
+			$to = $res_user[0]['email'];
+			$mobile = $res_user[0]['mobile'];
+			$country_code = $res_user[0]['country_code'];
+			// 		echo $country_code;
+			$subject = "Your order has been " . ucwords($postStatus);
+			$message = "Hello, Dear " . ucwords($res_user[0]['name']) . ", Here is the new update on your order for the order ID : #" . $id . ". Your order has been " . ucwords($postStatus) . ". Please take a note of it.";
+			$message .= "Thank you for using our services!You will receive future updates on your order via Email!";
+			$function->send_order_update_notification($user_id, "Your order has been " . ucwords($postStatus), $message, 'order');
+
+			/* notify the seller about this order update */
+			try {
+				$sql = "select seller_id from orders where id=" . $id;
+				$db->sql($sql);
+				$res_seller = $db->getResult();
+				if (!empty($res_seller) && !empty($res_seller[0]['seller_id'])) {
+					// Seller does not need to receive completed or delivered notifications
+					if (!in_array(strtolower($postStatus), ['delivered', 'completed'])) {
+						$seller_message = "Your order with ID : #" . $id . " has been " . ucwords($postStatus) . ". Please take a note of it.";
+						$function->send_notification_to_seller($res_seller[0]['seller_id'], "Order " . ucwords($postStatus), $seller_message, 'order', $id);
+					}
+				}
+			} catch (Exception $e) {
+				log_order_debug("Exception in send_notification_to_seller (status update): " . $e->getMessage());
+			} catch (Error $e) {
+				log_order_debug("Error in send_notification_to_seller (status update): " . $e->getMessage());
+			}
+
+			// 	if(isset($_POST['delivery_boy_id']) && $_POST['delivery_boy_id'] != ''){
+			// 		$sql1 = "select name from `delivery_boys` where id=".$delivery_boy_id;
+			// // 		echo $sql;
+			// 		$db->sql($sql1);
+			// 		$res_delivery_boy = $db->getResult();
+			// 		$message_delivery_boy = "Hello, Dear ".ucwords($res_delivery_boy[0]['name']).", Here is the new update on your order for the order ID : #".$id.". Your order has been ".ucwords($postStatus).". Please take a note of it.";
+
+			// 		$function->send_notification_to_delivery_boy($delivery_boy_id,"Your order has been ".ucwords($postStatus),"$message_delivery_boy",'delivery_boys',$id); 
+			// 		$function->store_delivery_boy_notification($delivery_boy_id,$id,"Your order has been ".ucwords($postStatus),$message_delivery_boy,'order_status');
+			// 	}
+			send_email($to, $subject, $message);
+			$message = "Hello, Dear " . ucwords($res_user[0]['name']) . ", Here is the new update on your order for the order ID : #" . $id . ". Your order has been " . ucwords($postStatus) . ". Please take a note of it.";
+			$message .= "Thank you for using our services! Contact us for more information";
+			// sendSms($mobile,$message,$country_code);
+
+			print_r(json_encode($response));
+		} else {
+			$response['error'] = true;
+			$response['message'] = isset($_POST['delivery_boy_id']) && $_POST['delivery_boy_id'] != '' ? 'Delivery Boy updated, But could not update order status try again!' : 'Could not update order status try again!';
+			print_r(json_encode($response));
+		}
+	} else {
 		$response['error'] = true;
 		$response['message'] = "Sorry Invalid order ID";
 		print_r(json_encode($response));
 	}
 }
 
-if(isset($_POST['get_settings'])) {
-    if(!verify_token()){
-        return false;
-    }
+if (isset($_POST['get_settings'])) {
+	if (!verify_token()) {
+		return false;
+	}
 	$sql = "select value from `settings` where variable='system_timezone'";
 	$db->sql($sql);
 	$res = $db->getResult();
 	$sql = "select value from `settings` where variable='currency'";
 	$db->sql($sql);
 	$res_currency = $db->getResult();
-	
+
 	$sql = "select * from `zone`";
 	$db->sql($sql);
 	$res_zone = $db->getResult();
-	   if(!empty($res)){
-            $response['error'] = false;
-            $response['settings'] = json_decode($res[0]['value'],1);
-            $response['settings']['currency'] = $res_currency[0]['value'];
-            $response['settings']['delivery_charge'] = empty($response['settings']['delivery_charge'])?"0":$response['settings']['delivery_charge'];
-            $response['settings']['min-refer-earn-order-amount'] = empty($response['settings']['min-refer-earn-order-amount'])?"0":$response['settings']['min-refer-earn-order-amount'];
-            $response['settings']['min_amount'] = empty($response['settings']['min_amount'])?"0":$response['settings']['min_amount'];
-            $response['settings']['max-refer-earn-amount'] = empty($response['settings']['max-refer-earn-amount'])?"0":$response['settings']['max-refer-earn-amount'];
-            $response['settings']['minimum-withdrawal-amount'] = empty($response['settings']['minimum-withdrawal-amount'])?"0":$response['settings']['minimum-withdrawal-amount'];
-            $response['settings']['current_version'] = empty($response['settings']['current_version'])?"0":$response['settings']['current_version'];
-            $response['settings']['minimum_version_required'] = empty($response['settings']['minimum_version_required'])?"0":$response['settings']['minimum_version_required'];
-            $is_ver_sys_on = isset($response['settings']['is-version-system-on']) ? $response['settings']['is-version-system-on'] : (isset($response['settings']['is_version_system_on']) ? $response['settings']['is_version_system_on'] : "0");
-            $response['settings']['is-version-system-on'] = $is_ver_sys_on;
-            $response['settings']['is_version_system_on'] = $is_ver_sys_on;
-            $state_name = $city_name = $zone_name = '';
-        
-        if(!empty($response['settings']['store_state'])){
-            $sql = "SELECT * FROM state WHERE id='".$response['settings']['store_state']."'";
-            $db->sql($sql);
-            $res1 = $db->getResult();  
-            $state_name = (!empty($res1[0]['name'])) ? $res1[0]['name'] : '';
-        }
-        
-        if(!empty($response['settings']['store_city'])){
-            $sql = "SELECT * FROM city WHERE id='".$response['settings']['store_city']."'";
-            $db->sql($sql);
-            $res = $db->getResult(); 
-            $city_name = (!empty($res[0]['name'])) ? $res[0]['name'] : '';
-        }
-        if(!empty($response['settings']['store_zone'])){
-            $sql = "SELECT * FROM zone WHERE id='".$response['settings']['store_zone']."'";
-            $db->sql($sql);
-            $res = $db->getResult(); 
-            $zone_name = (!empty($res[0]['name'])) ? $res[0]['name'] : '';
-        }
-        
-        $res_zone = array(
-            array("id"=>"1", "name"=>$city_name),
-            array("id"=>"2", "name"=>$state_name),
-            array("id"=>"3", "name"=>$zone_name),
-            array("id"=>"4", "name"=>'Rest of India')
-        );
-            
-        $response['settings']['zone'] = $res_zone;
-        print_r(json_encode($response));
-            
-        }else{
-            $response['error'] = true;
-            $response['settings'] = "No settings found!";
-            $response['message'] = "Something went wrong!";
-            print_r(json_encode($response));
-            
-        }
+	if (!empty($res)) {
+		$response['error'] = false;
+		$response['settings'] = json_decode($res[0]['value'], 1);
+		$response['settings']['currency'] = $res_currency[0]['value'];
+		$response['settings']['delivery_charge'] = empty($response['settings']['delivery_charge']) ? "0" : $response['settings']['delivery_charge'];
+		$response['settings']['min-refer-earn-order-amount'] = empty($response['settings']['min-refer-earn-order-amount']) ? "0" : $response['settings']['min-refer-earn-order-amount'];
+		$response['settings']['min_amount'] = empty($response['settings']['min_amount']) ? "0" : $response['settings']['min_amount'];
+		$response['settings']['max-refer-earn-amount'] = empty($response['settings']['max-refer-earn-amount']) ? "0" : $response['settings']['max-refer-earn-amount'];
+		$response['settings']['minimum-withdrawal-amount'] = empty($response['settings']['minimum-withdrawal-amount']) ? "0" : $response['settings']['minimum-withdrawal-amount'];
+		$response['settings']['current_version'] = empty($response['settings']['current_version']) ? "0" : $response['settings']['current_version'];
+		$response['settings']['minimum_version_required'] = empty($response['settings']['minimum_version_required']) ? "0" : $response['settings']['minimum_version_required'];
+		$is_ver_sys_on = isset($response['settings']['is-version-system-on']) ? $response['settings']['is-version-system-on'] : (isset($response['settings']['is_version_system_on']) ? $response['settings']['is_version_system_on'] : "0");
+		$response['settings']['is-version-system-on'] = $is_ver_sys_on;
+		$response['settings']['is_version_system_on'] = $is_ver_sys_on;
+		$state_name = $city_name = $zone_name = '';
+
+		if (!empty($response['settings']['store_state'])) {
+			$sql = "SELECT * FROM state WHERE id='" . $response['settings']['store_state'] . "'";
+			$db->sql($sql);
+			$res1 = $db->getResult();
+			$state_name = (!empty($res1[0]['name'])) ? $res1[0]['name'] : '';
+		}
+
+		if (!empty($response['settings']['store_city'])) {
+			$sql = "SELECT * FROM city WHERE id='" . $response['settings']['store_city'] . "'";
+			$db->sql($sql);
+			$res = $db->getResult();
+			$city_name = (!empty($res[0]['name'])) ? $res[0]['name'] : '';
+		}
+		if (!empty($response['settings']['store_zone'])) {
+			$sql = "SELECT * FROM zone WHERE id='" . $response['settings']['store_zone'] . "'";
+			$db->sql($sql);
+			$res = $db->getResult();
+			$zone_name = (!empty($res[0]['name'])) ? $res[0]['name'] : '';
+		}
+
+		$res_zone = array(
+			array("id" => "1", "name" => $city_name),
+			array("id" => "2", "name" => $state_name),
+			array("id" => "3", "name" => $zone_name),
+			array("id" => "4", "name" => 'Rest of India')
+		);
+
+		$response['settings']['zone'] = $res_zone;
+		print_r(json_encode($response));
+
+	} else {
+		$response['error'] = true;
+		$response['settings'] = "No settings found!";
+		$response['message'] = "Something went wrong!";
+		print_r(json_encode($response));
+
+	}
 }
 
-if(isset($_POST['update_order_total_payable']) && isset($_POST['id'])){
-	
+if (isset($_POST['update_order_total_payable']) && isset($_POST['id'])) {
+
 	$id = $db->escapeString($function->xss_clean($_POST['id']));
 	$discount = $db->escapeString($function->xss_clean($_POST['discount']));
 	$deliver_by = $db->escapeString($function->xss_clean($_POST['deliver_by']));
 	$total_payble = $db->escapeString($function->xss_clean($_POST['total_payble']));
-	$total_payble = round($total_payble,2);
+	$total_payble = round($total_payble, 2);
 	// echo $total_payble;
 	$data = array(
-		'discount' =>$discount,
+		'discount' => $discount,
 		'deliver_by' => $deliver_by,
 	);
 	$data1 = array(
-		 'discount' =>$discount,
-		 'final_total' => $total_payble,
-// 		 'total' => $total_payble,
+		'discount' => $discount,
+		'final_total' => $total_payble,
+		// 		 'total' => $total_payble,
 	);
 
-	
-	if($discount >= 0){
-	    $db->update('order_items',$data,'order_id='.$id);
-	    $db->getResult();
-	    
-	    $db->update('orders',$data1,'id='.$id);  // Table name, column names and respective values
-    	$res = $db->getResult();
-    	if(!empty($res)){
-    		// print_r($res);
-    	    
-        	$response['error'] = false;
-            $response['message'] = "Order updated successfully.";
-            print_r(json_encode($response));
-    	}else{
-            $response['error'] = true;
-            $response['message'] = "Could not update order. Try again!";
-            print_r(json_encode($response));
-    	}
+
+	if ($discount >= 0) {
+		$db->update('order_items', $data, 'order_id=' . $id);
+		$db->getResult();
+
+		$db->update('orders', $data1, 'id=' . $id);  // Table name, column names and respective values
+		$res = $db->getResult();
+		if (!empty($res)) {
+			// print_r($res);
+
+			$response['error'] = false;
+			$response['message'] = "Order updated successfully.";
+			print_r(json_encode($response));
+		} else {
+			$response['error'] = true;
+			$response['message'] = "Could not update order. Try again!";
+			print_r(json_encode($response));
+		}
 	}
 }
 
 
-if(isset($_POST['add_transaction']) && $_POST['add_transaction'] == true){
-    if(!verify_token()){
-        return false;
-    }
+if (isset($_POST['add_transaction']) && $_POST['add_transaction'] == true) {
+	if (!verify_token()) {
+		return false;
+	}
 	/*add data to transaction table*/
-	
+
 	$user_id = $db->escapeString($function->xss_clean($_POST['user_id']));
 	$order_id = $db->escapeString($function->xss_clean($_POST['order_id']));
 	$type = $db->escapeString($function->xss_clean($_POST['type']));
@@ -2175,7 +2229,7 @@ if(isset($_POST['add_transaction']) && $_POST['add_transaction'] == true){
 	$amount = $db->escapeString($function->xss_clean($_POST['amount']));
 	$status = $db->escapeString($function->xss_clean($_POST['status']));
 	$message = $db->escapeString($function->xss_clean($_POST['message']));
-	$transaction_date = (isset($_POST['addedon']) && !empty($_POST['addedon']))?$db->escapeString($function->xss_clean($_POST['addedon'])):date('Y-m-d H:i:s');
+	$transaction_date = (isset($_POST['addedon']) && !empty($_POST['addedon'])) ? $db->escapeString($function->xss_clean($_POST['addedon'])) : date('Y-m-d H:i:s');
 
 	// Idempotency: avoid duplicate transaction entry if already recorded by webhook
 	$db->sql("SELECT id FROM transactions WHERE txn_id = '$txn_id' LIMIT 1");
@@ -2191,43 +2245,43 @@ if(isset($_POST['add_transaction']) && $_POST['add_transaction'] == true){
 		echo json_encode($response);
 		return true;
 	}
-	
+
 	$data = array(
-		'user_id' =>$user_id,
-		'order_id' =>$order_id,
+		'user_id' => $user_id,
+		'order_id' => $order_id,
 		'type' => $type,
 		'txn_id' => $txn_id,
 		'amount' => $amount,
 		'status' => $status,
 		'message' => $message,
 		'transaction_date' => $transaction_date
-	);	
-	$db->insert('transactions',$data);  // Table name, column names and respective values
-	$res = $db->getResult();
-	
-	#Update Payment Status
-	$pdata=array(
-		'payment_status'=>1
 	);
-	$db->update('orders',$pdata,'id='.$order_id);
-	
+	$db->insert('transactions', $data);  // Table name, column names and respective values
+	$res = $db->getResult();
+
+	#Update Payment Status
+	$pdata = array(
+		'payment_status' => 1
+	);
+	$db->update('orders', $pdata, 'id=' . $order_id);
+
 	$function->send_order_confirmation($order_id);
 	$subject = "New order placed for $app_name";
-	$message = "New order ID : #".$order_id." received please take note of it and proceed further";
-	$function->send_new_order_notification("New Order Received",$message,'order');
-	
+	$message = "New order ID : #" . $order_id . " received please take note of it and proceed further";
+	$function->send_new_order_notification("New Order Received", $message, 'order');
+
 	$response['error'] = false;
 	$response['transaction_id'] = $res[0];
 	$response['message'] = "Transaction added successfully!";
 	echo json_encode($response);
 }
 
-if(isset($_POST['update_payment'])){
-    if(!verify_token()){
-        return false;
-    }
+if (isset($_POST['update_payment'])) {
+	if (!verify_token()) {
+		return false;
+	}
 	/*add data to transaction table*/
-	
+
 	$user_id = $db->escapeString($function->xss_clean($_POST['user_id']));
 	$order_id = $db->escapeString($function->xss_clean($_POST['order_id']));
 	$type = $db->escapeString($function->xss_clean($_POST['type']));
@@ -2235,7 +2289,7 @@ if(isset($_POST['update_payment'])){
 	$amount = $db->escapeString($function->xss_clean($_POST['amount']));
 	$status = $db->escapeString($function->xss_clean($_POST['status']));
 	$message = $db->escapeString($function->xss_clean($_POST['message']));
-	$transaction_date = (isset($_POST['addedon']) && !empty($_POST['addedon']))?$db->escapeString($function->xss_clean($_POST['addedon'])):date('Y-m-d H:i:s');
+	$transaction_date = (isset($_POST['addedon']) && !empty($_POST['addedon'])) ? $db->escapeString($function->xss_clean($_POST['addedon'])) : date('Y-m-d H:i:s');
 
 	// Idempotency: avoid duplicate transaction entry if already recorded by webhook
 	$db->sql("SELECT id FROM transactions WHERE txn_id = '$txn_id' LIMIT 1");
@@ -2252,18 +2306,18 @@ if(isset($_POST['update_payment'])){
 		return true;
 	}
 	$data = array(
-		'user_id' =>$user_id,
-		'order_id' =>$order_id,
+		'user_id' => $user_id,
+		'order_id' => $order_id,
 		'type' => $type,
 		'txn_id' => $txn_id,
 		'amount' => $amount,
 		'status' => $status,
 		'message' => $message,
 		'transaction_date' => $transaction_date
-	);	
-	$db->insert('transactions',$data);  // Table name, column names and respective values
+	);
+	$db->insert('transactions', $data);  // Table name, column names and respective values
 	$res = $db->getResult();
-	$sql = "UPDATE orders SET payment_method='".$type."' WHERE id =".$order_id;
+	$sql = "UPDATE orders SET payment_method='" . $type . "' WHERE id =" . $order_id;
 	$db->sql($sql);
 	$response['error'] = false;
 	$response['transaction_id'] = $res[0];
@@ -2271,268 +2325,285 @@ if(isset($_POST['update_payment'])){
 	echo json_encode($response);
 }
 
-if(isset($_POST['order_enabled']) && isset($_POST['address_id'])){
-    $address_id=$_POST['address_id'];
+if (isset($_POST['order_enabled']) && isset($_POST['address_id'])) {
+	$address_id = $_POST['address_id'];
 
-    $sql = "SELECT * FROM delivery_method WHERE id=1";
-    $db->sql($sql);
-    $res = $db->getResult(); 
-    $storepickup = isset($res[0]['storepickup'])?$res[0]['storepickup']:0;
-    $in_persion_delivery = isset($res[0]['in_persion_delivery'])?$res[0]['in_persion_delivery']:0;
-    $Delivery_by_courier = isset($res[0]['Delivery_by_courier'])?$res[0]['Delivery_by_courier']:0;
-    $dunzo = isset($res[0]['dunzo'])?$res[0]['dunzo']:0;
+	$sql = "SELECT * FROM delivery_method WHERE id=1";
+	$db->sql($sql);
+	$res = $db->getResult();
+	$storepickup = isset($res[0]['storepickup']) ? $res[0]['storepickup'] : 0;
+	$in_persion_delivery = isset($res[0]['in_persion_delivery']) ? $res[0]['in_persion_delivery'] : 0;
+	$Delivery_by_courier = isset($res[0]['Delivery_by_courier']) ? $res[0]['Delivery_by_courier'] : 0;
+	$dunzo = isset($res[0]['dunzo']) ? $res[0]['dunzo'] : 0;
 
-    if($storepickup=='1' || $in_persion_delivery=='1' || $Delivery_by_courier=='1' || $dunzo=='1'){
-        $response['error'] = false;
-    	$response['status'] = 1;
-    	$response['message'] = "Order Enabled for this Location";
-    }else{
-        $response['error'] = true;
-    	$response['status'] = 0;
-    	$response['message'] = "Order Not Enabled for this Location";
-    }
+	if ($storepickup == '1' || $in_persion_delivery == '1' || $Delivery_by_courier == '1' || $dunzo == '1') {
+		$response['error'] = false;
+		$response['status'] = 1;
+		$response['message'] = "Order Enabled for this Location";
+	} else {
+		$response['error'] = true;
+		$response['status'] = 0;
+		$response['message'] = "Order Not Enabled for this Location";
+	}
 	echo json_encode($response);
 }
 
 
-if(isset($_POST['get_order_delivery_charge']) && !empty($_POST['user_id']) && isset($_POST['address_id'])){
-	
-    $user_id = $_POST['user_id']; 
-    $address_id=$_POST['address_id'];
-    $seller_id=$_POST['seller_id'];
-    
-    $delivery_method=!empty($_POST['delivery_method'])?$_POST['delivery_method']:'';
-    
-    $sql2 = "select value from `settings` where variable= 'system_timezone'";
-    $db->sql($sql2);
-    $res2 = $db->getResult(); 
-    
-    $settings =  json_decode($res2[0]['value'],true);
-    
-    $store_zone = isset($settings['store_zone'])?$settings['store_zone']:0;
-    $default_store_lat = isset($settings['store_lattitude'])?(float)$settings['store_lattitude']:0;
-    $default_store_long = isset($settings['store_longitude'])?(float)$settings['store_longitude']:0;
-    
-    $sql1 = "select * from `seller` where id = '".$seller_id."' limit 1";
-    $db->sql($sql1);
-    $res1 = $db->getResult();
+if (isset($_POST['get_order_delivery_charge']) && !empty($_POST['user_id']) && isset($_POST['address_id'])) {
 
-    if(empty($res1)){
-        echo json_encode(['status' => false, 'message' => 'Seller not found']);
-        exit;
-    }
+	$user_id = $_POST['user_id'];
+	$address_id = $_POST['address_id'];
+	$seller_id = $_POST['seller_id'];
 
-    $seller = $res1[0];
+	$delivery_method = !empty($_POST['delivery_method']) ? $_POST['delivery_method'] : '';
 
-    $store_lat   = (float)$seller['latitude'];
-    $store_long  = (float)$seller['longitude'];
-    if($store_lat == 0){$store_lat = $default_store_lat;}
-    if($store_long == 0){$store_long = $default_store_long;}
-    
-    $sql = "SELECT * FROM delivery_method WHERE id=1";
-    $db->sql($sql);
-    $res = $db->getResult(); 
-    // Kept because $res is reused by the queries below, and the zone-wise lookup
-    // needs the global settings to fall back to.
-    $dm_row = $res[0];
-    $in_persion_delivery = $res[0]['in_persion_delivery'];
-    $Delivery_by_courier = $res[0]['Delivery_by_courier'];
-    $in_persion_data = $res[0]['in_persion_data'];
-    $courier_data = $res[0]['courier_data'];
-    $dunzo_enable = $res[0]['dunzo'];
+	$sql2 = "select value from `settings` where variable= 'system_timezone'";
+	$db->sql($sql2);
+	$res2 = $db->getResult();
 
-    $sql = "select * from `user_address` where id=".$address_id;
-    $db->sql($sql);
-    $res = $db->getResult(); 
-    
-    if(empty($res)){
-        $response['error'] = true;
-        $response['message'] = "Address not found";
-        echo json_encode($response);
-        exit;
-    }
-    
-    $user_latitude = (float)trim($res[0]['latitude']);
-    $user_longitude = (float)trim($res[0]['longitude']);
+	$settings = json_decode($res2[0]['value'], true);
 
-    // Zone-wise service: delivery is only possible when the delivery address
-    // falls inside one of the active zones. Store pickup is always allowed.
-    $addr_zone = null;
-    if(empty($delivery_method) || $delivery_method != 'storepickup'){
-        $addr_zone = $function->get_zone_id_from_latlng($user_latitude, $user_longitude);
-        if($addr_zone === null){
-            $response['error'] = true;
-            $response['message'] = "Delivery is not available to this address. This location is outside our service zones.";
-            echo json_encode($response);
-            exit;
-        }
-        // The address must also sit inside this seller's own zone. A seller
-        // with no zone assigned imposes no restriction, and an address that
-        // resolves to no zone is allowed so customers are never locked out.
-        if(!$function->is_address_in_seller_zone($addr_zone, $function->get_seller_zone($seller_id))){
-            $response['error'] = true;
-            $response['message'] = "This restaurant does not deliver to your address. Please select an address inside the restaurant's service zone.";
-            echo json_encode($response);
-            exit;
-        }
-    }
+	$store_zone = isset($settings['store_zone']) ? $settings['store_zone'] : 0;
+	$default_store_lat = isset($settings['store_lattitude']) ? (float) $settings['store_lattitude'] : 0;
+	$default_store_long = isset($settings['store_longitude']) ? (float) $settings['store_longitude'] : 0;
 
-    // Zone-wise delivery method. The tariff and the on/off switches are read from
-    // the zone the address falls in, and fall back to the global settings when a
-    // zone has not overridden them, so this changes nothing until a zone is
-    // actually configured.
-    $zone_dm = $function->get_zone_delivery_config($addr_zone, $dm_row);
+	$sql1 = "select * from `seller` where id = '" . $seller_id . "' limit 1";
+	$db->sql($sql1);
+	$res1 = $db->getResult();
 
-    if($addr_zone !== null
-        && $zone_dm['storepickup'] == 0
-        && $zone_dm['in_person_delivery'] == 0){
-        $response['error'] = true;
-        $response['message'] = "Delivery is not available in this zone.";
-        echo json_encode($response);
-        exit;
-    }
+	if (empty($res1)) {
+		echo json_encode(['status' => false, 'message' => 'Seller not found']);
+		exit;
+	}
 
-    // Store pickup is charged nothing regardless of the zone tariff.
-    if(empty($delivery_method) || $delivery_method != 'storepickup'){
-        $in_persion_data = $zone_dm['in_persion_data'];
-    }
+	$seller = $res1[0];
 
-    // Platform and convenience fee for the zone this order is delivered to. The
-    // convenience fee is returned as a percentage because the app applies it to
-    // the item total it already has, while the platform fee is a flat amount.
-    $preview_fees = $function->split_zone_fees(0, $addr_zone, $settings);
-    $preview_fee_fields = array(
-        'zone_id' => $preview_fees['zone_id'],
-        'platform_fee' => $preview_fees['platform_fee'],
-        'convenience_fee' => $preview_fees['convenience_fee_percent'],
-        'fees_inherited' => $preview_fees['fees_inherited'],
-    );
+	$store_lat = (float) $seller['latitude'];
+	$store_long = (float) $seller['longitude'];
+	if ($store_lat == 0) {
+		$store_lat = $default_store_lat;
+	}
+	if ($store_long == 0) {
+		$store_long = $default_store_long;
+	}
 
-    if(!empty($delivery_method) && $delivery_method=='storepickup'){
+	$sql = "SELECT * FROM delivery_method WHERE id=1";
+	$db->sql($sql);
+	$res = $db->getResult();
+	// Kept because $res is reused by the queries below, and the zone-wise lookup
+	// needs the global settings to fall back to.
+	$dm_row = $res[0];
+	$in_persion_delivery = $res[0]['in_persion_delivery'];
+	$Delivery_by_courier = $res[0]['Delivery_by_courier'];
+	$in_persion_data = $res[0]['in_persion_data'];
+	$courier_data = $res[0]['courier_data'];
+	$dunzo_enable = $res[0]['dunzo'];
+
+	$sql = "select * from `user_address` where id=" . $address_id;
+	$db->sql($sql);
+	$res = $db->getResult();
+
+	if (empty($res)) {
+		$response['error'] = true;
+		$response['message'] = "Address not found";
+		echo json_encode($response);
+		exit;
+	}
+
+	$user_latitude = (float) trim($res[0]['latitude']);
+	$user_longitude = (float) trim($res[0]['longitude']);
+
+	// Zone-wise service: delivery is only possible when the delivery address
+	// falls inside one of the active zones. Store pickup is always allowed.
+	$addr_zone = null;
+	if (empty($delivery_method) || $delivery_method != 'storepickup') {
+		$addr_zone = $function->get_zone_id_from_latlng($user_latitude, $user_longitude);
+		if ($addr_zone === null) {
+			$response['error'] = true;
+			$response['message'] = "Delivery is not available to this address. This location is outside our service zones.";
+			echo json_encode($response);
+			exit;
+		}
+		// The address must also sit inside this seller's own zone. A seller
+		// with no zone assigned imposes no restriction, and an address that
+		// resolves to no zone is allowed so customers are never locked out.
+		if (!$function->is_address_in_seller_zone($addr_zone, $function->get_seller_zone($seller_id))) {
+			$response['error'] = true;
+			$response['message'] = "This restaurant does not deliver to your address. Please select an address inside the restaurant's service zone.";
+			echo json_encode($response);
+			exit;
+		}
+	}
+
+	// Zone-wise delivery method. The tariff and the on/off switches are read from
+	// the zone the address falls in, and fall back to the global settings when a
+	// zone has not overridden them, so this changes nothing until a zone is
+	// actually configured.
+	$zone_dm = $function->get_zone_delivery_config($addr_zone, $dm_row);
+
+	if (
+		$addr_zone !== null
+		&& $zone_dm['storepickup'] == 0
+		&& $zone_dm['in_person_delivery'] == 0
+	) {
+		$response['error'] = true;
+		$response['message'] = "Delivery is not available in this zone.";
+		echo json_encode($response);
+		exit;
+	}
+
+	// Store pickup is charged nothing regardless of the zone tariff.
+	if (empty($delivery_method) || $delivery_method != 'storepickup') {
+		$in_persion_data = $zone_dm['in_persion_data'];
+	}
+
+	// Platform and convenience fee for the zone this order is delivered to. The
+	// convenience fee is returned as a percentage because the app applies it to
+	// the item total it already has, while the platform fee is a flat amount.
+	$preview_fees = $function->split_zone_fees(0, $addr_zone, $settings);
+	$preview_fee_fields = array(
+		'zone_id' => $preview_fees['zone_id'],
+		'platform_fee' => $preview_fees['platform_fee'],
+		'convenience_fee' => $preview_fees['convenience_fee_percent'],
+		'fees_inherited' => $preview_fees['fees_inherited'],
+	);
+
+	if (!empty($delivery_method) && $delivery_method == 'storepickup') {
 
 		$response['error'] = false;
-        $response['delivery_charge'] = 0;
-        $response['message'] = "Delivery charge";
-        echo json_encode(array_merge($response,$preview_fee_fields));exit;
+		$response['delivery_charge'] = 0;
+		$response['message'] = "Delivery charge";
+		echo json_encode(array_merge($response, $preview_fee_fields));
+		exit;
 
-    }elseif($dunzo_enable == '1'){  //echo 'test2';die();
-	       $payload = [
-             "pickup_details" => [
-             		[
-             			"lat" => $store_lat,
-             			"lng" => $store_long,
-             			"reference_id" => "pickup-ref"
-             		]
-             ],
-             "optimised_route" => true,
-             "drop_details" => [
-             		[
-             			"lat" => $user_latitude,
-             			"lng" => $user_longitude,
-             			"reference_id" => "drop-ref1"
-             		]
-             ]
-             ];
-             $result_delivery_charge = $function->get_dunzo_delivery_charge($payload);
-             if(!empty($result_delivery_charge->estimated_price_breakup)){
-             	$delivery_charge = $result_delivery_charge->estimated_price_breakup->delivery_charge_breakup->base_delivery_charge;
-             	if(!empty($delivery_charge)){
-	                 $response['error'] = false;
-	                 $response['delivery_charge'] = $delivery_charge;
-	                 $response['message'] = "Dunzo Delivery charge";
-	                 echo json_encode(array_merge($response,$preview_fee_fields));exit;
-	             }else{
-	                $response['error'] = true;
-	                $response['message'] = "Unable to get delivery charge.";
-	                echo json_encode($response);exit;
-	             }
-             }else{
-             	$response['error'] = true;
-                $response['message'] = "Unable to get delivery charge.";
-                echo json_encode($response);exit;
-            }
-            
-    }else{
-        // Purely distance-based delivery charge (in-person and courier both use
-        // the in-person per-km tariff between the store and the selected location).
-        if(!empty($in_persion_data)){
-        	$charge_info = $function->get_food_delivery_charge(
-        		$store_lat , $store_long , $user_latitude , $user_longitude , $in_persion_data
-        	);
+	} elseif ($dunzo_enable == '1') {  //echo 'test2';die();
+		$payload = [
+			"pickup_details" => [
+				[
+					"lat" => $store_lat,
+					"lng" => $store_long,
+					"reference_id" => "pickup-ref"
+				]
+			],
+			"optimised_route" => true,
+			"drop_details" => [
+				[
+					"lat" => $user_latitude,
+					"lng" => $user_longitude,
+					"reference_id" => "drop-ref1"
+				]
+			]
+		];
+		$result_delivery_charge = $function->get_dunzo_delivery_charge($payload);
+		if (!empty($result_delivery_charge->estimated_price_breakup)) {
+			$delivery_charge = $result_delivery_charge->estimated_price_breakup->delivery_charge_breakup->base_delivery_charge;
+			if (!empty($delivery_charge)) {
+				$response['error'] = false;
+				$response['delivery_charge'] = $delivery_charge;
+				$response['message'] = "Dunzo Delivery charge";
+				echo json_encode(array_merge($response, $preview_fee_fields));
+				exit;
+			} else {
+				$response['error'] = true;
+				$response['message'] = "Unable to get delivery charge.";
+				echo json_encode($response);
+				exit;
+			}
+		} else {
+			$response['error'] = true;
+			$response['message'] = "Unable to get delivery charge.";
+			echo json_encode($response);
+			exit;
+		}
 
-        	if($charge_info['error'] !== ''){
-        		$response['error'] = true;
-        		$response['message'] = "Unable to get delivery charge. " . $charge_info['error'];
-        		echo json_encode($response);exit;
-        	}
+	} else {
+		// Purely distance-based delivery charge (in-person and courier both use
+		// the in-person per-km tariff between the store and the selected location).
+		if (!empty($in_persion_data)) {
+			$charge_info = $function->get_food_delivery_charge(
+				$store_lat,
+				$store_long,
+				$user_latitude,
+				$user_longitude,
+				$in_persion_data
+			);
 
-            $response['error'] = false;
-            $response['delivery_charge'] = sprintf('%.2f', $charge_info['delivery_charge']);
-            $response['distance'] = $charge_info['distance_km'] . 'Km';
-            $response['distance_source'] = $charge_info['distance_source'];
-            $response['message'] = "Delivery charge";
-            echo json_encode(array_merge($response,$preview_fee_fields));exit;
-        }else{
-            $response['error'] = true;
-            $response['message'] = "Enable Delivery charge in delivery method";
-            echo json_encode($response);exit;
-        }
-    }
-	
+			if ($charge_info['error'] !== '') {
+				$response['error'] = true;
+				$response['message'] = "Unable to get delivery charge. " . $charge_info['error'];
+				echo json_encode($response);
+				exit;
+			}
+
+			$response['error'] = false;
+			$response['delivery_charge'] = sprintf('%.2f', $charge_info['delivery_charge']);
+			$response['distance'] = $charge_info['distance_km'] . 'Km';
+			$response['distance_source'] = $charge_info['distance_source'];
+			$response['message'] = "Delivery charge";
+			echo json_encode(array_merge($response, $preview_fee_fields));
+			exit;
+		} else {
+			$response['error'] = true;
+			$response['message'] = "Enable Delivery charge in delivery method";
+			echo json_encode($response);
+			exit;
+		}
+	}
+
 }
 
-if(isset($_POST['process_refund']) && isset($_POST['order_id'])){
-    $order_id = (int)$_POST['order_id'];
-    $order_type = isset($_POST['order_type']) && $_POST['order_type'] === 'parcel' ? 'parcel' : 'food';
-    $manual_payment_id = isset($_POST['payment_id']) && !empty($_POST['payment_id']) ? trim($_POST['payment_id']) : null;
+if (isset($_POST['process_refund']) && isset($_POST['order_id'])) {
+	$order_id = (int) $_POST['order_id'];
+	$order_type = isset($_POST['order_type']) && $_POST['order_type'] === 'parcel' ? 'parcel' : 'food';
+	$manual_payment_id = isset($_POST['payment_id']) && !empty($_POST['payment_id']) ? trim($_POST['payment_id']) : null;
 
-    if ($order_type === 'parcel') {
-        $res = $function->refund_parcel_payment($order_id, $manual_payment_id);
-    } else {
-        $res = $function->refund_order_payment($order_id, $manual_payment_id);
-    }
+	if ($order_type === 'parcel') {
+		$res = $function->refund_parcel_payment($order_id, $manual_payment_id);
+	} else {
+		$res = $function->refund_order_payment($order_id, $manual_payment_id);
+	}
 
-    if($res['status'] == 'success' || $res['status'] == 'processing'){
-        $response['error'] = false;
-        $response['refund_status'] = $res['status'];
-        $response['rzp_status'] = isset($res['rzp_status']) ? $res['rzp_status'] : $res['status'];
-        $response['message'] = $res['message'];
-        $response['refund_id'] = isset($res['refund_id']) ? $res['refund_id'] : '';
-        $response['amount'] = isset($res['amount']) ? $res['amount'] : 0;
-    } elseif($res['status'] == 'already_refunded') {
-        $response['error'] = false;
-        $response['refund_status'] = 'already_refunded';
-        $response['message'] = $res['message'];
-        $response['already_refunded'] = true;
-    } else {
-        $response['error'] = true;
-        $response['refund_status'] = 'failed';
-        $response['message'] = $res['message'];
-    }
-    echo json_encode($response);
-    exit;
+	if ($res['status'] == 'success' || $res['status'] == 'processing') {
+		$response['error'] = false;
+		$response['refund_status'] = $res['status'];
+		$response['rzp_status'] = isset($res['rzp_status']) ? $res['rzp_status'] : $res['status'];
+		$response['message'] = $res['message'];
+		$response['refund_id'] = isset($res['refund_id']) ? $res['refund_id'] : '';
+		$response['amount'] = isset($res['amount']) ? $res['amount'] : 0;
+	} elseif ($res['status'] == 'already_refunded') {
+		$response['error'] = false;
+		$response['refund_status'] = 'already_refunded';
+		$response['message'] = $res['message'];
+		$response['already_refunded'] = true;
+	} else {
+		$response['error'] = true;
+		$response['refund_status'] = 'failed';
+		$response['message'] = $res['message'];
+	}
+	echo json_encode($response);
+	exit;
 }
 
-if(isset($_POST['sync_refund_status']) && isset($_POST['order_id'])){
-    $order_id = (int)$_POST['order_id'];
-    $order_type = isset($_POST['order_type']) && $_POST['order_type'] === 'parcel' ? 'parcel' : 'food';
-    $refund_id_or_payment_id = isset($_POST['query_id']) && !empty($_POST['query_id']) ? trim($_POST['query_id']) : null;
+if (isset($_POST['sync_refund_status']) && isset($_POST['order_id'])) {
+	$order_id = (int) $_POST['order_id'];
+	$order_type = isset($_POST['order_type']) && $_POST['order_type'] === 'parcel' ? 'parcel' : 'food';
+	$refund_id_or_payment_id = isset($_POST['query_id']) && !empty($_POST['query_id']) ? trim($_POST['query_id']) : null;
 
-    if (empty($refund_id_or_payment_id)) {
-        $details = $function->get_order_refund_details($order_id, $order_type);
-        $refund_id_or_payment_id = !empty($details['refund_id']) ? $details['refund_id'] : $details['payment_id'];
-    }
+	if (empty($refund_id_or_payment_id)) {
+		$details = $function->get_order_refund_details($order_id, $order_type);
+		$refund_id_or_payment_id = !empty($details['refund_id']) ? $details['refund_id'] : $details['payment_id'];
+	}
 
-    $res = $function->check_live_razorpay_refund($refund_id_or_payment_id, $order_id, $order_type);
-    if($res['status'] == 'success'){
-        $response['error'] = false;
-        $response['data'] = $res;
-        $response['message'] = 'Live status updated: ' . ucfirst($res['rzp_status']) . '. ' . $res['message'];
-    } else {
-        $response['error'] = true;
-        $response['message'] = $res['message'];
-    }
-    echo json_encode($response);
-    exit;
+	$res = $function->check_live_razorpay_refund($refund_id_or_payment_id, $order_id, $order_type);
+	if ($res['status'] == 'success') {
+		$response['error'] = false;
+		$response['data'] = $res;
+		$response['message'] = 'Live status updated: ' . ucfirst($res['rzp_status']) . '. ' . $res['message'];
+	} else {
+		$response['error'] = true;
+		$response['message'] = $res['message'];
+	}
+	echo json_encode($response);
+	exit;
 }
 ?>

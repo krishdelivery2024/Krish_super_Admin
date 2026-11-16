@@ -55,6 +55,29 @@ if (!function_exists('execute_order_placement')) {
     function execute_order_placement($params, $db, $function) {
         init_razorpay_orders_table($db);
 
+        $rp_order_id = isset($params['razorpay_order_id']) ? $db->escapeString($function->xss_clean($params['razorpay_order_id'])) : '';
+        $payment_id = isset($params['payment_id']) ? $db->escapeString($function->xss_clean($params['payment_id'])) : (isset($params['razorpay_payment_id']) ? $db->escapeString($function->xss_clean($params['razorpay_payment_id'])) : '');
+
+        // Idempotency check 1: If razorpay_order_id already has a local_order_id > 0, do NOT place duplicate order!
+        if (!empty($rp_order_id)) {
+            $db->sql("SELECT local_order_id FROM razorpay_orders WHERE razorpay_order_id = '$rp_order_id' AND local_order_id > 0 LIMIT 1");
+            $ex_rp = $db->getResult();
+            if (!empty($ex_rp) && (int)$ex_rp[0]['local_order_id'] > 0) {
+                log_razorpay_webhook("execute_order_placement: Order already exists for rp_order $rp_order_id -> #" . $ex_rp[0]['local_order_id']);
+                return array('error' => false, 'order_id' => (int)$ex_rp[0]['local_order_id'], 'message' => 'Order already placed.');
+            }
+        }
+
+        // Idempotency check 2: If payment_id is already in transactions with order_id > 0, do NOT place duplicate order!
+        if (!empty($payment_id)) {
+            $db->sql("SELECT order_id FROM transactions WHERE txn_id = '$payment_id' AND order_id > 0 LIMIT 1");
+            $ex_tx = $db->getResult();
+            if (!empty($ex_tx) && (int)$ex_tx[0]['order_id'] > 0) {
+                log_razorpay_webhook("execute_order_placement: Order already exists for payment_id $payment_id -> #" . $ex_tx[0]['order_id']);
+                return array('error' => false, 'order_id' => (int)$ex_tx[0]['order_id'], 'message' => 'Order already placed.');
+            }
+        }
+
         $user_id = isset($params['user_id']) ? $db->escapeString($function->xss_clean($params['user_id'])) : 0;
         $seller_id = isset($params['seller_id']) ? $db->escapeString($function->xss_clean($params['seller_id'])) : 0;
         $mobile = isset($params['mobile']) ? $db->escapeString($function->xss_clean($params['mobile'])) : '';
@@ -220,6 +243,11 @@ if (!function_exists('execute_order_placement')) {
             return array('error' => true, 'order_id' => 0, 'message' => 'Could not insert order into database.');
         }
 
+        // Atomically claim local_order_id in razorpay_orders immediately to prevent concurrent insertions
+        if (!empty($rp_order_id)) {
+            $db->sql("UPDATE razorpay_orders SET local_order_id = '$order_id', status = 'order_placed'" . (!empty($payment_id) ? ", payment_id = '$payment_id'" : "") . " WHERE razorpay_order_id = '$rp_order_id'");
+        }
+
         log_razorpay_webhook("Order #$order_id inserted successfully for user #$user_id (seller #$seller_id).");
 
         // Insert order items
@@ -325,137 +353,170 @@ if (!function_exists('process_razorpay_captured_payment')) {
     function process_razorpay_captured_payment($payment_id, $rp_order_id, $amount, $contact = '', $email = '', $notes = array(), $db = null, $function = null) {
         init_razorpay_orders_table($db);
 
+        $payment_id = $db->escapeString(trim($payment_id));
+        $rp_order_id = $db->escapeString(trim($rp_order_id));
+
         log_razorpay_webhook("Processing captured payment: $payment_id, rp_order: $rp_order_id, amount: $amount");
 
-        // 1. Check if transaction is already recorded
-        $db->sql("SELECT id, order_id FROM transactions WHERE txn_id = '$payment_id' LIMIT 1");
-        $existing_txn = $db->getResult();
-        if (!empty($existing_txn)) {
-            log_razorpay_webhook("Payment $payment_id already exists in transactions (ID: " . $existing_txn[0]['id'] . ", Order: " . $existing_txn[0]['order_id'] . ").");
-            // If linked to an order, ensure payment_status = 1
-            if (!empty($existing_txn[0]['order_id'])) {
-                $db->sql("UPDATE orders SET payment_status = 1 WHERE id = '" . (int)$existing_txn[0]['order_id'] . "'");
-            }
-            return array('status' => 'already_processed', 'order_id' => $existing_txn[0]['order_id']);
+        // Named MySQL lock to serialize concurrent webhook calls (e.g. payment.captured and order.paid arriving simultaneously)
+        $lock_name = 'krish_rp_' . (!empty($rp_order_id) ? $rp_order_id : $payment_id);
+        $db->sql("SELECT GET_LOCK('$lock_name', 15) as lock_acquired");
+        $lock_res = $db->getResult();
+        $has_lock = (!empty($lock_res) && isset($lock_res[0]['lock_acquired']) && $lock_res[0]['lock_acquired'] == 1);
+        if (!$has_lock) {
+            log_razorpay_webhook("Warning: Could not acquire MySQL lock $lock_name within 15 seconds.");
         }
 
-        // 2. Check razorpay_orders table for initiated order record
-        $rp_record = null;
-        if (!empty($rp_order_id)) {
-            $db->sql("SELECT * FROM razorpay_orders WHERE razorpay_order_id = '$rp_order_id' LIMIT 1");
-            $res = $db->getResult();
-            if (!empty($res)) {
-                $rp_record = $res[0];
-            }
-        }
-
-        // Case A: razorpay_orders record found
-        if ($rp_record) {
-            $local_order_id = (int)$rp_record['local_order_id'];
-
-            // Case A1: App already placed the order, just link the transaction
-            if ($local_order_id > 0) {
-                $db->sql("UPDATE orders SET payment_status = 1 WHERE id = '$local_order_id'");
-                $txn_data = array(
-                    'user_id' => $rp_record['user_id'],
-                    'order_id' => $local_order_id,
-                    'type' => 'razorpay',
-                    'txn_id' => $payment_id,
-                    'amount' => $amount,
-                    'status' => 'success',
-                    'message' => 'Payment captured via Razorpay Webhook',
-                    'transaction_date' => date('Y-m-d H:i:s')
-                );
-                $db->insert('transactions', $txn_data);
-                $db->sql("UPDATE razorpay_orders SET payment_id = '$payment_id', status = 'order_placed' WHERE id = '" . $rp_record['id'] . "'");
-                log_razorpay_webhook("Payment $payment_id linked to existing local order #$local_order_id.");
-                return array('status' => 'order_linked', 'order_id' => $local_order_id);
+        try {
+            // 1. Check if transaction is already recorded
+            $db->sql("SELECT id, order_id FROM transactions WHERE txn_id = '$payment_id' LIMIT 1");
+            $existing_txn = $db->getResult();
+            if (!empty($existing_txn)) {
+                $linked_order_id = (int)$existing_txn[0]['order_id'];
+                log_razorpay_webhook("Payment $payment_id already exists in transactions (ID: " . $existing_txn[0]['id'] . ", Order: " . $linked_order_id . ").");
+                // If linked to an order, ensure payment_status = 1
+                if ($linked_order_id > 0) {
+                    $db->sql("UPDATE orders SET payment_status = 1 WHERE id = '$linked_order_id'");
+                    if (!empty($rp_order_id)) {
+                        $db->sql("UPDATE razorpay_orders SET local_order_id = '$linked_order_id', payment_id = '$payment_id', status = 'order_placed' WHERE razorpay_order_id = '$rp_order_id'");
+                    }
+                }
+                if ($has_lock) $db->sql("SELECT RELEASE_LOCK('$lock_name')");
+                return array('status' => 'already_processed', 'order_id' => $linked_order_id);
             }
 
-            // Case A2: App crashed/closed, but order_payload was saved! Place order now!
-            if (!empty($rp_record['order_payload'])) {
-                $payload = json_decode($rp_record['order_payload'], true);
-                if (!empty($payload)) {
-                    $payload['payment_method'] = 'Online Payment';
-                    $place_res = execute_order_placement($payload, $db, $function);
-                    if (!$place_res['error'] && $place_res['order_id'] > 0) {
-                        $new_order_id = $place_res['order_id'];
-                        // Record transaction
-                        $txn_data = array(
-                            'user_id' => $rp_record['user_id'],
-                            'order_id' => $new_order_id,
-                            'type' => 'razorpay',
-                            'txn_id' => $payment_id,
-                            'amount' => $amount,
-                            'status' => 'success',
-                            'message' => 'Order created automatically via Razorpay Webhook',
-                            'transaction_date' => date('Y-m-d H:i:s')
-                        );
-                        $db->insert('transactions', $txn_data);
-                        $db->sql("UPDATE razorpay_orders SET payment_id = '$payment_id', local_order_id = '$new_order_id', status = 'order_placed' WHERE id = '" . $rp_record['id'] . "'");
-                        log_razorpay_webhook("Order #$new_order_id placed successfully via webhook payload for payment $payment_id.");
-                        return array('status' => 'order_created', 'order_id' => $new_order_id);
-                    } else {
-                        log_razorpay_webhook("Failed placing order from saved payload: " . $place_res['message']);
+            // 2. Check razorpay_orders table for initiated order record
+            $rp_record = null;
+            if (!empty($rp_order_id)) {
+                $db->sql("SELECT * FROM razorpay_orders WHERE razorpay_order_id = '$rp_order_id' LIMIT 1");
+                $res = $db->getResult();
+                if (!empty($res)) {
+                    $rp_record = $res[0];
+                }
+            }
+
+            // Case A: razorpay_orders record found
+            if ($rp_record) {
+                $local_order_id = (int)$rp_record['local_order_id'];
+
+                // Case A1: App or previous webhook thread already placed the order, just link the transaction
+                if ($local_order_id > 0) {
+                    $db->sql("UPDATE orders SET payment_status = 1 WHERE id = '$local_order_id'");
+                    $txn_data = array(
+                        'user_id' => $rp_record['user_id'],
+                        'order_id' => $local_order_id,
+                        'type' => 'razorpay',
+                        'txn_id' => $payment_id,
+                        'amount' => $amount,
+                        'status' => 'success',
+                        'message' => 'Payment captured via Razorpay Webhook',
+                        'transaction_date' => date('Y-m-d H:i:s')
+                    );
+                    $db->insert('transactions', $txn_data);
+                    $db->sql("UPDATE razorpay_orders SET payment_id = '$payment_id', status = 'order_placed' WHERE id = '" . $rp_record['id'] . "'");
+                    log_razorpay_webhook("Payment $payment_id linked to existing local order #$local_order_id.");
+                    if ($has_lock) $db->sql("SELECT RELEASE_LOCK('$lock_name')");
+                    return array('status' => 'order_linked', 'order_id' => $local_order_id);
+                }
+
+                // Case A2: App crashed/closed, but order_payload was saved! Place order now!
+                if (!empty($rp_record['order_payload'])) {
+                    // Mark status = 'processing' immediately so no other thread attempts order creation
+                    $db->sql("UPDATE razorpay_orders SET status = 'processing', payment_id = '$payment_id' WHERE id = '" . $rp_record['id'] . "'");
+
+                    $payload = json_decode($rp_record['order_payload'], true);
+                    if (!empty($payload)) {
+                        $payload['payment_method'] = 'Online Payment';
+                        $payload['razorpay_order_id'] = $rp_order_id;
+                        $payload['payment_id'] = $payment_id;
+                        $place_res = execute_order_placement($payload, $db, $function);
+                        if (!$place_res['error'] && $place_res['order_id'] > 0) {
+                            $new_order_id = $place_res['order_id'];
+                            // Record transaction immediately
+                            $txn_data = array(
+                                'user_id' => $rp_record['user_id'],
+                                'order_id' => $new_order_id,
+                                'type' => 'razorpay',
+                                'txn_id' => $payment_id,
+                                'amount' => $amount,
+                                'status' => 'success',
+                                'message' => 'Order created automatically via Razorpay Webhook',
+                                'transaction_date' => date('Y-m-d H:i:s')
+                            );
+                            $db->insert('transactions', $txn_data);
+                            $db->sql("UPDATE razorpay_orders SET payment_id = '$payment_id', local_order_id = '$new_order_id', status = 'order_placed' WHERE id = '" . $rp_record['id'] . "'");
+                            log_razorpay_webhook("Order #$new_order_id placed successfully via webhook payload for payment $payment_id.");
+                            if ($has_lock) $db->sql("SELECT RELEASE_LOCK('$lock_name')");
+                            return array('status' => 'order_created', 'order_id' => $new_order_id);
+                        } else {
+                            log_razorpay_webhook("Failed placing order from saved payload: " . $place_res['message']);
+                        }
                     }
                 }
             }
-        }
 
-        // Case B: Orphan payment / No saved payload (like pay_TwQMmnBuHG67w4)
-        // Find user by phone number or email
-        $user_id = 0;
-        if (!empty($notes['user_id'])) {
-            $user_id = (int)$notes['user_id'];
-        }
+            // Case B: Orphan payment / No saved payload (like direct or unlinked payments)
+            // Find user by phone number or email
+            $user_id = 0;
+            if (!empty($notes['user_id'])) {
+                $user_id = (int)$notes['user_id'];
+            }
 
-        if (empty($user_id) && !empty($contact)) {
-            $clean_phone = substr(preg_replace('/[^0-9]/', '', $contact), -10);
-            if (!empty($clean_phone)) {
-                $db->sql("SELECT id FROM users WHERE mobile LIKE '%$clean_phone' LIMIT 1");
+            if (empty($user_id) && !empty($contact)) {
+                $clean_phone = substr(preg_replace('/[^0-9]/', '', $contact), -10);
+                if (!empty($clean_phone)) {
+                    $db->sql("SELECT id FROM users WHERE mobile LIKE '%$clean_phone' LIMIT 1");
+                    $u_res = $db->getResult();
+                    if (!empty($u_res)) {
+                        $user_id = (int)$u_res[0]['id'];
+                    }
+                }
+            }
+
+            if (empty($user_id) && !empty($email)) {
+                $db->sql("SELECT id FROM users WHERE email = '" . $db->escapeString($email) . "' LIMIT 1");
                 $u_res = $db->getResult();
                 if (!empty($u_res)) {
                     $user_id = (int)$u_res[0]['id'];
                 }
             }
+
+            // Record captured payment in transactions table with order_id = 0
+            $txn_data = array(
+                'user_id' => $user_id,
+                'order_id' => 0,
+                'type' => 'razorpay',
+                'txn_id' => $payment_id,
+                'amount' => $amount,
+                'status' => 'success',
+                'message' => 'Payment captured via Razorpay (App disconnected before order placement)',
+                'transaction_date' => date('Y-m-d H:i:s')
+            );
+            $db->insert('transactions', $txn_data);
+
+            // Record in razorpay_orders as captured_unlinked
+            $rp_id_to_store = !empty($rp_order_id) ? $rp_order_id : ('unlinked_' . $payment_id);
+            $notes_json = $db->escapeString(json_encode(array(
+                'contact' => $contact,
+                'email' => $email,
+                'raw_notes' => $notes
+            )));
+
+            $db->sql("INSERT INTO razorpay_orders (razorpay_order_id, user_id, amount, payment_id, status, notes)
+                      VALUES ('$rp_id_to_store', '$user_id', '$amount', '$payment_id', 'captured_unlinked', '$notes_json')
+                      ON DUPLICATE KEY UPDATE payment_id = '$payment_id', status = 'captured_unlinked', notes = '$notes_json'");
+
+            log_razorpay_webhook("Recorded orphan payment $payment_id for user #$user_id as captured_unlinked.");
+
+            if ($has_lock) $db->sql("SELECT RELEASE_LOCK('$lock_name')");
+            return array('status' => 'recorded_unlinked', 'user_id' => $user_id);
+        } catch (Exception $e) {
+            if ($has_lock) $db->sql("SELECT RELEASE_LOCK('$lock_name')");
+            throw $e;
+        } catch (Error $e) {
+            if ($has_lock) $db->sql("SELECT RELEASE_LOCK('$lock_name')");
+            throw $e;
         }
-
-        if (empty($user_id) && !empty($email)) {
-            $db->sql("SELECT id FROM users WHERE email = '" . $db->escapeString($email) . "' LIMIT 1");
-            $u_res = $db->getResult();
-            if (!empty($u_res)) {
-                $user_id = (int)$u_res[0]['id'];
-            }
-        }
-
-        // Record captured payment in transactions table with order_id = 0
-        $txn_data = array(
-            'user_id' => $user_id,
-            'order_id' => 0,
-            'type' => 'razorpay',
-            'txn_id' => $payment_id,
-            'amount' => $amount,
-            'status' => 'success',
-            'message' => 'Payment captured via Razorpay (App disconnected before order placement)',
-            'transaction_date' => date('Y-m-d H:i:s')
-        );
-        $db->insert('transactions', $txn_data);
-
-        // Record in razorpay_orders as captured_unlinked
-        $rp_id_to_store = !empty($rp_order_id) ? $rp_order_id : ('unlinked_' . $payment_id);
-        $notes_json = $db->escapeString(json_encode(array(
-            'contact' => $contact,
-            'email' => $email,
-            'raw_notes' => $notes
-        )));
-
-        $db->sql("INSERT INTO razorpay_orders (razorpay_order_id, user_id, amount, payment_id, status, notes)
-                  VALUES ('$rp_id_to_store', '$user_id', '$amount', '$payment_id', 'captured_unlinked', '$notes_json')
-                  ON DUPLICATE KEY UPDATE payment_id = '$payment_id', status = 'captured_unlinked', notes = '$notes_json'");
-
-        log_razorpay_webhook("Recorded orphan payment $payment_id for user #$user_id as captured_unlinked.");
-
-        return array('status' => 'recorded_unlinked', 'user_id' => $user_id);
     }
 }
 

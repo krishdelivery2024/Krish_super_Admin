@@ -41,7 +41,7 @@ if(isset($_POST['get_user_data']) && $db->escapeString($fn->xss_clean($_POST['ge
     if(isset($_POST['user_id']) && $fn->xss_clean($_POST['user_id']) != '') {
         $id    = $db->escapeString($fn->xss_clean($_POST['user_id']));
         $response = array();
-        $sql_query = "SELECT *,(SELECT name FROM area a WHERE a.id=u.area) as area_name,(SELECT name FROM city c WHERE c.id=u.city) as city_name FROM `users` u WHERE u.id=".$id;
+        $sql_query = "SELECT u.*, (SELECT name FROM area a WHERE a.id=u.area) as area_name, (SELECT name FROM city c WHERE c.id=u.city) as city_name, (SELECT ua.landmark FROM user_address ua WHERE ua.user_id=u.id ORDER BY ua.is_default DESC, ua.id DESC LIMIT 1) as landmark FROM `users` u WHERE u.id=".$id;
         $db->sql($sql_query);
         $result=$db->getResult();
         if ($db->numRows($result) > 0) {
@@ -62,6 +62,7 @@ if(isset($_POST['get_user_data']) && $db->escapeString($fn->xss_clean($_POST['ge
                 $response['address']    = !empty($row['address']) ? $row['address'] : (!empty($row['street']) ? $row['street'] : '');
                 $response['latitude']   = isset($row['latitude']) ? $row['latitude'] : '0';
                 $response['longitude']  = isset($row['longitude']) ? $row['longitude'] : '0';
+                $response['landmark']   = !empty($row['landmark']) ? $row['landmark'] : '';
                 $response['pincode']     = $row['pincode'];
                 $response['referral_code']     = $row['referral_code'];
                 $response['friends_code']     = $row['friends_code'];

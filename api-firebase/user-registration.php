@@ -307,6 +307,7 @@ if (isset($_POST['type']) && $_POST['type'] != '' && $_POST['type'] == 'edit-pro
 	$dob = $db->escapeString($_POST['dob']);
 	$latitude = (isset($_POST['latitude']) && !empty($_POST['latitude'])) ? $db->escapeString($_POST['latitude']) : "0";
 	$longitude = (isset($_POST['longitude']) && !empty($_POST['longitude'])) ? $db->escapeString($_POST['longitude']) : "0";
+	$landmark = (isset($_POST['landmark']) && trim($_POST['landmark']) !== '') ? $db->escapeString($_POST['landmark']) : '';
 
 	$sql = 'select * from users where id =' . $id;
 	$db->sql($sql);
@@ -369,13 +370,17 @@ if (isset($_POST['type']) && $_POST['type'] != '' && $_POST['type'] == 'edit-pro
 				'is_default' => '1',
 				'status' => '1'
 			);
+			if (!empty($landmark)) {
+				$data['landmark'] = $landmark;
+			}
 			$db->insert('user_address', $data);
 
 		} else {
 			// Re-resolve the zone because the coordinates may have changed.
 			$signup_zone = $fn->get_zone_id_from_latlng($latitude, $longitude);
 			$signup_zone = ($signup_zone === null) ? 0 : (int) $signup_zone;
-			$sql1 = 'UPDATE `user_address` SET `name`="' . $name . '",`state`="' . $state . '",`city`="' . $city . '",`area`="' . $area . '",`street`="' . $street . '",`address`="' . $address . '",`pincode`="' . $pincode . '",`latitude`="' . $latitude . '",`longitude`="' . $longitude . '",`zone_id`="' . $signup_zone . '" WHERE `user_id`=' . $id . ' AND is_default=1';
+			$landmark_sql = (!empty($landmark)) ? ',`landmark`="' . $landmark . '"' : '';
+			$sql1 = 'UPDATE `user_address` SET `name`="' . $name . '",`state`="' . $state . '",`city`="' . $city . '",`area`="' . $area . '",`street`="' . $street . '",`address`="' . $address . '",`pincode`="' . $pincode . '",`latitude`="' . $latitude . '",`longitude`="' . $longitude . '",`zone_id`="' . $signup_zone . '"' . $landmark_sql . ' WHERE `user_id`=' . $id . ' AND is_default=1';
 			$db->sql($sql1);
 			$db->getResult();
 		}
