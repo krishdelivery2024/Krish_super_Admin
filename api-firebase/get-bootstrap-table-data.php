@@ -74,7 +74,7 @@ if (isset($_GET['table']) && $_GET['table'] == 'orders') {
 		'id' => 'o.id',
 		'user_id' => 'o.user_id',
 		'qty' => 'o.id',
-		'sname' => 's.name',
+		'sname' => 'COALESCE(NULLIF(s.company_name, ""), s.name)',
 		'smobile' => 's.mobile',
 		'name' => 'u.name',
 		'mobile' => 'o.mobile',
@@ -125,7 +125,7 @@ if (isset($_GET['table']) && $_GET['table'] == 'orders') {
 	if (isset($_GET['search']) && !empty($_GET['search'])) {
 		$search = $db->escapeString($_GET['search']);
 		// All columns fully qualified now -> fixes the "ambiguous column 'name'" fatal error
-		$where .= " AND (u.name like '%" . $search . "%' OR o.id like '%" . $search . "%' OR o.mobile like '%" . $search . "%' OR o.address like '%" . $search . "%' OR o.`payment_method` like '%" . $search . "%' OR o.`delivery_charge` like '%" . $search . "%' OR o.`delivery_time` like '%" . $search . "%' OR o.`status` like '%" . $search . "%' OR o.`date_added` like '%" . $search . "%' OR s.name like '%" . $search . "%' OR s.mobile like '%" . $search . "%' OR o.id IN (SELECT order_id FROM transactions WHERE txn_id LIKE '%" . $search . "%' OR payu_txn_id LIKE '%" . $search . "%') OR o.id IN (SELECT local_order_id FROM razorpay_orders WHERE payment_id LIKE '%" . $search . "%'))";
+		$where .= " AND (u.name like '%" . $search . "%' OR o.id like '%" . $search . "%' OR o.mobile like '%" . $search . "%' OR o.address like '%" . $search . "%' OR o.`payment_method` like '%" . $search . "%' OR o.`delivery_charge` like '%" . $search . "%' OR o.`delivery_time` like '%" . $search . "%' OR o.`status` like '%" . $search . "%' OR o.`date_added` like '%" . $search . "%' OR s.name like '%" . $search . "%' OR s.company_name like '%" . $search . "%' OR s.mobile like '%" . $search . "%' OR o.id IN (SELECT order_id FROM transactions WHERE txn_id LIKE '%" . $search . "%' OR payu_txn_id LIKE '%" . $search . "%') OR o.id IN (SELECT local_order_id FROM razorpay_orders WHERE payment_id LIKE '%" . $search . "%'))";
 	}
 
 	if (isset($_GET['filter_order']) && $_GET['filter_order'] != '') {
@@ -158,7 +158,7 @@ if (isset($_GET['table']) && $_GET['table'] == 'orders') {
 	$res = $db->getResult();
 	$total = isset($res) ? $res[0]['total'] : 0;
 
-	$sql = "select o.*, u.name, s.name as vendor_name, s.mobile as vendor_mobile, z.name as zone_name, b.name as delivery_boy_name 
+	$sql = "select o.*, u.name, s.name as vendor_name, s.company_name, s.mobile as vendor_mobile, z.name as zone_name, b.name as delivery_boy_name 
               FROM orders o 
               JOIN users u ON u.id=o.user_id 
               LEFT JOIN seller s ON s.id=o.seller_id 
@@ -363,8 +363,14 @@ if (isset($_GET['table']) && $_GET['table'] == 'orders') {
 		$tempRow['date_added'] = date('d-m-Y H:i', strtotime($row['date_added']));
 
 		if (isset($_SESSION['role']) && $_SESSION['role'] != 'seller') {
-			$tempRow['sname'] = $row['vendor_name'];
-			$tempRow['smobile'] = $row['vendor_mobile'];
+			$restaurant_name = !empty(trim((string) $row['company_name'])) ? trim($row['company_name']) : (!empty(trim((string) $row['vendor_name'])) ? trim($row['vendor_name']) : '-');
+			$vendor_name = !empty(trim((string) $row['vendor_name'])) ? trim($row['vendor_name']) : '';
+			if (!empty($vendor_name) && strcasecmp($restaurant_name, $vendor_name) !== 0) {
+				$tempRow['sname'] = '<b>' . htmlspecialchars($restaurant_name) . '</b><br><small class="text-muted"><i class="fa fa-user"></i> ' . htmlspecialchars($vendor_name) . '</small>';
+			} else {
+				$tempRow['sname'] = '<b>' . htmlspecialchars($restaurant_name) . '</b>';
+			}
+			$tempRow['smobile'] = !empty($row['vendor_mobile']) ? $row['vendor_mobile'] : '-';
 		}
 		$operate = '<a class="btn btn-xs btn-primary" href="order-detail.php?id=' . $row['id'] . '" target="_blank" title="View Order Details"><i class="fa fa-eye"></i> View</a> ';
 		$ord_ready_flag = isset($row['order_ready']) ? (int) $row['order_ready'] : 0;
@@ -477,8 +483,8 @@ if (isset($_GET['table']) && $_GET['table'] == 'orders') {
 			$tempRow['active_status'] = $active_status;
 			$tempRow['date_added'] = date('d-m-Y', strtotime($row['created_at']));
 			if (isset($_SESSION['role']) && $_SESSION['role'] != 'seller') {
-				$tempRow['sname'] = 'Parcel';
-				$tempRow['smobile'] = '';
+				$tempRow['sname'] = '<span class="label label-default"><i class="fa fa-cube"></i> Parcel</span>';
+				$tempRow['smobile'] = '-';
 			}
 			$tempRow['operate'] = '<a class="btn btn-xs btn-primary" href="parcel-requests.php" title="View Parcel Requests"><i class="fa fa-eye"></i> View</a>';
 			$rows[] = $tempRow;

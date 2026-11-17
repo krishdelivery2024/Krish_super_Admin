@@ -178,8 +178,8 @@
 									<th data-field="qty" data-sortable='true' data-visible="false">Qty</th>
 									 <th data-field="zone_name" data-sortable='true'>Zone</th>
 									 <?php if(isset($_SESSION['role']) && $_SESSION['role'] != 'seller'){ ?>
-									 <th data-field="sname" data-sortable='true'>V.Name</th>
-									 <th data-field="smobile" data-sortable='true'>V.Mob.</th>
+									 <th data-field="sname" data-sortable='true'>Restaurant</th>
+									 <th data-field="smobile" data-sortable='true'>Res. Mob.</th>
 									 <?php } ?>
                                     <th data-field="name" data-sortable='true'>U.Name</th>
 									<th data-field="mobile" data-sortable='true' data-visible="true">Mob.</th>

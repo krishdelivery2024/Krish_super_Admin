@@ -37,11 +37,15 @@ if (!empty($res)) {
 }
 $s_id = isset($res[0]['seller_id']) ? (int) $res[0]['seller_id'] : 0;
 $seller_comm = 0.0;
+$seller_info = array();
 if ($s_id > 0) {
-    $db->sql("SELECT commission FROM seller WHERE id = $s_id LIMIT 1");
+    $db->sql("SELECT id, name, company_name, mobile, commission FROM seller WHERE id = $s_id LIMIT 1");
     $s_res = $db->getResult();
-    if (!empty($s_res) && isset($s_res[0]['commission']) && $s_res[0]['commission'] !== '') {
-        $seller_comm = floatval($s_res[0]['commission']);
+    if (!empty($s_res)) {
+        $seller_info = $s_res[0];
+        if (isset($s_res[0]['commission']) && $s_res[0]['commission'] !== '') {
+            $seller_comm = floatval($s_res[0]['commission']);
+        }
     }
 }
 $seller_recv_amount = round($vendor_order_total * (1 - ($seller_comm / 100)), 2);
@@ -114,6 +118,24 @@ if ($res[0]['payment_method'] == 'cod' || $res[0]['payment_method'] == 'wallet' 
                                 <th style="width: 10px">Contact</th>
                                 <td><?php echo $res[0]['mobile']; ?></td>
                             </tr>
+                            <?php if (!empty($seller_info)) {
+                                $rest_name = !empty(trim((string)$seller_info['company_name'])) ? trim($seller_info['company_name']) : (!empty(trim((string)$seller_info['name'])) ? trim($seller_info['name']) : '-');
+                                $v_name = !empty(trim((string)$seller_info['name'])) ? trim($seller_info['name']) : '';
+                                $v_mob = !empty(trim((string)$seller_info['mobile'])) ? trim($seller_info['mobile']) : '';
+                            ?>
+                            <tr>
+                                <th style="width: 10px">Restaurant</th>
+                                <td>
+                                    <b><?= htmlspecialchars($rest_name) ?></b>
+                                    <?php if (!empty($v_name) && strcasecmp($rest_name, $v_name) !== 0) { ?>
+                                        <span class="text-muted" style="margin-left: 10px;"><i class="fa fa-user"></i> <?= htmlspecialchars($v_name) ?></span>
+                                    <?php } ?>
+                                    <?php if (!empty($v_mob)) { ?>
+                                        <span class="text-muted" style="margin-left: 10px;"><i class="fa fa-phone"></i> <?= htmlspecialchars($v_mob) ?></span>
+                                    <?php } ?>
+                                </td>
+                            </tr>
+                            <?php } ?>
                             <tr>
                                 <th style="width: 10px">Items</th>
                                 <td><?php $total = 0;

@@ -639,6 +639,9 @@ $boys_offline_kpi = isset($res_db_kpi[0]['offline_boys_kpi']) ? (int)$res_db_kpi
 												<th data-field="date_added" data-sortable='true' data-visible="true">Order Date</th>
 												<th data-field="user_id" data-sortable='true' data-visible="false">User ID</th>
 												<th data-field="qty" data-sortable='true' data-visible="false">Qty</th>
+												<?php if(isset($_SESSION['role']) && $_SESSION['role'] != 'seller'){ ?>
+												<th data-field="sname" data-sortable='true'>Restaurant</th>
+												<?php } ?>
 												<th data-field="name" data-sortable='true'>U.Name</th>
 												<th data-field="mobile" data-sortable='true' data-visible="true">Mob.</th>
 												<th data-field="items" data-sortable='true' data-visible="true">Items</th>
