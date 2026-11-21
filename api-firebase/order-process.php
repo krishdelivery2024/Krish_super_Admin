@@ -350,7 +350,7 @@ if (isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['p
 
 		$db->sql("SELECT * FROM delivery_method WHERE id=1");
 		$dm_rows = $db->getResult();
-		$dm_row = $dm_rows[0];
+		$dm_row = !empty($dm_rows) ? $dm_rows[0] : array();
 		$dm_dunzo_enable = isset($dm_row['dunzo']) ? $dm_row['dunzo'] : 0;
 
 		// The tariff has to be the one configured for the zone the order is actually
@@ -358,36 +358,60 @@ if (isset($_POST['place_order']) && isset($_POST['user_id']) && !empty($_POST['p
 		// at the global rate here. Reuses the zone resolved further down for fees.
 		$dm_zone_cfg = $function->get_zone_delivery_config($order_zone_id, $dm_row);
 
-		if (
-			$dm_dunzo_enable != '1' && $dm_zone_cfg['in_person_delivery']
-			&& !empty($dm_zone_cfg['in_persion_data']) && $seller_id
-		) {
+		$dm_store_lat = 0;
+		$dm_store_long = 0;
+		if (!empty($seller_id)) {
 			$db->sql("select latitude,longitude from `seller` where id = '" . $db->escapeString($seller_id) . "' limit 1");
 			$dm_seller_rows = $db->getResult();
-			$dm_store_lat = !empty($dm_seller_rows[0]['latitude'])
-				? (float) $dm_seller_rows[0]['latitude']
-				: (float) (isset($dm_settings['store_lattitude']) ? $dm_settings['store_lattitude'] : 0);
-			$dm_store_long = !empty($dm_seller_rows[0]['longitude'])
-				? (float) $dm_seller_rows[0]['longitude']
-				: (float) (isset($dm_settings['store_longitude']) ? $dm_settings['store_longitude'] : 0);
-
-			$dm_charge = $function->get_food_delivery_charge(
-				$dm_store_lat,
-				$dm_store_long,
-				$latitude,
-				$longitude,
-				$dm_zone_cfg['in_persion_data']
-			);
-			if ($dm_charge['error'] === '') {
-				$delivery_charge = $dm_charge['delivery_charge'];
-				if ($dm_charge['distance_source'] == 'fallback') {
-					log_order_debug("Delivery charge for order used the straight-line fallback (" .
-						$dm_charge['distance_km'] . " km) because the Maps API did not respond. Seller " . $seller_id);
-				}
-			} else {
-				log_order_debug("Could not verify the delivery charge for this order: " . $dm_charge['error'] .
-					". Keeping the quoted amount " . $delivery_charge . ".");
+			if (!empty($dm_seller_rows[0]['latitude'])) {
+				$dm_store_lat = (float) $dm_seller_rows[0]['latitude'];
+				$dm_store_long = (float) $dm_seller_rows[0]['longitude'];
 			}
+		}
+		if ($dm_store_lat == 0 && isset($dm_settings['store_lattitude'])) {
+			$dm_store_lat = (float) $dm_settings['store_lattitude'];
+		}
+		if ($dm_store_long == 0 && isset($dm_settings['store_longitude'])) {
+			$dm_store_long = (float) $dm_settings['store_longitude'];
+		}
+
+		$tariff_data = !empty($dm_zone_cfg['in_persion_data']) ? $dm_zone_cfg['in_persion_data'] : (isset($dm_row['in_persion_data']) ? $dm_row['in_persion_data'] : array());
+
+		if ($dm_dunzo_enable != '1' && !empty($tariff_data)) {
+			if ($dm_store_lat != 0 && $dm_store_long != 0 && (float) $latitude != 0 && (float) $longitude != 0) {
+				$dm_charge = $function->get_food_delivery_charge(
+					$dm_store_lat,
+					$dm_store_long,
+					(float) $latitude,
+					(float) $longitude,
+					$tariff_data
+				);
+				if ($dm_charge['error'] === '' && (float) $dm_charge['delivery_charge'] > 0) {
+					$delivery_charge = $dm_charge['delivery_charge'];
+					if ($dm_charge['distance_source'] == 'fallback') {
+						log_order_debug("Delivery charge for order used straight-line fallback (" .
+							$dm_charge['distance_km'] . " km). Seller " . $seller_id);
+					}
+				} else {
+					$straight_dist = (float) $function->GetDeliveryDistance($dm_store_lat, (float) $latitude, $dm_store_long, (float) $longitude);
+					$fallback_chg = (float) $function->food_delivery_tariff_charge(round($straight_dist, 2), $tariff_data);
+					if ($fallback_chg > 0) {
+						$delivery_charge = $fallback_chg;
+					}
+					log_order_debug("Delivery charge calculated via straight-line fallback: " . $delivery_charge . " (" . round($straight_dist, 2) . " km).");
+				}
+			}
+		}
+
+		// Fallback: Door delivery must NEVER have a 0 delivery charge
+		if ((float) $delivery_charge <= 0) {
+			$decoded_t = is_string($tariff_data) ? json_decode($tariff_data, true) : $tariff_data;
+			if (!empty($decoded_t['first_km_amount']) && (float) $decoded_t['first_km_amount'] > 0) {
+				$delivery_charge = (float) $decoded_t['first_km_amount'];
+			} else {
+				$delivery_charge = 20.0;
+			}
+			log_order_debug("Delivery charge fell back to base amount: " . $delivery_charge);
 		}
 	}
 	$total_amount = $total + $delivery_charge - $discount;

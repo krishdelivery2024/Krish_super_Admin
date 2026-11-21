@@ -176,6 +176,61 @@ if (!function_exists('execute_order_placement')) {
         $order_platform_fee = isset($order_zone_fees['platform_fee']) ? $order_zone_fees['platform_fee'] : 0.0;
         $order_convenience_fee = isset($order_zone_fees['convenience_fee']) ? $order_zone_fees['convenience_fee'] : 0.0;
 
+        // Delivery charge recomputation / verification: door delivery must never be 0
+        if ($delivery_charge == 'Free' || $delivery_method == 'storepickup') {
+            $delivery_charge = 0;
+        } else {
+            $db->sql("SELECT * FROM delivery_method WHERE id=1");
+            $dm_rows = $db->getResult();
+            $dm_row = !empty($dm_rows) ? $dm_rows[0] : array();
+            $dm_dunzo_enable = isset($dm_row['dunzo']) ? $dm_row['dunzo'] : 0;
+            $dm_zone_cfg = $function->get_zone_delivery_config($order_zone_id, $dm_row);
+
+            $dm_store_lat = 0;
+            $dm_store_long = 0;
+            if (!empty($seller_id)) {
+                $db->sql("SELECT latitude, longitude FROM `seller` WHERE id = '" . (int)$seller_id . "' LIMIT 1");
+                $dm_seller_rows = $db->getResult();
+                if (!empty($dm_seller_rows[0]['latitude'])) {
+                    $dm_store_lat = (float)$dm_seller_rows[0]['latitude'];
+                    $dm_store_long = (float)$dm_seller_rows[0]['longitude'];
+                }
+            }
+            if ($dm_store_lat == 0 && isset($fee_settings['store_lattitude'])) {
+                $dm_store_lat = (float)$fee_settings['store_lattitude'];
+            }
+            if ($dm_store_long == 0 && isset($fee_settings['store_longitude'])) {
+                $dm_store_long = (float)$fee_settings['store_longitude'];
+            }
+
+            $tariff_data = !empty($dm_zone_cfg['in_persion_data']) ? $dm_zone_cfg['in_persion_data'] : (isset($dm_row['in_persion_data']) ? $dm_row['in_persion_data'] : array());
+
+            if ($dm_dunzo_enable != '1' && !empty($tariff_data)) {
+                if ($dm_store_lat != 0 && $dm_store_long != 0 && (float)$latitude != 0 && (float)$longitude != 0) {
+                    $dm_charge = $function->get_food_delivery_charge($dm_store_lat, $dm_store_long, (float)$latitude, (float)$longitude, $tariff_data);
+                    if ($dm_charge['error'] === '' && (float)$dm_charge['delivery_charge'] > 0) {
+                        $delivery_charge = $dm_charge['delivery_charge'];
+                    } else {
+                        $straight_dist = (float)$function->GetDeliveryDistance($dm_store_lat, (float)$latitude, $dm_store_long, (float)$longitude);
+                        $fallback_chg = (float)$function->food_delivery_tariff_charge(round($straight_dist, 2), $tariff_data);
+                        if ($fallback_chg > 0) {
+                            $delivery_charge = $fallback_chg;
+                        }
+                    }
+                }
+            }
+
+            // Fallback: If delivery charge is still 0 or empty for door delivery, use base slab
+            if ((float)$delivery_charge <= 0) {
+                $decoded_t = is_string($tariff_data) ? json_decode($tariff_data, true) : $tariff_data;
+                if (!empty($decoded_t['first_km_amount']) && (float)$decoded_t['first_km_amount'] > 0) {
+                    $delivery_charge = (float)$decoded_t['first_km_amount'];
+                } else {
+                    $delivery_charge = 20.0;
+                }
+            }
+        }
+
         // Seller & delivery commissions
         $order_seller_commission = 0.0;
         if (!empty($seller_id)) {

@@ -3992,8 +3992,6 @@ if (isset($_GET['table']) && $_GET['table'] == 'delivery_boy_report') {
 			? explode('||', $row['discounted_price_list'])
 			: array('0');
 
-		$tempRow['delivery_charge'] = !empty($row['delivery_charge']) ? $row['delivery_charge'] : '0';
-
 		$u_lat = (float) (!empty($row['latitude']) ? $row['latitude'] : 0);
 		$u_lng = (float) (!empty($row['longitude']) ? $row['longitude'] : 0);
 		$s_lat = (float) (!empty($row['seller_lat']) ? $row['seller_lat'] : 0);
@@ -4022,6 +4020,23 @@ if (isset($_GET['table']) && $_GET['table'] == 'delivery_boy_report') {
 			: $global_db_comm;
 
 		$del_charge = !empty($row['delivery_charge']) ? floatval($row['delivery_charge']) : 0.0;
+
+		// If delivery charge was stored as 0 or empty, but distance is > 0 and assigned to delivery boy:
+		if ($del_charge <= 0 && $dist_val > 0) {
+			if (!isset($db_report_cached_tariff)) {
+				$db->sql("SELECT in_persion_data FROM delivery_method WHERE id=1");
+				$dmt_res = $db->getResult();
+				$db_report_cached_tariff = isset($dmt_res[0]['in_persion_data']) ? $dmt_res[0]['in_persion_data'] : '';
+			}
+			$calc_chg = (float) $fn->food_delivery_tariff_charge($dist_val, $db_report_cached_tariff);
+			if ($calc_chg > 0) {
+				$del_charge = $calc_chg;
+				// Auto-heal orders table in database for this order
+				$db->sql("UPDATE orders SET delivery_charge = '" . $del_charge . "' WHERE id = '" . (int)$row['id'] . "' AND (delivery_charge = 0 OR delivery_charge = '' OR delivery_charge IS NULL)");
+			}
+		}
+
+		$tempRow['delivery_charge'] = number_format($del_charge, 2, '.', '');
 		$db_received = round($del_charge - $db_comm_amt, 2);
 		if ($db_received < 0) {
 			$db_received = 0.0;

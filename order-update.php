@@ -81,6 +81,27 @@ if(isset($_POST['id'])) {
 		}
 		$sql="UPDATE orders SET `delivery_boy_id`='".$delivery_boy_id."' WHERE id=".$id;
 		$db->sql($sql);	
+
+		// If the assigned order has delivery_charge = 0, auto-calculate and update delivery charge
+		$sql_check_dc = "SELECT o.delivery_charge, o.delivery_method, o.latitude, o.longitude, o.seller_id, s.latitude as s_lat, s.longitude as s_lng FROM orders o LEFT JOIN seller s ON s.id = o.seller_id WHERE o.id = $id";
+		$db->sql($sql_check_dc);
+		$ord_info = $db->getResult();
+		if (!empty($ord_info) && (float)$ord_info[0]['delivery_charge'] <= 0) {
+			$u_lat = (float)$ord_info[0]['latitude'];
+			$u_lng = (float)$ord_info[0]['longitude'];
+			$s_lat = (float)$ord_info[0]['s_lat'];
+			$s_lng = (float)$ord_info[0]['s_lng'];
+			if ($s_lat != 0 && $s_lng != 0 && $u_lat != 0 && $u_lng != 0) {
+				$dist = round((float)$function->GetDeliveryDistance($s_lat, $u_lat, $s_lng, $u_lng), 2);
+				$db->sql("SELECT in_persion_data FROM delivery_method WHERE id=1");
+				$dm_res = $db->getResult();
+				$tariff = isset($dm_res[0]['in_persion_data']) ? $dm_res[0]['in_persion_data'] : '';
+				$calc_dc = (float)$function->food_delivery_tariff_charge($dist, $tariff);
+				if ($calc_dc > 0) {
+					$db->sql("UPDATE orders SET delivery_charge = '$calc_dc'" . ($ord_info[0]['delivery_method'] == 'storepickup' ? ", delivery_method = 'in_persion_delivery'" : "") . " WHERE id = $id");
+				}
+			}
+		}	
 	}
 	$sql = "SELECT COUNT(id) as cancelled FROM `orders` WHERE id=".$id." && (active_status LIKE '%cancelled%' OR active_status LIKE '%returned%')";
 	$db->sql($sql);
