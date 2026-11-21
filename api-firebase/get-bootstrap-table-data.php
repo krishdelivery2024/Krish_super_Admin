@@ -80,6 +80,7 @@ if (isset($_GET['table']) && $_GET['table'] == 'orders') {
 		'mobile' => 'o.mobile',
 		'total' => 'o.total',
 		'delivery_charge' => 'o.delivery_charge',
+		'distance' => 'o.delivery_charge',
 		'discount' => 'o.total',          // discount is computed, fallback
 		'promo_code' => 'o.promo_code',
 		'promo_discount' => 'o.promo_discount',
@@ -158,7 +159,7 @@ if (isset($_GET['table']) && $_GET['table'] == 'orders') {
 	$res = $db->getResult();
 	$total = isset($res) ? $res[0]['total'] : 0;
 
-	$sql = "select o.*, u.name, s.name as vendor_name, s.company_name, s.mobile as vendor_mobile, z.name as zone_name, b.name as delivery_boy_name 
+	$sql = "select o.*, u.name, s.name as vendor_name, s.company_name, s.mobile as vendor_mobile, s.latitude as s_latitude, s.longitude as s_longitude, z.name as zone_name, b.name as delivery_boy_name 
               FROM orders o 
               JOIN users u ON u.id=o.user_id 
               LEFT JOIN seller s ON s.id=o.seller_id 
@@ -362,6 +363,22 @@ if (isset($_GET['table']) && $_GET['table'] == 'orders') {
 		$tempRow['active_status'] = $active_status;
 		$tempRow['date_added'] = date('d-m-Y H:i', strtotime($row['date_added']));
 
+		$u_lat = (float) (!empty($row['latitude']) ? $row['latitude'] : 0);
+		$u_lng = (float) (!empty($row['longitude']) ? $row['longitude'] : 0);
+		$s_lat = (float) (!empty($row['s_latitude']) ? $row['s_latitude'] : 0);
+		$s_lng = (float) (!empty($row['s_longitude']) ? $row['s_longitude'] : 0);
+		if ($s_lat == 0 && isset($config['store_lattitude'])) {
+			$s_lat = (float) $config['store_lattitude'];
+		}
+		if ($s_lng == 0 && isset($config['store_longitude'])) {
+			$s_lng = (float) $config['store_longitude'];
+		}
+		$dist_val = 0.0;
+		if ($u_lat != 0 && $u_lng != 0 && $s_lat != 0 && $s_lng != 0) {
+			$dist_val = round($fn->GetDeliveryDistance($s_lat, $u_lat, $s_lng, $u_lng), 2);
+		}
+		$tempRow['distance'] = ($dist_val > 0) ? $dist_val . ' km' : '-';
+
 		if (isset($_SESSION['role']) && $_SESSION['role'] != 'seller') {
 			$restaurant_name = !empty(trim((string) $row['company_name'])) ? trim($row['company_name']) : (!empty(trim((string) $row['vendor_name'])) ? trim($row['vendor_name']) : '-');
 			$vendor_name = !empty(trim((string) $row['vendor_name'])) ? trim($row['vendor_name']) : '';
@@ -482,6 +499,20 @@ if (isset($_GET['table']) && $_GET['table'] == 'orders') {
 			$tempRow['status'] = '';
 			$tempRow['active_status'] = $active_status;
 			$tempRow['date_added'] = date('d-m-Y', strtotime($row['created_at']));
+
+			$p_km = (isset($row['distance_km']) && is_numeric($row['distance_km']) && (float) $row['distance_km'] > 0)
+				? round((float) $row['distance_km'], 2)
+				: 0.0;
+			if ($p_km == 0.0) {
+				$p_lat1 = (float) (!empty($row['pickup_lat']) ? $row['pickup_lat'] : 0);
+				$p_lng1 = (float) (!empty($row['pickup_lng']) ? $row['pickup_lng'] : 0);
+				$p_lat2 = (float) (!empty($row['drop_lat']) ? $row['drop_lat'] : 0);
+				$p_lng2 = (float) (!empty($row['drop_lng']) ? $row['drop_lng'] : 0);
+				if ($p_lat1 != 0 && $p_lng1 != 0 && $p_lat2 != 0 && $p_lng2 != 0) {
+					$p_km = round($fn->GetDeliveryDistance($p_lat1, $p_lat2, $p_lng1, $p_lng2), 2);
+				}
+			}
+			$tempRow['distance'] = ($p_km > 0) ? $p_km . ' km' : '-';
 			if (isset($_SESSION['role']) && $_SESSION['role'] != 'seller') {
 				$tempRow['sname'] = '<span class="label label-default"><i class="fa fa-cube"></i> Parcel</span>';
 				$tempRow['smobile'] = '-';
@@ -3716,6 +3747,7 @@ if (isset($_GET['table']) && $_GET['table'] == 'delivery_boy_report') {
 		'zone_name' => 'z.name',
 		'delivery_boy_zone_name' => 'dz.name',
 		'delivery_charge' => 'o.delivery_charge',
+		'distance' => 'o.delivery_charge',
 		'final_total' => 'o.final_total',
 		'platform_fee' => 'o.platform_fee',
 		'convenience_fee' => 'o.convenience_fee',
@@ -3794,6 +3826,10 @@ if (isset($_GET['table']) && $_GET['table'] == 'delivery_boy_report') {
 	$select_block = "
             SELECT
                 o.id,
+                o.latitude,
+                o.longitude,
+                s.latitude          AS seller_lat,
+                s.longitude         AS seller_lng,
                 db.name             AS delivery_boy_name,
                 db.mobile           AS delivery_boy_mobile,
                 db.bonus            AS delivery_boy_bonus,
@@ -3831,6 +3867,9 @@ if (isset($_GET['table']) && $_GET['table'] == 'delivery_boy_report') {
                 ) AS discounted_price_list
      
             FROM orders o
+
+            LEFT JOIN seller s
+                ON s.id = o.seller_id
      
             LEFT JOIN order_items oi
                 ON oi.order_id = o.id
@@ -3954,6 +3993,23 @@ if (isset($_GET['table']) && $_GET['table'] == 'delivery_boy_report') {
 			: array('0');
 
 		$tempRow['delivery_charge'] = !empty($row['delivery_charge']) ? $row['delivery_charge'] : '0';
+
+		$u_lat = (float) (!empty($row['latitude']) ? $row['latitude'] : 0);
+		$u_lng = (float) (!empty($row['longitude']) ? $row['longitude'] : 0);
+		$s_lat = (float) (!empty($row['seller_lat']) ? $row['seller_lat'] : 0);
+		$s_lng = (float) (!empty($row['seller_lng']) ? $row['seller_lng'] : 0);
+		if ($s_lat == 0 && isset($db_report_sys_config['store_lattitude'])) {
+			$s_lat = (float) $db_report_sys_config['store_lattitude'];
+		}
+		if ($s_lng == 0 && isset($db_report_sys_config['store_longitude'])) {
+			$s_lng = (float) $db_report_sys_config['store_longitude'];
+		}
+		$dist_val = 0.0;
+		if ($u_lat != 0 && $u_lng != 0 && $s_lat != 0 && $s_lng != 0) {
+			$dist_val = round($fn->GetDeliveryDistance($s_lat, $u_lat, $s_lng, $u_lng), 2);
+		}
+		$tempRow['distance'] = ($dist_val > 0) ? $dist_val . ' km' : '-';
+
 		$tempRow['final_total'] = $row['final_total'];
 		// Read from the order instead of a hardcoded 2, so a zone that
 		// overrides the platform fee reports what was actually charged.
@@ -4186,6 +4242,9 @@ if (isset($_GET['table']) && $_GET['table'] == 'sales_products') {
                 ) AS item_subtotal_list
      
             FROM orders o
+
+            LEFT JOIN seller s
+                ON s.id = o.seller_id
      
             LEFT JOIN order_items oi
                 ON oi.order_id = o.id

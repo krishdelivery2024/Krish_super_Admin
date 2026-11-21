@@ -195,6 +195,7 @@
                             <th data-field="platform_fee" data-sortable="true" data-align="right" data-footer-formatter="dbMoneyFormatter">Platform Fee (&#8377;)</th>
                             <th data-field="convenience_fee" data-sortable="true" data-align="right" data-footer-formatter="dbMoneyFormatter">Convenience Fee (&#8377;)</th>
                             <th data-field="delivery_charge" data-sortable="true" data-align="right" data-footer-formatter="dbMoneyFormatter">Delivery Charge (&#8377;)</th>
+                            <th data-field="distance" data-sortable="false" data-align="center" data-footer-formatter="dbDistanceFormatter">Distance</th>
                             <th data-field="final_total" data-sortable="true" data-align="right" data-footer-formatter="dbMoneyFormatter">Final Total (&#8377;)</th>
                             <th data-field="delivery_boy_received" data-sortable="false" data-align="right" data-footer-formatter="dbMoneyFormatter">Delivery Boy Received (&#8377;)</th>
                             <th data-field="commission_amount" data-sortable="false" data-align="right" data-footer-formatter="dbMoneyFormatter">Commission (&#8377;)</th>
@@ -242,6 +243,22 @@
             }
         }
         return '<span style="color:green;font-weight:bold;font-size:large;">&#8377; ' + sum.toFixed(2) + '</span>';
+    }
+
+    function dbDistanceFormatter(data) {
+        var field = this.field;
+        var sum = 0;
+        if (data && data.length) {
+            for (var i = 0; i < data.length; i++) {
+                var row = data[i];
+                if (!row) continue;
+                var val = row[field];
+                if (!val) continue;
+                var num = parseFloat(String(val).replace(/[^0-9.]/g, ''));
+                if (!isNaN(num)) sum += num;
+            }
+        }
+        return '<span style="color:#0073b7;font-weight:bold;font-size:large;">' + sum.toFixed(2) + ' km</span>';
     }
 
     // product_details arrives as an array, e.g.

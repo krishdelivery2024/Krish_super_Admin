@@ -39,7 +39,7 @@ $s_id = isset($res[0]['seller_id']) ? (int) $res[0]['seller_id'] : 0;
 $seller_comm = 0.0;
 $seller_info = array();
 if ($s_id > 0) {
-    $db->sql("SELECT id, name, company_name, mobile, commission FROM seller WHERE id = $s_id LIMIT 1");
+    $db->sql("SELECT id, name, company_name, mobile, latitude, longitude, commission FROM seller WHERE id = $s_id LIMIT 1");
     $s_res = $db->getResult();
     if (!empty($s_res)) {
         $seller_info = $s_res[0];
@@ -134,6 +134,22 @@ if ($res[0]['payment_method'] == 'cod' || $res[0]['payment_method'] == 'wallet' 
                                         <span class="text-muted" style="margin-left: 10px;"><i class="fa fa-phone"></i> <?= htmlspecialchars($v_mob) ?></span>
                                     <?php } ?>
                                 </td>
+                            </tr>
+                            <?php } ?>
+                            <?php
+                            $ord_u_lat = (float) (!empty($res[0]['latitude']) ? $res[0]['latitude'] : 0);
+                            $ord_u_lng = (float) (!empty($res[0]['longitude']) ? $res[0]['longitude'] : 0);
+                            $ord_s_lat = (float) (!empty($seller_info['latitude']) ? $seller_info['latitude'] : 0);
+                            $ord_s_lng = (float) (!empty($seller_info['longitude']) ? $seller_info['longitude'] : 0);
+                            if ($ord_s_lat == 0 && isset($settings['store_lattitude'])) $ord_s_lat = (float) $settings['store_lattitude'];
+                            if ($ord_s_lng == 0 && isset($settings['store_longitude'])) $ord_s_lng = (float) $settings['store_longitude'];
+                            $ord_dist = ($ord_u_lat != 0 && $ord_u_lng != 0 && $ord_s_lat != 0 && $ord_s_lng != 0)
+                                ? round($function->GetDeliveryDistance($ord_s_lat, $ord_u_lat, $ord_s_lng, $ord_u_lng), 2)
+                                : 0;
+                            if ($ord_dist > 0) { ?>
+                            <tr>
+                                <th style="width: 10px">Distance</th>
+                                <td><b><?= $ord_dist ?> km</b></td>
                             </tr>
                             <?php } ?>
                             <tr>

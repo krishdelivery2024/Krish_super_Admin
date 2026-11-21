@@ -647,6 +647,7 @@ $boys_offline_kpi = isset($res_db_kpi[0]['offline_boys_kpi']) ? (int)$res_db_kpi
 												<th data-field="items" data-sortable='true' data-visible="true">Items</th>
 												<th data-field="total" data-sortable='true' data-visible="true">Total(<?=$settings['currency']?>)</th>
 												<th data-field="delivery_charge" data-sortable='true'>D.Chrg</th>
+												<th data-field="distance" data-sortable='false' data-visible="true">Distance</th>
 												<th data-field="tax" data-sortable='false'>Tax <?=$settings['currency']?>(%)</th>
 												<th data-field="discount" data-sortable='true' data-visible="true">Disc.<?=$settings['currency']?>(%)</th>
 												<th data-field="promo_code" data-sortable='true' data-visible="false">Promo Code</th>

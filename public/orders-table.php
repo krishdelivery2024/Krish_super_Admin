@@ -167,6 +167,7 @@
                                     <th data-field="name" data-sortable='true'>Customer</th>
                                     <th data-field="mobile" data-sortable='true' data-visible="true">Mobile</th>
                                     <th data-field="items" data-sortable='true' data-visible="true">Items</th>
+                                    <th data-field="distance" data-sortable='false' data-visible="true">Distance</th>
                                     <th data-field="vendor_total" data-sortable='true' data-visible="true">Vendor Total(<?=$settings['currency']?>)</th>
                                     <th data-field="seller_received" data-sortable='true' data-visible="true">Seller Received(<?=$settings['currency']?>)</th>
                                     <th data-field="active_status" data-sortable='true' data-visible='true'>Status</th>
@@ -186,6 +187,7 @@
 									<th data-field="items" data-sortable='true' data-visible="true">Items</th>
 									<th data-field="total" data-sortable='true' data-visible="true">Total(<?=$settings['currency']?>)</th>
 									<th data-field="delivery_charge" data-sortable='true'>D.Chrg</th>
+									<th data-field="distance" data-sortable='false' data-visible="true">Distance</th>
 									<th data-field="tax" data-sortable='false'>Tax <?=$settings['currency']?>(%)</th>
 									<th data-field="discount" data-sortable='true' data-visible="false">Disc.<?=$settings['currency']?>(%)</th>
 									<th data-field="promo_code" data-sortable='true' data-visible="false">Promo Code</th>
